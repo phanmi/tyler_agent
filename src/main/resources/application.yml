@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: tyler-agent
+
+server:
+  port: 8080
+
+openai:
+  model: gpt-5.6
