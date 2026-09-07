@@ -1,25 +1,30 @@
 package org.tyler.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.service.IAgentService;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AgentController.class)
 class AgentControllerTest {
 
-    @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
     private IAgentService agentService;
+
+    @BeforeEach
+    void setUp() {
+        agentService = mock(IAgentService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new AgentController(agentService))
+                .setControllerAdvice(new GenericExceptionHandler())
+                .build();
+    }
 
     @Test
     void chatReturnsReply() throws Exception {

@@ -1,10 +1,12 @@
 package org.tyler.tool;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
+import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.service.FileSandbox;
 
 import java.util.List;
@@ -39,16 +41,17 @@ public class ReadFileTool implements ITool {
 
     @Override
     public String execute(String argumentsJson) {
+        JsonNode node;
         try {
-            JsonNode node = MAPPER.readTree(argumentsJson);
-            JsonNode pathNode = node.get("path");
-            if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
-                return "读取失败：缺少参数 path";
-            }
-            return sandbox.read(pathNode.asText());
-        } catch (Exception e) {
-            return "读取文件失败：" + e.getMessage();
+            node = MAPPER.readTree(argumentsJson);
+        } catch (JsonProcessingException e) {
+            throw new FileReadException("解析参数失败：" + e.getMessage(), e);
         }
+        JsonNode pathNode = node.get("path");
+        if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
+            throw new FileReadException("缺少参数 path");
+        }
+        return sandbox.read(pathNode.asText());
     }
 
     @Override

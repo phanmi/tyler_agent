@@ -2,6 +2,7 @@ package org.tyler.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.tyler.exceptionHandler.exception.FileReadException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,5 +38,12 @@ class FileSandboxTest {
     void rejectsBlankPath() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         assertThrows(IllegalArgumentException.class, () -> sandbox.read("   "));
+    }
+
+    @Test
+    void readingMissingFileThrowsFileReadException() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        assertThrows(FileReadException.class,
+                () -> sandbox.read("does-not-exist.txt"));
     }
 }

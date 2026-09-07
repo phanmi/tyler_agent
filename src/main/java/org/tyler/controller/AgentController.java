@@ -1,5 +1,7 @@
 package org.tyler.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +11,8 @@ import org.tyler.service.IAgentService;
 @RestController
 @RequestMapping("/api/agent")
 public class AgentController implements IAgentController {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentController.class);
 
     private final IAgentService agentService;
 
@@ -22,6 +26,16 @@ public class AgentController implements IAgentController {
         if (request.message() == null || request.message().isBlank()) {
             throw new IllegalArgumentException("message 不能为空");
         }
-        return new ChatResponse(agentService.ask(request.message().trim()));
+        String message = request.message().trim();
+        log.info("收到聊天请求，消息长度 {} 字符", message.length());
+        log.debug("用户消息正文：{}", message);
+
+        long start = System.currentTimeMillis();
+        String reply = agentService.ask(message);
+        long elapsed = System.currentTimeMillis() - start;
+
+        log.info("聊天完成，回复长度 {} 字符，总耗时 {} ms", reply.length(), elapsed);
+        log.debug("回复正文：{}", reply);
+        return new ChatResponse(reply);
     }
 }

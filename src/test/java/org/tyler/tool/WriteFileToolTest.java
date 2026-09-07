@@ -2,13 +2,14 @@ package org.tyler.tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.service.FileSandbox;
 
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class WriteFileToolTest {
 
@@ -25,10 +26,24 @@ class WriteFileToolTest {
     }
 
     @Test
-    void returnsErrorWhenContentMissing() throws Exception {
+    void throwsWhenContentMissing() throws Exception {
         WriteFileTool tool = new WriteFileTool(new FileSandbox(tempDir.toString()));
-        String result = tool.execute("{\"path\":\"p.txt\"}");
-        assertTrue(result.startsWith("写入失败"));
+        assertThrows(FileWriteException.class,
+                () -> tool.execute("{\"path\":\"p.txt\"}"));
+    }
+
+    @Test
+    void throwsWhenPathMissing() throws Exception {
+        WriteFileTool tool = new WriteFileTool(new FileSandbox(tempDir.toString()));
+        assertThrows(FileWriteException.class,
+                () -> tool.execute("{\"content\":\"x\"}"));
+    }
+
+    @Test
+    void throwsWhenJsonInvalid() throws Exception {
+        WriteFileTool tool = new WriteFileTool(new FileSandbox(tempDir.toString()));
+        assertThrows(FileWriteException.class,
+                () -> tool.execute("not-json"));
     }
 
     @Test

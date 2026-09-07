@@ -1,7 +1,11 @@
 package org.tyler.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.tyler.exceptionHandler.exception.FileReadException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,6 +19,8 @@ import java.nio.file.Path;
  */
 @Component
 public class FileSandbox {
+
+    private static final Logger log = LoggerFactory.getLogger(FileSandbox.class);
 
     private final Path root;
 
@@ -37,18 +43,32 @@ public class FileSandbox {
     }
 
     /** 读取沙箱内的文件内容。相对路径越界或为空会抛异常。 */
-    public String read(String relativePath) throws IOException {
-        return Files.readString(resolveInside(relativePath));
+    public String read(String relativePath) {
+        log.debug("读取文件：{}", relativePath);
+        try {
+            return Files.readString(resolveInside(relativePath));
+        } catch (IOException e) {
+            throw new FileReadException(e.getMessage(), e);
+        }
     }
 
     /** 把内容写入沙箱内的文件，自动创建父目录。 */
-    public void write(String relativePath, String content) throws IOException {
+    public void write(String relativePath, String content) {
+        log.debug("写入文件：{}（{} 字符）", relativePath, content == null ? 0 : content.length());
         Path target = resolveInside(relativePath);
         Path parent = target.getParent();
         if (parent != null) {
-            Files.createDirectories(parent);
+            try {
+                Files.createDirectories(parent);
+            } catch (IOException e) {
+                throw new FileWriteException(e.getMessage(), e);
+            }
         }
-        Files.writeString(target, content);
+        try {
+            Files.writeString(target, content);
+        } catch (IOException e) {
+            throw new FileWriteException(e.getMessage(), e);
+        }
     }
 
     /** 把相对路径解析到沙箱内，并校验没有越界。 */

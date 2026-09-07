@@ -9,6 +9,8 @@ import com.openai.models.responses.ResponseInputItem;
 import com.openai.models.responses.ResponseOutputItem;
 import com.openai.models.responses.ResponseOutputMessage;
 import com.openai.models.responses.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tyler.tool.ITool;
@@ -18,6 +20,8 @@ import java.util.List;
 
 @Service
 public class AgentService implements IAgentService {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentService.class);
 
     /** 防止模型反复调用工具导致死循环的兜底上限。 */
     private static final int MAX_TOOL_ROUNDS = 5;
@@ -36,14 +40,21 @@ public class AgentService implements IAgentService {
 
     @Override
     public String ask(String message) {
+        log.debug("调用 OpenAI，用户消息：{}", message);
+        long start = System.currentTimeMillis();
         Response response = client.responses().create(createParams(message, null, null));
+        log.info("OpenAI 首次调用完成，model={}，耗时 {} ms", model, System.currentTimeMillis() - start);
 
         int rounds = 0;
         while (hasFunctionCall(response) && rounds < MAX_TOOL_ROUNDS) {
+            long roundStart = System.currentTimeMillis();
             response = client.responses().create(submitToolOutputsParams(response));
             rounds++;
+            log.info("OpenAI 工具轮次 {} 完成，耗时 {} ms", rounds, System.currentTimeMillis() - roundStart);
         }
-        return extractText(response);
+        String reply = extractText(response);
+        log.debug("OpenAI 最终回复：{}", reply);
+        return reply;
     }
 
     /** 首次调用 / 后续调用共用的参数构造。previousResponseId 与 input 二选一。 */
@@ -83,7 +94,13 @@ public class AgentService implements IAgentService {
     private String execute(String name, String argumentsJson) {
         for (ITool tool : tools) {
             if (tool.name().equals(name)) {
-                return tool.execute(argumentsJson);
+                log.debug("执行工具 {}，参数：{}", name, argumentsJson);
+                long start = System.currentTimeMillis();
+                String result = tool.execute(argumentsJson);
+                long elapsed = System.currentTimeMillis() - start;
+                log.info("工具 {} 执行完成，耗时 {} ms", name, elapsed);
+                log.debug("工具 {} 结果：{}", name, result);
+                return result;
             }
         }
         throw new IllegalStateException("未知的工具：" + name);

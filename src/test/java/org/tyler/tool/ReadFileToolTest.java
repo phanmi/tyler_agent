@@ -2,13 +2,14 @@ package org.tyler.tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.service.FileSandbox;
 
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ReadFileToolTest {
 
@@ -24,10 +25,22 @@ class ReadFileToolTest {
     }
 
     @Test
-    void returnsErrorWhenMissing() throws Exception {
+    void throwsWhenFileMissing() throws Exception {
         ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
-        String result = tool.execute("{\"path\":\"nope.txt\"}");
-        assertTrue(result.startsWith("读取"));
+        assertThrows(FileReadException.class,
+                () -> tool.execute("{\"path\":\"nope.txt\"}"));
+    }
+
+    @Test
+    void throwsWhenPathMissing() throws Exception {
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
+        assertThrows(FileReadException.class, () -> tool.execute("{}"));
+    }
+
+    @Test
+    void throwsWhenJsonInvalid() throws Exception {
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
+        assertThrows(FileReadException.class, () -> tool.execute("not-json"));
     }
 
     @Test

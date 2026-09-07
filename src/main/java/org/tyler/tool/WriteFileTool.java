@@ -1,10 +1,12 @@
 package org.tyler.tool;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.service.FileSandbox;
 
 import java.util.List;
@@ -40,21 +42,22 @@ public class WriteFileTool implements ITool {
 
     @Override
     public String execute(String argumentsJson) {
+        JsonNode node;
         try {
-            JsonNode node = MAPPER.readTree(argumentsJson);
-            JsonNode pathNode = node.get("path");
-            JsonNode contentNode = node.get("content");
-            if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
-                return "写入失败：缺少参数 path";
-            }
-            if (contentNode == null || contentNode.isNull()) {
-                return "写入失败：缺少参数 content";
-            }
-            sandbox.write(pathNode.asText(), contentNode.asText());
-            return "已写入 " + pathNode.asText();
-        } catch (Exception e) {
-            return "写入文件失败：" + e.getMessage();
+            node = MAPPER.readTree(argumentsJson);
+        } catch (JsonProcessingException e) {
+            throw new FileWriteException("解析参数失败：" + e.getMessage(), e);
         }
+        JsonNode pathNode = node.get("path");
+        JsonNode contentNode = node.get("content");
+        if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
+            throw new FileWriteException("缺少参数 path");
+        }
+        if (contentNode == null || contentNode.isNull()) {
+            throw new FileWriteException("缺少参数 content");
+        }
+        sandbox.write(pathNode.asText(), contentNode.asText());
+        return "已写入 " + pathNode.asText();
     }
 
     @Override
