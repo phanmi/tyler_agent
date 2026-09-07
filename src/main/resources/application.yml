@@ -8,3 +8,6 @@ server:
 openai:
   model: gpt-5.6
   api-key: ${OPENAI_API_KEY:}
+
+agent:
+  workspace-dir: ${AGENT_WORKSPACE_DIR:}
