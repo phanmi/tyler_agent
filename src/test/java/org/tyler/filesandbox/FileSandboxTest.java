@@ -2,6 +2,7 @@ package org.tyler.filesandbox;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.tyler.filesandbox.exceptions.FileReadException;
 
 import java.io.IOException;
 import java.nio.file.Files;

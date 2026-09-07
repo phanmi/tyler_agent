@@ -6,8 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.tyler.filesandbox.FileReadException;
-import org.tyler.filesandbox.FileWriteException;
+import org.tyler.filesandbox.exceptions.FileReadException;
+import org.tyler.filesandbox.exceptions.FileWriteException;
 
 /**
  * 处理文件读写相关异常。
