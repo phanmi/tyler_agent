@@ -2,8 +2,8 @@ package org.tyler.exceptionHandler;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.tyler.exceptionHandler.exception.FileReadException;
-import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.filesandbox.FileReadException;
+import org.tyler.filesandbox.FileWriteException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

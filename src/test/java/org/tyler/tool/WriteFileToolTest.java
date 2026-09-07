@@ -2,8 +2,8 @@ package org.tyler.tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.exceptionHandler.exception.FileWriteException;
-import org.tyler.service.FileSandbox;
+import org.tyler.filesandbox.FileWriteException;
+import org.tyler.filesandbox.FileSandbox;
 
 import java.nio.file.Path;
 

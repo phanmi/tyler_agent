@@ -5,18 +5,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.tyler.filesandbox.FileSandbox;
+import org.tyler.filesandbox.FileWriteException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Set;
 
 /**
  * 用户信息读写服务的实现。
  *
- * <p>把「JSON 文件落盘 / 回读 / 字段校验」等所有业务逻辑收敛到这里，
- * 让 controller 只负责 HTTP 层的路由与请求体绑定。
+ * <p>把「JSON 序列化 / 字段校验」等业务逻辑收敛到这里，
+ * 但所有文件 IO 都委托给 {@link FileSandbox}，本类不再直接触碰磁盘。
  */
 @Service
 public class UserInfoService implements IUserInfoService {
@@ -28,30 +28,33 @@ public class UserInfoService implements IUserInfoService {
 
     // 直接 new 一个 ObjectMapper：Spring Boot 4 不再自动注册该 bean，
     // 且 ObjectMapper 本身线程安全、可复用，手动创建最稳、零额外配置依赖。
-    // 注意：它只负责「读写 JSON 文件」；请求体的反序列化由 Spring MVC 的 Jackson 3 完成，
-    // 因此「Age 必须为整数」这条约束在 save() 里用 BigDecimal 显式校验（见下），
-    // 不依赖这里——否则会被 Jackson 的默认行为静默截断（30.5 → 30）。
+    // 注意：它只负责「JSON 字符串 <-> 对象」的序列化；真正的落盘/回读交给 FileSandbox。
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Path filePath;
+    private final FileSandbox sandbox;
+    private final String relativePath;
 
-    public UserInfoService(@Value("${userinfo.file-path:userinfo.json}") String filePath) {
-        // 统一转成绝对路径，保证「读文件」「写文件」「创建父目录」都基于同一稳定位置。
-        this.filePath = Path.of(filePath).toAbsolutePath();
+    public UserInfoService(
+            FileSandbox sandbox,
+            @Value("${userinfo.file-path:userinfo.json}") String relativePath) {
+        this.sandbox = sandbox;
+        // 这是「沙箱内的相对路径」，而不是绝对路径；实际位置由 FileSandbox 的根目录决定。
+        this.relativePath = relativePath;
     }
 
     @Override
     public UserInfo get() {
-        if (!Files.exists(filePath)) {
-            log.info("用户信息文件不存在，返回空结构：{}", filePath);
+        // 先判存在，避免 FileSandbox.read() 对「不存在」抛 FileReadException。
+        if (!sandbox.exists(relativePath)) {
+            log.info("用户信息文件不存在，返回空结构：{}", relativePath);
             return empty();
         }
         try {
-            UserInfo info = objectMapper.readValue(Files.readString(filePath), UserInfo.class);
-            log.debug("已读取用户信息：{}", filePath);
+            UserInfo info = objectMapper.readValue(sandbox.read(relativePath), UserInfo.class);
+            log.debug("已读取用户信息：{}", relativePath);
             return info;
-        } catch (IOException e) {
-            // 文件被手改坏 / JSON 不合法时，不抛 500，返回空结构兜底。
-            log.warn("读取用户信息文件失败，返回空结构：{}", filePath, e);
+        } catch (Exception e) {
+            // 文件被手改坏 / JSON 不合法 / 读取失败时，不抛 500，返回空结构兜底。
+            log.warn("读取用户信息文件失败，返回空结构：{}", relativePath, e);
             return empty();
         }
     }
@@ -82,13 +85,13 @@ public class UserInfoService implements IUserInfoService {
                 other);
 
         try {
-            // 绝对路径必有父目录；这里确保目录存在，避免首次写盘失败。
-            Files.createDirectories(filePath.getParent());
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), normalized);
-            log.info("用户信息已保存到 {}", filePath);
+            // 先把对象序列化成字符串，再交给 FileSandbox 写盘，本类不直接触碰文件系统。
+            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(normalized);
+            sandbox.write(relativePath, json);
+            log.info("用户信息已保存到 {}", relativePath);
             return normalized;
-        } catch (IOException e) {
-            log.error("写用户信息文件失败：{}", filePath, e);
+        } catch (IOException | FileWriteException e) {
+            log.error("写用户信息文件失败：{}", relativePath, e);
             // 抛 IllegalStateException 走 GenericExceptionHandler 的兜底，返回 500。
             throw new IllegalStateException("保存用户信息失败，请稍后重试", e);
         }

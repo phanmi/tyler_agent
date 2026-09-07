@@ -1,14 +1,14 @@
-package org.tyler.service;
+package org.tyler.filesandbox;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.exceptionHandler.exception.FileReadException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -45,5 +45,13 @@ class FileSandboxTest {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         assertThrows(FileReadException.class,
                 () -> sandbox.read("does-not-exist.txt"));
+    }
+
+    @Test
+    void existsReportsFilePresence() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        assertFalse(sandbox.exists("a.txt"));
+        sandbox.write("a.txt", "x");
+        assertTrue(sandbox.exists("a.txt"));
     }
 }

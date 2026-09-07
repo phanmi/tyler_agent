@@ -1,4 +1,4 @@
-package org.tyler.exceptionHandler.exception;
+package org.tyler.filesandbox;
 
 /**
  * 读取工作区文件失败时抛出。

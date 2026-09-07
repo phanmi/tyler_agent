@@ -1,11 +1,9 @@
-package org.tyler.service;
+package org.tyler.filesandbox;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.tyler.exceptionHandler.exception.FileReadException;
-import org.tyler.exceptionHandler.exception.FileWriteException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,6 +14,8 @@ import java.nio.file.Path;
  *
  * <p>根目录默认是 {@code {user.home}/AppData/Local/tyler_agent}，
  * 可通过 {@code agent.workspace-dir}（或环境变量 {@code AGENT_WORKSPACE_DIR}）覆盖。
+ *
+ * <p>这是全项目唯一的文件 IO 出口：除日志外的所有读写都应通过本类完成。
  */
 @Component
 public class FileSandbox {
@@ -40,6 +40,11 @@ public class FileSandbox {
     /** 返回沙箱根目录的绝对路径。 */
     public Path root() {
         return root;
+    }
+
+    /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */
+    public boolean exists(String relativePath) {
+        return Files.exists(resolveInside(relativePath));
     }
 
     /** 读取沙箱内的文件内容。相对路径越界或为空会抛异常。 */
