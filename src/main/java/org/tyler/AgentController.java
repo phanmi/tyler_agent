@@ -17,7 +17,10 @@ public class AgentController {
 
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
-        return new ChatResponse(agentService.ask(request.message()));
+        if (request.message() == null || request.message().isBlank()) {
+            throw new IllegalArgumentException("message 不能为空");
+        }
+        return new ChatResponse(agentService.ask(request.message().trim()));
     }
 
     public record ChatRequest(String message) {}

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tyler Agent</title>
+<style>
+  :root {
+    --accent: #e0569a;
+    --accent-dark: #c74482;
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --text: #2b2f3a;
+    --muted: #8a8fa3;
+    --border: #e4e7ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #fdf2f7 0%, var(--bg) 40%, #eef1fb 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--card);
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
+    padding: 32px;
+  }
+  h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: 0.5px; }
+  .subtitle { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+  .reply {
+    min-height: 120px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .reply.placeholder { color: var(--muted); }
+  .reply.error { color: #c0392b; background: #fdf1f1; border-color: #f2c9c9; }
+  .reply.loading { color: var(--muted); font-style: italic; }
+  form { display: flex; flex-direction: column; gap: 12px; }
+  textarea {
+    width: 100%;
+    min-height: 96px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    font: inherit;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text);
+    background: #fbfbfe;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(224, 86, 154, 0.12);
+  }
+  button {
+    align-self: flex-end;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 28px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Tyler Agent</h1>
+    <p class="subtitle">输入一段话，ChatGPT 会回复你。</p>
+    <div id="reply" class="reply placeholder" role="status" aria-live="polite">回复会显示在这里。</div>
+    <form id="chatForm">
+      <textarea id="message" placeholder="写点什么……（Ctrl + Enter 发送）" required></textarea>
+      <button type="submit" id="sendBtn">发送</button>
+    </form>
+    <p class="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
+  </main>
+
+  <script>
+    const form = document.getElementById('chatForm');
+    const messageEl = document.getElementById('message');
+    const replyEl = document.getElementById('reply');
+    const sendBtn = document.getElementById('sendBtn');
+
+    function setReply(text, cls) {
+      replyEl.textContent = text;
+      replyEl.className = 'reply' + (cls ? ' ' + cls : '');
+    }
+
+    async function send(message) {
+      sendBtn.disabled = true;
+      setReply('思考中……', 'loading');
+      try {
+        const res = await fetch('/api/agent/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        if (!res.ok) {
+          let detail = '';
+          try {
+            const err = await res.json();
+            detail = err.error || err.message || '';
+          } catch (_) { /* 忽略解析失败 */ }
+          throw new Error(detail || ('请求失败（HTTP ' + res.status + '）'));
+        }
+
+        const data = await res.json();
+        setReply(data.reply || '（空回复）');
+      } catch (err) {
+        setReply('出错了：' + err.message, 'error');
+      } finally {
+        sendBtn.disabled = false;
+        messageEl.focus();
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const message = messageEl.value.trim();
+      if (!message) return;
+      send(message);
+    });
+
+    messageEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>
