@@ -5,10 +5,10 @@ import org.springframework.stereotype.Component;
 import org.tyler.service.IUserInfoService;
 
 @Component
-public class GetUserInfo implements ITool{
+public class GetUserInfoTool implements ITool{
     IUserInfoService userInfoService;
 
-    public GetUserInfo(IUserInfoService userInfoService) {
+    public GetUserInfoTool(IUserInfoService userInfoService) {
         this.userInfoService = userInfoService;
     }
 
