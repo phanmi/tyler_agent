@@ -1,6 +1,9 @@
-package org.tyler;
+package org.tyler.tool;
 
+import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
+
+import java.util.Map;
 
 /**
  * 一个可供 LLM 调用的工具（function tool）。
@@ -12,7 +15,7 @@ import com.openai.models.responses.FunctionTool;
  *   <li>{@link #execute(String)} —— 真正干活的 Java 方法，入参是模型传来的 JSON 参数字符串。</li>
  * </ul>
  */
-public interface AgentTool {
+public interface ITool {
 
     String name();
 
@@ -34,6 +37,19 @@ public interface AgentTool {
         return FunctionTool.builder()
                 .name(name())
                 .description(description())
+                .parameters(
+                        FunctionTool.Parameters.builder()
+                                .putAdditionalProperty(
+                                        "type",
+                                        JsonValue.from("object")
+                                )
+                                .putAdditionalProperty(
+                                        "properties",
+                                        JsonValue.from(Map.of())
+                                )
+                                .build()
+                )
                 .build();
     }
+
 }

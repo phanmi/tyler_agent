@@ -1,4 +1,4 @@
-package org.tyler;
+package org.tyler.config;
 
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;

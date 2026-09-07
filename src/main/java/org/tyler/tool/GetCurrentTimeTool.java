@@ -1,4 +1,4 @@
-package org.tyler;
+package org.tyler.tool;
 
 import org.springframework.stereotype.Component;
 
@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter;
  * 返回服务器本地时区的当前日期与时间。
  */
 @Component
-public class GetCurrentTimeTool implements AgentTool {
+public class GetCurrentTimeTool implements ITool {
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");

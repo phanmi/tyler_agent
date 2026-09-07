@@ -1,4 +1,4 @@
-package org.tyler;
+package org.tyler.service;
 
 import com.openai.client.OpenAIClient;
 import com.openai.models.responses.FunctionTool;
@@ -11,28 +11,30 @@ import com.openai.models.responses.ResponseOutputMessage;
 import com.openai.models.responses.Tool;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.tyler.tool.ITool;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class AgentService {
+public class AgentService implements IAgentService {
 
     /** 防止模型反复调用工具导致死循环的兜底上限。 */
     private static final int MAX_TOOL_ROUNDS = 5;
 
     private final OpenAIClient client;
     private final String model;
-    private final List<AgentTool> tools;
+    private final List<ITool> tools;
 
     public AgentService(OpenAIClient client,
                         @Value("${openai.model:gpt-5.6}") String model,
-                        List<AgentTool> tools) {
+                        List<ITool> tools) {
         this.client = client;
         this.model = model;
         this.tools = tools;
     }
 
+    @Override
     public String ask(String message) {
         Response response = client.responses().create(createParams(message, null, null));
 
@@ -79,7 +81,7 @@ public class AgentService {
     }
 
     private String execute(String name, String argumentsJson) {
-        for (AgentTool tool : tools) {
+        for (ITool tool : tools) {
             if (tool.name().equals(name)) {
                 return tool.execute(argumentsJson);
             }
@@ -89,7 +91,7 @@ public class AgentService {
 
     private List<Tool> toOpenAiTools() {
         List<Tool> result = new ArrayList<>();
-        for (AgentTool tool : tools) {
+        for (ITool tool : tools) {
             FunctionTool functionTool = tool.toFunctionTool();
             result.add(Tool.ofFunction(functionTool));
         }
