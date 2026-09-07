@@ -71,3 +71,6 @@ Thumbs.db
 
 ### Cyrene Agent ###
 .cyrene/
+### Node / Vite frontend ###
+frontend/node_modules/
+frontend/dist/
