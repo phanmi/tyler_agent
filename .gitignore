@@ -74,3 +74,6 @@ Thumbs.db
 ### Node / Vite frontend ###
 frontend/node_modules/
 frontend/dist/
+
+## user json ##
+userinfo.json
