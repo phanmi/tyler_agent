@@ -47,8 +47,13 @@ public interface ITool {
                                         "properties",
                                         JsonValue.from(Map.of())
                                 )
+                                .putAdditionalProperty(
+                                        "additionalProperties",
+                                        JsonValue.from(false)
+                                )
                                 .build()
                 )
+                .strict(true)
                 .build();
     }
 
