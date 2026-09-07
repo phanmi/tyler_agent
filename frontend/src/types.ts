@@ -7,3 +7,23 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
 }
+
+// ===== 用户信息 =====
+
+// 性别：三选一 + 空串（未选择）。
+export type Gender = '' | '男' | '女' | '其他'
+
+// 用户信息契约：字段名与后端落盘 JSON 完全一致（用户指定的结构）。
+//   User.Age 为 number | null（空 = 未填写），其余字段均为 string（空串 = 未填写）。
+export interface UserInfo {
+  User: {
+    Name: string
+    Gender: Gender
+    Age: number | null
+    JobType: string
+  }
+  Other: {
+    Info: string
+    expectationFromLLM: string
+  }
+}

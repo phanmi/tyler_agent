@@ -170,3 +170,106 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ===== 用户信息面板 ===== */
+
+/* 页面整体改为两栏布局：左侧用户信息卡片 + 右侧聊天卡片，窄屏自动换行上下堆叠。 */
+.app-layout {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+  max-width: 1040px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.userinfo-card {
+  width: 320px;
+  flex-shrink: 0;
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+  background: var(--card);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.userinfo-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.userinfo-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.userinfo-card fieldset {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.userinfo-card legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.userinfo-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.userinfo-card input,
+.userinfo-card select,
+.userinfo-card textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: #fbfbfe;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.userinfo-card input:focus,
+.userinfo-card select:focus,
+.userinfo-card textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(224, 86, 154, 0.12);
+}
+
+.userinfo-card button {
+  align-self: stretch;
+}
+
+.userinfo-msg {
+  margin: 0;
+  font-size: 13px;
+}
+
+.userinfo-msg--ok {
+  color: #2e9e5b;
+}
+
+.userinfo-msg--err {
+  color: #d64545;
+}

@@ -3,6 +3,7 @@ import { sendMessage } from './api'
 import type { Message } from './types'
 import MessageBubble from './components/MessageBubble'
 import MessageInput from './components/MessageInput'
+import UserInfoForm from './components/UserInfoForm'
 
 // App 是整棵组件树的根，也是消息状态的唯一所有者（single source of truth）。
 // 为什么状态必须放这里？
@@ -53,25 +54,30 @@ export default function App() {
   }, [])
 
   return (
-    <main className="card">
-      <h1>Tyler Agent</h1>
-      <p className="subtitle">输入一段话，ChatGPT 会回复你。</p>
+    <div className="app-layout">
+      {/* 用户信息面板：独立于聊天流，自行负责「启动读取 + 保存写回」。 */}
+      <UserInfoForm />
 
-      {/* 消息列表：直接在这里 map 成气泡。
-          暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，
-          抽出来反而多一层间接。等列表逻辑变复杂（分组、日期分隔、虚拟滚动）再抽。 */}
-      <div className="messages" role="log" aria-live="polite">
-        {messages.length === 0 && <div className="empty">回复会显示在这里。</div>}
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
-        {isLoading && <div className="loading-bubble">思考中……</div>}
-        {/* 滚动锚点：永远停留在列表末尾，配合上面的 useEffect 实现自动滚动。 */}
-        <div ref={bottomRef} />
-      </div>
+      <main className="card">
+        <h1>Tyler Agent</h1>
+        <p className="subtitle">输入一段话，ChatGPT 会回复你。</p>
 
-      <MessageInput onSend={handleSend} disabled={isLoading} />
-      <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
-    </main>
+        {/* 消息列表：直接在这里 map 成气泡。
+            暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，
+            抽出来反而多一层间接。等列表逻辑变复杂（分组、日期分隔、虚拟滚动）再抽。 */}
+        <div className="messages" role="log" aria-live="polite">
+          {messages.length === 0 && <div className="empty">回复会显示在这里。</div>}
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))}
+          {isLoading && <div className="loading-bubble">思考中……</div>}
+          {/* 滚动锚点：永远停留在列表末尾，配合上面的 useEffect 实现自动滚动。 */}
+          <div ref={bottomRef} />
+        </div>
+
+        <MessageInput onSend={handleSend} disabled={isLoading} />
+        <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
+      </main>
+    </div>
   )
 }

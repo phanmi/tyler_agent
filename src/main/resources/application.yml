@@ -11,3 +11,7 @@ openai:
 
 agent:
   workspace-dir: ${AGENT_WORKSPACE_DIR:}
+
+userinfo:
+  # 用户信息 JSON 的落盘路径；默认项目根目录 userinfo.json，可用环境变量 USERINFO_FILE_PATH 覆盖。
+  file-path: ${USERINFO_FILE_PATH:userinfo.json}
