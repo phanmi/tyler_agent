@@ -7,7 +7,7 @@ import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
 import org.tyler.filesandbox.exceptions.FileReadException;
-import org.tyler.filesandbox.FileSandBoxReadOnly;
+import org.tyler.filesandbox.IFileSandboxRead;
 
 import java.util.List;
 import java.util.Map;
@@ -20,9 +20,9 @@ public class ReadFileTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final FileSandBoxReadOnly sandbox;
+    private final IFileSandboxRead sandbox;
 
-    public ReadFileTool(FileSandBoxReadOnly sandbox) {
+    public ReadFileTool(IFileSandboxRead sandbox) {
         this.sandbox = sandbox;
     }
 

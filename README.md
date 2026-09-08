@@ -79,17 +79,18 @@ tyler_agent/
 ### 4. 文件沙箱
 - 所有文件读写都被限制在一个工作目录内，防止路径穿越（`../`）访问目录之外的文件。
 - 默认工作目录为 `{user.home}/AppData/Local/tyler_agent`，可用环境变量 `AGENT_WORKSPACE_DIR` 覆盖。
-- 通过「读 / 写」两个接口 + 三个实现做到能力隔离：
+- 通过「读 / 写」两个能力接口做到能力隔离：
 
 | 类 / 接口 | 职责 |
 |---|---|
-| `IFileSandBoxRead` | 只读契约：`exists` + `read` |
-| `IFileSandBoxWrite` | 只写契约：`exists` + `write` |
-| `FileSandBoxReadAndWrite` | 完整实现，同时实现两个接口（唯一的文件 IO 出口） |
-| `FileSandBoxReadOnly` | 只读装饰器，类型层面就没有 `write` 方法 |
-| `FileSandBoxWriteOnly` | 只写装饰器，类型层面就没有 `read` 方法 |
+| `IFileSandboxRead` | 只读契约：`exists` + `read` |
+| `IFileSandboxWrite` | 只写契约：`exists` + `write` |
+| `FileSandbox` | 唯一实现，同时实现两个接口（唯一的文件 IO 出口） |
 
-- 注入关系：`UserInfoService` 用 `FileSandBoxReadAndWrite`（读 + 写）；`ReadFileTool` 只用 `FileSandBoxReadOnly`；`WriteFileTool` 只用 `FileSandBoxWriteOnly`。
+- `FileSandbox` 是唯一的文件 IO 实现；调用方不直接依赖它，而是按自身需要注入最小能力接口（Interface Segregation Principle）——同一个 `FileSandbox` bean 能同时提供两种 capability：
+  - `UserInfoService` 同时注入 `IFileSandboxRead`（读）和 `IFileSandboxWrite`（写）；
+  - `ReadFileTool` 只注入 `IFileSandboxRead`（类型层面就没有 `write`）；
+  - `WriteFileTool` 只注入 `IFileSandboxWrite`（类型层面就没有 `read`）。
 
 ### 5. 日志与请求追踪
 - SLF4J + Logback，INFO 级别记录元数据（耗时、消息长度、工具名、model），正文走 DEBUG。

@@ -12,7 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 文件沙箱的完整实现：同时具备读与写能力。
+ * 文件沙箱的唯一实现：同时具备读与写能力。
  *
  * <p>把文件读写限制在一个沙箱工作目录内，防止路径穿越访问目录之外的文件。
  *
@@ -20,17 +20,17 @@ import java.nio.file.Path;
  * 可通过 {@code agent.workspace-dir}（或环境变量 {@code AGENT_WORKSPACE_DIR}）覆盖。
  *
  * <p>这是全项目唯一的文件 IO 出口：除日志外的所有读写都应通过本类完成。
- * 需要「只读」或「只写」能力时，请分别注入 {@link FileSandBoxReadOnly} 或
- * {@link FileSandBoxWriteOnly}，它们在类型层面就没有另一边的方法。
+ * 调用方不直接依赖本类，而是按自身需要注入 {@link IFileSandboxRead} 或
+ * {@link IFileSandboxWrite}；同一个本类 bean 能同时提供两种 capability。
  */
 @Component
-public class FileSandBoxReadAndWrite implements IFileSandBoxRead, IFileSandBoxWrite {
+public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite {
 
-    private static final Logger log = LoggerFactory.getLogger(FileSandBoxReadAndWrite.class);
+    private static final Logger log = LoggerFactory.getLogger(FileSandbox.class);
 
     private final Path root;
 
-    public FileSandBoxReadAndWrite(@Value("${agent.workspace-dir:}") String workspaceDir) throws IOException {
+    public FileSandbox(@Value("${agent.workspace-dir:}") String workspaceDir) throws IOException {
         this.root = resolveRoot(workspaceDir);
         Files.createDirectories(root);
     }

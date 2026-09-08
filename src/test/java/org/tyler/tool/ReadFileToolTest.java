@@ -2,8 +2,7 @@ package org.tyler.tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.filesandbox.FileSandBoxReadAndWrite;
-import org.tyler.filesandbox.FileSandBoxReadOnly;
+import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.exceptions.FileReadException;
 
 import java.nio.file.Path;
@@ -19,38 +18,34 @@ class ReadFileToolTest {
 
     @Test
     void readsExistingFile() throws Exception {
-        FileSandBoxReadAndWrite full = new FileSandBoxReadAndWrite(tempDir.toString());
+        FileSandbox full = new FileSandbox(tempDir.toString());
         full.write("prompts/a.txt", "hello world");
-        ReadFileTool tool = new ReadFileTool(new FileSandBoxReadOnly(full));
+        ReadFileTool tool = new ReadFileTool(full);
         assertEquals("hello world", tool.execute("{\"path\":\"prompts/a.txt\"}"));
     }
 
     @Test
     void throwsWhenFileMissing() throws Exception {
-        ReadFileTool tool = new ReadFileTool(
-                new FileSandBoxReadOnly(new FileSandBoxReadAndWrite(tempDir.toString())));
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
         assertThrows(FileReadException.class,
                 () -> tool.execute("{\"path\":\"nope.txt\"}"));
     }
 
     @Test
     void throwsWhenPathMissing() throws Exception {
-        ReadFileTool tool = new ReadFileTool(
-                new FileSandBoxReadOnly(new FileSandBoxReadAndWrite(tempDir.toString())));
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
         assertThrows(FileReadException.class, () -> tool.execute("{}"));
     }
 
     @Test
     void throwsWhenJsonInvalid() throws Exception {
-        ReadFileTool tool = new ReadFileTool(
-                new FileSandBoxReadOnly(new FileSandBoxReadAndWrite(tempDir.toString())));
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
         assertThrows(FileReadException.class, () -> tool.execute("not-json"));
     }
 
     @Test
     void exposesNameAndSchema() throws Exception {
-        ReadFileTool tool = new ReadFileTool(
-                new FileSandBoxReadOnly(new FileSandBoxReadAndWrite(tempDir.toString())));
+        ReadFileTool tool = new ReadFileTool(new FileSandbox(tempDir.toString()));
         assertEquals("readFile", tool.name());
         assertNotNull(tool.toFunctionTool());
     }

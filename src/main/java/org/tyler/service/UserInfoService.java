@@ -5,7 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.tyler.filesandbox.FileSandBoxReadAndWrite;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.filesandbox.exceptions.FileWriteException;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.Set;
  * 用户信息读写服务的实现。
  *
  * <p>把「JSON 序列化 / 字段校验」等业务逻辑收敛到这里，
- * 但所有文件 IO 都委托给 {@link FileSandBoxReadAndWrite}，本类不再直接触碰磁盘。
+ * 但所有文件 IO 都通过注入的 {@link IFileSandboxRead} / {@link IFileSandboxWrite} 完成，本类不直接触碰磁盘。
  */
 @Service
 public class UserInfoService implements IUserInfoService {
@@ -30,26 +31,29 @@ public class UserInfoService implements IUserInfoService {
     // 且 ObjectMapper 本身线程安全、可复用，手动创建最稳、零额外配置依赖。
     // 注意：它只负责「JSON 字符串 <-> 对象」的序列化；真正的落盘/回读交给 FileSandbox。
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final FileSandBoxReadAndWrite sandbox;
+    private final IFileSandboxRead reader;
+    private final IFileSandboxWrite writer;
     private final String relativePath;
 
     public UserInfoService(
-            FileSandBoxReadAndWrite sandbox,
+            IFileSandboxRead reader,
+            IFileSandboxWrite writer,
             @Value("${userinfo.file-path:userinfo.json}") String relativePath) {
-        this.sandbox = sandbox;
+        this.reader = reader;
+        this.writer = writer;
         // 这是「沙箱内的相对路径」，而不是绝对路径；实际位置由 FileSandbox 的根目录决定。
         this.relativePath = relativePath;
     }
 
     @Override
     public UserInfo get() {
-        // 先判存在，避免 FileSandbox.read() 对「不存在」抛 FileReadException。
-        if (!sandbox.exists(relativePath)) {
+        // 先判存在，避免 reader.read() 对「不存在」抛 FileReadException。
+        if (!reader.exists(relativePath)) {
             log.info("用户信息文件不存在，返回空结构：{}", relativePath);
             return empty();
         }
         try {
-            UserInfo info = objectMapper.readValue(sandbox.read(relativePath), UserInfo.class);
+            UserInfo info = objectMapper.readValue(reader.read(relativePath), UserInfo.class);
             log.debug("已读取用户信息：{}", relativePath);
             return info;
         } catch (Exception e) {
@@ -87,7 +91,7 @@ public class UserInfoService implements IUserInfoService {
         try {
             // 先把对象序列化成字符串，再交给 FileSandbox 写盘，本类不直接触碰文件系统。
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(normalized);
-            sandbox.write(relativePath, json);
+            writer.write(relativePath, json);
             log.info("用户信息已保存到 {}", relativePath);
             return normalized;
         } catch (IOException | FileWriteException e) {

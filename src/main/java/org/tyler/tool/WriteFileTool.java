@@ -7,7 +7,7 @@ import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
 import org.tyler.filesandbox.exceptions.FileWriteException;
-import org.tyler.filesandbox.FileSandBoxWriteOnly;
+import org.tyler.filesandbox.IFileSandboxWrite;
 
 import java.util.List;
 import java.util.Map;
@@ -20,9 +20,9 @@ public class WriteFileTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final FileSandBoxWriteOnly sandbox;
+    private final IFileSandboxWrite sandbox;
 
-    public WriteFileTool(FileSandBoxWriteOnly sandbox) {
+    public WriteFileTool(IFileSandboxWrite sandbox) {
         this.sandbox = sandbox;
     }
 
