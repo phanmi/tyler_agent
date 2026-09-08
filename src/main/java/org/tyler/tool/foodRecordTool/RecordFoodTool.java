@@ -134,7 +134,7 @@ public class RecordFoodTool implements ITool {
         return props;
     }
 
-    private static Map<String, Object> macroNutrientProperties() {
+    private static Map<String, Object> macroNutrientProperties() { 
         Map<String, Object> props = new LinkedHashMap<>();
         props.put("protein", Map.of("type", "number", "description", "Protein in grams."));
         props.put("carbs", Map.of("type", "number", "description", "Carbohydrates in grams."));

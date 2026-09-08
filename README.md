@@ -1,145 +1,129 @@
 # Tyler Agent
 
-> 一个辅助减肥的 AI Agent 雏形。
+> A personal AI assistant that helps you keep track of what you eat.
 
-## 项目简介
+**Version:** V0.1.0-alpha
 
-Tyler 是一个基于 **Spring Boot + OpenAI** 的 AI Agent，目标是成为用户的「辅助减肥助手」。
+## What is Tyler?
 
-目前项目处于 **雏形阶段**：已经搭好了 Agent 的通用基础设施——多轮对话、工具调用循环、用户画像存储、文件沙箱、日志追踪。而减肥领域的具体业务（如饮食记录、运动打卡、体重趋势追踪、卡路里计算等）**尚未实现**，属于下一步的迭代方向。
+Tyler is a small AI assistant that you can talk to through a chat window. It is still in its earliest days (an "alpha" release), so it does a few things well and leaves the rest for later.
 
-简单说：现在是一台「能听懂、能调用工具、能读写文件、能记住你是谁」的 Agent 引擎，还差「减肥」这个灵魂业务。
+Under the hood, Tyler is not just a chatbot — it can also *do things*. When you tell it something, it can decide to use a tool behind the scenes: read or write a file, remember who you are, or turn what you ate into a tidy record.
 
-## 技术栈
+## What can Tyler do in V0.1.0-alpha?
 
-| 层 | 技术 |
+Right now, three things.
+
+### 1. Read and write files in a safe "sandbox"
+
+Tyler can save and load files on your computer — but only inside one special folder, called a sandbox. The sandbox is like a fenced-off area: Tyler can freely create and read files inside it, but it cannot reach anything outside that folder. This keeps the rest of your computer safe.
+
+### 2. Save your basic profile
+
+There is a simple form in the interface where you can enter basic details about yourself (name, gender, age, job, notes, and what you expect from the assistant). When you click save, Tyler writes it to a file and remembers it, so future conversations can be more personal.
+
+### 3. Understand the food you eat
+
+You can tell Tyler what you ate in plain words — for example, "I had 200g of chicken breast." Tyler turns that into a small structured record containing the food name, amount, unit, calories, and the main macronutrients (protein, carbs, fat, fiber). When you don't give exact numbers, it estimates them from the food name and amount.
+
+## 中文翻译 · V0.1.0-alpha 功能说明
+
+Tyler 是一个能跟你对话的小型 AI 助手，目前还是最早的 alpha 版本。它不只是聊天，还能真正"动手做事"。
+
+目前它能做三件事：
+
+1. **在安全的"沙盒"里读写文件。** Tyler 能在你的电脑上保存和读取文件，但只能在一个专属的文件夹（沙盒）里进行。沙盒就像一块围起来的区域：Tyler 在里面可以自由地创建和读取文件，却碰不到这个文件夹之外的任何东西，从而保证电脑其余部分的安全。
+
+2. **在界面里保存你的基本信息。** 界面上有一个简单的表单，你可以填写自己的基本信息（姓名、性别、年龄、职业、备注，以及对助手的期望）。点"保存"后，Tyler 会把它们写进文件并记住，让之后的对话更懂你。
+
+3. **理解你吃的食物。** 你可以用大白话告诉 Tyler 你吃了什么，比如"我吃了 200 克鸡胸肉"。Tyler 会把它整理成一条结构化记录，包含食物名称、分量、单位、卡路里，以及主要的宏量营养素（蛋白质、碳水、脂肪、膳食纤维）。当你不给具体数字时，它会根据食物名称和分量来估算。
+
+## Tech stack
+
+| Layer | Technology |
 |---|---|
-| 后端 | Java 26 · Spring Boot 4.1.1 · OpenAI Java SDK（openai-java 4.54.0） |
-| 前端 | React · TypeScript · Vite |
-| 构建 | Maven（后端） · npm（前端） |
+| Backend | Java 26 · Spring Boot 4.1.1 · OpenAI Java SDK (openai-java 4.54.0) |
+| Frontend | React · TypeScript · Vite |
+| Build | Maven (backend) · npm (frontend) |
 
-## 项目结构
+## Project structure
 
 ```
 tyler_agent/
 ├─ src/main/java/org/tyler/
-│  ├─ TylerAgentApplication.java   # Spring Boot 启动入口
-│  ├─ config/                      # OpenAIClient 装配
-│  ├─ filter/                      # 请求追踪 Filter（requestId → MDC）
-│  ├─ controller/                  # HTTP 层（薄控制器，只做路由与参数绑定）
-│  ├─ model/                       # 数据模型
-│  │  ├─ userInfo/                 # 用户信息（UserInfo / User / Other）
-│  │  └─ food/                     # 食物摄入（Food / GenericInfo / MacroNutrients / MicroNutrients）
-│  ├─ service/                     # 业务层（Agent 编排、用户信息）
-│  ├─ filesandbox/                 # 文件沙箱（唯一文件 IO 出口，读/写能力隔离）
-│  ├─ tool/                        # LLM 可调用的工具集
-│  └─ exceptionHandler/            # 全局异常处理（统一 400/500 返回）
+│  ├─ TylerAgentApplication.java   # Spring Boot entry point
+│  ├─ config/                      # wiring: sets up the OpenAI client
+│  ├─ controller/                  # HTTP layer: receives requests from the UI
+│  ├─ service/                     # business logic: the chat loop + user profile
+│  ├─ tool/                        # the tools the AI can call (see below)
+│  ├─ filesandbox/                 # safe file IO, confined to one folder
+│  ├─ model/                       # plain data records (food + user info)
+│  ├─ filter/                      # request tracking (adds a requestId to every request)
+│  └─ exceptionHandler/            # turns errors into clean HTTP responses
 ├─ src/main/resources/
-│  ├─ application.yml              # 配置（模型、端口、工作目录等）
-│  └─ logback-spring.xml           # 日志（控制台 + 滚动文件）
-├─ frontend/                       # React + TS + Vite 前端（独立项目）
-│  └─ src/
-│     ├─ App.tsx                   # 根组件（消息状态所有者）
-│     ├─ api.ts                    # 对后端的 fetch 封装
-│     ├─ types.ts                  # 类型契约（Message / UserInfo）
-│     └─ components/               # MessageBubble / MessageInput / UserInfoForm
+│  ├─ application.yml              # configuration (model, port, workspace folder, ...)
+│  └─ logback-spring.xml           # logging (console + rolling file)
+├─ frontend/                       # React + TypeScript + Vite app (separate project)
 ├─ pom.xml
-└─ userinfo.json                   # 用户画像落盘文件（运行时生成）
+└─ userinfo.json                   # saved user profile (created at runtime)
 ```
 
-## 已实现的能力
+## What each package does
 
-### 1. 多轮对话（非流式）
-- 前端累积式聊天界面，逐条堆叠用户与助手的气泡。
-- 后端 `POST /api/agent/chat`，请求 `{ "message": "..." }`，响应 `{ "reply": "..." }`。
-- 由 OpenAI 的 **Responses API** 驱动，单轮非流式。
+A quick, plain-language tour of the main packages:
 
-### 2. 工具调用循环（Function Calling）
-- `AgentService` 会循环调用 OpenAI，直到模型不再请求工具，或达到兜底上限（`MAX_TOOL_ROUNDS = 5`，防止死循环）。
-- 内置 5 个工具：
-
-| 工具名 | 作用 |
+| Package | What it does |
 |---|---|
-| `getCurrentTime` | 返回服务器本地时区的当前日期与时间 |
-| `GetUserInfo` | 读取已保存的用户画像，让 AI「认识你」 |
-| `readFile` | 读取工作区内的文件（路径受限） |
-| `writeFile` | 把文本写入工作区内的文件（自动建目录） |
-| `recordFood` | 解析用户吃的食物为结构化记录（名称、分量、热量、营养素、日期） |
+| `config` | Wiring. Sets up the OpenAI client that the rest of the app uses. |
+| `controller` | The front door for web requests. It receives messages from the UI and passes them along, without doing any real work itself. |
+| `service` | The brain. It runs the chat loop, decides when to call a tool, and manages your saved profile. |
+| `tool` | The toolbox. Each tool is one small capability the AI can choose to use (read a file, write a file, get the time, read your profile, record food). |
+| `filesandbox` | The fenced-off file area. All reading and writing goes through here, and it refuses to touch anything outside the sandbox folder. |
+| `model` | Plain data records — the shapes of the things Tyler works with (a food item, your user info). No logic, just data. |
+| `filter` | Request tracking. It tags every request with an id so you can trace one conversation through the logs. |
+| `exceptionHandler` | The cleanup crew. When something goes wrong, it turns the error into a tidy HTTP response instead of a crash. |
 
-### 3. 用户画像存储
-- 前端提供「用户信息」表单（姓名、性别、年龄、职业、备注、对 AI 的期望），点「保存」写盘。
-- 后端 `GET /api/userinfo` 读取、`POST /api/userinfo` 校验后落盘为 JSON 文件。
-- 落盘结构：
+## The tools Tyler can call
 
-```json
-{
-  "User": { "Name": "", "Gender": "", "Age": null, "JobType": "" },
-  "Other": { "Info": "", "expectationFromLLM": "" }
-}
-```
-
-- 约束：`Age` 必须是整数（可留空为 `null`）；`Gender` 只能是「男 / 女 / 其他」或空；所有字段均可留空。
-- 每次启动前端会自动读取并回填表单。
-
-### 4. 文件沙箱
-- 所有文件读写都被限制在一个工作目录内，防止路径穿越（`../`）访问目录之外的文件。
-- 默认工作目录为 `{user.home}/AppData/Local/tyler_agent`，可用环境变量 `AGENT_WORKSPACE_DIR` 覆盖。
-- 通过「读 / 写」两个能力接口做到能力隔离：
-
-| 类 / 接口 | 职责 |
+| Tool | What it does |
 |---|---|
-| `IFileSandboxRead` | 只读契约：`exists` + `read` |
-| `IFileSandboxWrite` | 只写契约：`exists` + `write` |
-| `FileSandbox` | 唯一实现，同时实现两个接口（唯一的文件 IO 出口） |
+| `getCurrentTime` | Returns the current date and time. |
+| `GetUserInfo` | Reads your saved profile so Tyler "knows" you. |
+| `readFile` | Reads a file inside the sandbox. |
+| `writeFile` | Writes text to a file inside the sandbox (creating folders as needed). |
+| `recordFood` | Turns what you ate into a structured record (name, amount, calories, macros, date). |
 
-- `FileSandbox` 是唯一的文件 IO 实现；调用方不直接依赖它，而是按自身需要注入最小能力接口（Interface Segregation Principle）——同一个 `FileSandbox` bean 能同时提供两种 capability：
-  - `UserInfoService` 同时注入 `IFileSandboxRead`（读）和 `IFileSandboxWrite`（写）；
-  - `ReadFileTool` 只注入 `IFileSandboxRead`（类型层面就没有 `write`）；
-  - `WriteFileTool` 只注入 `IFileSandboxWrite`（类型层面就没有 `read`）。
+## How to run
 
-### 5. 日志与请求追踪
-- SLF4J + Logback，INFO 级别记录元数据（耗时、消息长度、工具名、model），正文走 DEBUG。
-- 滚动文件日志落在 `logs/tyler-agent.log`，按大小 + 日期滚动、保留 14 天。
-- `RequestIdFilter` 用 MDC 的 `requestId` 串起一次请求的完整调用链。
+### Prerequisites
 
-## 如何运行
+- Backend: JDK 26, Maven
+- Frontend: Node.js (v18+)
+- Environment variable: `OPENAI_API_KEY`
 
-### 前置条件
-- 后端：JDK 26、Maven
-- 前端：Node.js（v18+）
-- 环境变量：`OPENAI_API_KEY`（用于调用 OpenAI）
-
-### 后端
+### Backend
 
 ```bash
 mvn spring-boot:run
-# 监听 http://localhost:8080
+# listens on http://localhost:8080
 ```
 
-### 前端（开发态）
+### Frontend (development)
 
 ```bash
 cd frontend
 npm install
 npm run dev
-# 监听 http://localhost:5173，/api 请求自动代理到 8080
+# listens on http://localhost:5173; /api requests are proxied to 8080
 ```
 
-打开 `http://localhost:5173`，先填「用户信息」点保存，然后即可开始聊天。
+Open http://localhost:5173, fill in your profile and save, then start chatting.
 
-## 配置项（`application.yml`）
+## Configuration (`application.yml`)
 
-| 配置 | 环境变量 | 默认值 | 说明 |
+| Setting | Environment variable | Default | Description |
 |---|---|---|---|
-| `openai.model` | — | `gpt-5.6` | 使用的 OpenAI 模型 |
-| `openai.api-key` | `OPENAI_API_KEY` | 空 | OpenAI API 密钥 |
-| `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | `{user.home}/AppData/Local/tyler_agent` | 工具读写文件的沙箱目录 |
-| `userinfo.file-path` | `USERINFO_FILE_PATH` | `userinfo.json` | 用户画像 JSON 落盘路径 |
-
-## Roadmap（减肥方向，待实现）
-
-- [ ] 饮食记录：记录每餐食物与大致热量
-- [ ] 运动打卡：记录运动类型、时长、消耗
-- [ ] 体重趋势：按日期记录体重并画趋势图
-- [ ] 目标设定：根据用户画像（身高、体重、目标）给出个性化建议
-- [ ] 前端生产构建接入：`vite build` 产物替换 `static/`，纳入 Maven 打包流程
+| `openai.model` | — | `gpt-5.6` | The OpenAI model to use |
+| `openai.api-key` | `OPENAI_API_KEY` | empty | OpenAI API key |
+| `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | `{user.home}/AppData/Local/tyler_agent` | The sandbox folder for file read/write |
+| `userinfo.file-path` | `USERINFO_FILE_PATH` | `userinfo.json` | Where the user profile JSON is saved |
