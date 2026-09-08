@@ -1,6 +1,9 @@
 package org.tyler.service;
 
 import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.errors.PermissionDeniedException;
+import com.openai.errors.UnauthorizedException;
 import com.openai.models.responses.FunctionTool;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
@@ -13,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.tool.ITool;
 
 import java.util.ArrayList;
@@ -26,35 +30,49 @@ public class AgentService implements IAgentService {
     /** 防止模型反复调用工具导致死循环的兜底上限。 */
     private static final int MAX_TOOL_ROUNDS = 5;
 
-    private final OpenAIClient client;
+    private final IApiKeyService apiKeyService;
     private final String model;
     private final List<ITool> tools;
 
-    public AgentService(OpenAIClient client,
+    public AgentService(IApiKeyService apiKeyService,
                         @Value("${openai.model:gpt-5.6}") String model,
                         List<ITool> tools) {
-        this.client = client;
+        this.apiKeyService = apiKeyService;
         this.model = model;
         this.tools = tools;
     }
 
     @Override
     public String ask(String message) {
+        String apiKey = apiKeyService.get();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new OpenAIKeyException("OpenAI Key 是空的，chat 不可用");
+        }
+        // 按当前 key 现建 client：保证每次请求都用最新保存的 key，
+        // 也把「Spring 启动」与「OpenAI client 可用」彻底解耦。
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+                .apiKey(apiKey)
+                .build();
+
         log.debug("调用 OpenAI，用户消息：{}", message);
         long start = System.currentTimeMillis();
-        Response response = client.responses().create(createParams(message, null, null));
-        log.info("OpenAI 首次调用完成，model={}，耗时 {} ms", model, System.currentTimeMillis() - start);
+        try {
+            Response response = client.responses().create(createParams(message, null, null));
+            log.info("OpenAI 首次调用完成，model={}，耗时 {} ms", model, System.currentTimeMillis() - start);
 
-        int rounds = 0;
-        while (hasFunctionCall(response) && rounds < MAX_TOOL_ROUNDS) {
-            long roundStart = System.currentTimeMillis();
-            response = client.responses().create(submitToolOutputsParams(response));
-            rounds++;
-            log.info("OpenAI 工具轮次 {} 完成，耗时 {} ms", rounds, System.currentTimeMillis() - roundStart);
+            int rounds = 0;
+            while (hasFunctionCall(response) && rounds < MAX_TOOL_ROUNDS) {
+                long roundStart = System.currentTimeMillis();
+                response = client.responses().create(submitToolOutputsParams(response));
+                rounds++;
+                log.info("OpenAI 工具轮次 {} 完成，耗时 {} ms", rounds, System.currentTimeMillis() - roundStart);
+            }
+            String reply = extractText(response);
+            log.debug("OpenAI 最终回复：{}", reply);
+            return reply;
+        } catch (UnauthorizedException | PermissionDeniedException e) {
+            throw new OpenAIKeyException("此 API Key 错误或不可用", e);
         }
-        String reply = extractText(response);
-        log.debug("OpenAI 最终回复：{}", reply);
-        return reply;
     }
 
     /** 首次调用 / 后续调用共用的参数构造。previousResponseId 与 input 二选一。 */

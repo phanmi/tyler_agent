@@ -52,7 +52,6 @@ Tyler 是一个能跟你对话的小型 AI 助手，目前还是最早的 alpha 
 tyler_agent/
 ├─ src/main/java/org/tyler/
 │  ├─ TylerAgentApplication.java   # Spring Boot entry point
-│  ├─ config/                      # wiring: sets up the OpenAI client
 │  ├─ controller/                  # HTTP layer: receives requests from the UI
 │  ├─ service/                     # business logic: the chat loop + user profile
 │  ├─ tool/                        # the tools the AI can call (see below)
@@ -74,9 +73,8 @@ A quick, plain-language tour of the main packages:
 
 | Package | What it does |
 |---|---|
-| `config` | Wiring. Sets up the OpenAI client that the rest of the app uses. |
 | `controller` | The front door for web requests. It receives messages from the UI and passes them along, without doing any real work itself. |
-| `service` | The brain. It runs the chat loop, decides when to call a tool, and manages your saved profile. |
+| `service` | The brain. It runs the chat loop, decides when to call a tool, and manages your saved profile and API key. |
 | `tool` | The toolbox. Each tool is one small capability the AI can choose to use (read a file, write a file, get the time, read your profile, record food). |
 | `filesandbox` | The fenced-off file area. All reading and writing goes through here, and it refuses to touch anything outside the sandbox folder. |
 | `model` | Plain data records — the shapes of the things Tyler works with (a food item, your user info). No logic, just data. |
@@ -99,7 +97,8 @@ A quick, plain-language tour of the main packages:
 
 - Backend: JDK 26, Maven
 - Frontend: Node.js (v18+)
-- Environment variable: `OPENAI_API_KEY`
+
+> **No environment variable needed.** You set your OpenAI API key from the UI — it is stored in a sandbox file (`apikey.txt`) and never leaves your machine. The backend starts fine without a key; you only need one when you actually start chatting.
 
 ### Backend
 
@@ -117,13 +116,16 @@ npm run dev
 # listens on http://localhost:5173; /api requests are proxied to 8080
 ```
 
-Open http://localhost:5173, fill in your profile and save, then start chatting.
+Open http://localhost:5173. First, paste your OpenAI API key into the key field and save it, then start chatting.
+
+- If the key is **empty**, the chat is disabled and the UI tells you to set a key.
+- If the key is **invalid**, the chat returns an error saying the key is wrong or unavailable.
 
 ## Configuration (`application.yml`)
 
 | Setting | Environment variable | Default | Description |
 |---|---|---|---|
 | `openai.model` | — | `gpt-5.6` | The OpenAI model to use |
-| `openai.api-key` | `OPENAI_API_KEY` | empty | OpenAI API key |
+| `openai.key-file-path` | `OPENAI_KEY_FILE_PATH` | `apikey.txt` | The sandbox file where the API key is stored |
 | `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | `{user.home}/AppData/Local/tyler_agent` | The sandbox folder for file read/write |
 | `userinfo.file-path` | `USERINFO_FILE_PATH` | `userinfo.json` | Where the user profile JSON is saved |

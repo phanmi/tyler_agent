@@ -79,3 +79,41 @@ export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
 
   return (await res.json()) as UserInfo
 }
+
+// ===== OpenAI API Key =====
+
+// API Key 状态契约：只暴露「是否已配置」，绝不含 key 明文。
+export interface ApiKeyStatus {
+  configured: boolean
+}
+
+// 查询 key 是否已配置：GET /api/apikey/status。
+export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
+  const res = await fetch('/api/apikey/status')
+  if (!res.ok) {
+    throw new Error(`读取 API Key 状态失败（HTTP ${res.status}）`)
+  }
+  return (await res.json()) as ApiKeyStatus
+}
+
+// 保存 API Key：POST /api/apikey。后端 trim 后写进沙盒文件，返回配置状态。
+export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
+  const res = await fetch('/api/apikey', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey }),
+  })
+
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const err = (await res.json()) as { error?: string; message?: string }
+      detail = err.error ?? err.message ?? ''
+    } catch {
+      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+    }
+    throw new Error(detail || `保存失败（HTTP ${res.status}）`)
+  }
+
+  return (await res.json()) as ApiKeyStatus
+}

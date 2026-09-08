@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { sendMessage } from './api'
+import { loadApiKeyStatus, sendMessage } from './api'
 import type { Message } from './types'
+import ApiKeyForm from './components/ApiKeyForm'
 import MessageBubble from './components/MessageBubble'
 import MessageInput from './components/MessageInput'
 import UserInfoForm from './components/UserInfoForm'
@@ -15,6 +16,9 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   // isLoading：是否正在等后端回复，用于禁用输入框、显示「思考中」。
   const [isLoading, setIsLoading] = useState(false)
+  // apiKeyConfigured：key 是否已配置。初始乐观设为 true（后端未启动时不让用户被卡住），
+  // 挂载后异步回填真实状态。
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(true)
 
   // 指向消息列表末尾的锚点元素，用于「新消息到达时自动滚动到底部」。
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -24,6 +28,21 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
+
+  // 挂载时读取一次 key 状态并回填；失败则保持乐观放行（true），不阻塞聊天。
+  useEffect(() => {
+    let cancelled = false
+    loadApiKeyStatus()
+      .then((data) => {
+        if (!cancelled) setApiKeyConfigured(data.configured)
+      })
+      .catch(() => {
+        // 后端未启动或读取失败时，乐观放行（保持 true），让用户先尝试聊天。
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // handleSend：输入框提交后的回调。
   // 流程：先把用户的话塞进历史 → 置 loading → 调后端 → 把回复塞进历史。
@@ -35,6 +54,20 @@ export default function App() {
       content: text,
     }
     setMessages((prev) => [...prev, userMessage])
+
+    // 空 key：直接给一条 assistant 提示，不发 chat 请求（前端主拦截，后端还有兜底）。
+    if (!apiKeyConfigured) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `hint-${Date.now()}`,
+          role: 'assistant',
+          content: 'OpenAI Key 是空的，chat 不可用',
+        },
+      ])
+      return
+    }
+
     setIsLoading(true)
     try {
       const reply = await sendMessage(text)
@@ -51,12 +84,15 @@ export default function App() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [apiKeyConfigured])
 
   return (
     <div className="app-layout">
       {/* 用户信息面板：独立于聊天流，自行负责「启动读取 + 保存写回」。 */}
       <UserInfoForm />
+
+      {/* API Key 面板：负责「输入 + 保存」，配置状态由 App 统一持有并下发。 */}
+      <ApiKeyForm configured={apiKeyConfigured} onConfiguredChange={setApiKeyConfigured} />
 
       <main className="card">
         <h1>Tyler Agent</h1>
