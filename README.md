@@ -24,7 +24,8 @@ Tyler 是一个基于 **Spring Boot + OpenAI** 的 AI Agent，目标是成为用
 tyler_agent/
 ├─ src/main/java/org/tyler/
 │  ├─ TylerAgentApplication.java   # Spring Boot 启动入口
-│  ├─ config/                      # OpenAIClient 装配、请求追踪 Filter
+│  ├─ config/                      # OpenAIClient 装配
+│  ├─ filter/                      # 请求追踪 Filter（requestId → MDC）
 │  ├─ controller/                  # HTTP 层（薄控制器，只做路由与参数绑定）
 │  ├─ service/                     # 业务层（Agent 编排、用户信息）
 │  ├─ filesandbox/                 # 文件沙箱（唯一文件 IO 出口，读/写能力隔离）

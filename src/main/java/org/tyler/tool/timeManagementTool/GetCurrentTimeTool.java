@@ -1,6 +1,7 @@
-package org.tyler.tool;
+package org.tyler.tool.timeManagementTool;
 
 import org.springframework.stereotype.Component;
+import org.tyler.tool.ITool;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;

@@ -1,4 +1,4 @@
-package org.tyler.config;
+package org.tyler.filter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

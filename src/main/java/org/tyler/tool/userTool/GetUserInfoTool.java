@@ -1,11 +1,12 @@
-package org.tyler.tool;
+package org.tyler.tool.userTool;
 
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
 import org.tyler.service.IUserInfoService;
+import org.tyler.tool.ITool;
 
 @Component
-public class GetUserInfoTool implements ITool{
+public class GetUserInfoTool implements ITool {
     IUserInfoService userInfoService;
 
     public GetUserInfoTool(IUserInfoService userInfoService) {
