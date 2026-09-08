@@ -27,6 +27,9 @@ tyler_agent/
 │  ├─ config/                      # OpenAIClient 装配
 │  ├─ filter/                      # 请求追踪 Filter（requestId → MDC）
 │  ├─ controller/                  # HTTP 层（薄控制器，只做路由与参数绑定）
+│  ├─ model/                       # 数据模型
+│  │  ├─ userInfo/                 # 用户信息（UserInfo / User / Other）
+│  │  └─ food/                     # 食物摄入（Food / GenericInfo / MacroNutrients / MicroNutrients）
 │  ├─ service/                     # 业务层（Agent 编排、用户信息）
 │  ├─ filesandbox/                 # 文件沙箱（唯一文件 IO 出口，读/写能力隔离）
 │  ├─ tool/                        # LLM 可调用的工具集
@@ -53,7 +56,7 @@ tyler_agent/
 
 ### 2. 工具调用循环（Function Calling）
 - `AgentService` 会循环调用 OpenAI，直到模型不再请求工具，或达到兜底上限（`MAX_TOOL_ROUNDS = 5`，防止死循环）。
-- 内置 4 个工具：
+- 内置 5 个工具：
 
 | 工具名 | 作用 |
 |---|---|
@@ -61,6 +64,7 @@ tyler_agent/
 | `GetUserInfo` | 读取已保存的用户画像，让 AI「认识你」 |
 | `readFile` | 读取工作区内的文件（路径受限） |
 | `writeFile` | 把文本写入工作区内的文件（自动建目录） |
+| `recordFood` | 解析用户吃的食物为结构化记录（名称、分量、热量、营养素、日期） |
 
 ### 3. 用户画像存储
 - 前端提供「用户信息」表单（姓名、性别、年龄、职业、备注、对 AI 的期望），点「保存」写盘。

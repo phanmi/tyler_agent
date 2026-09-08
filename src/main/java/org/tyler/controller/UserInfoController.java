@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.tyler.model.userInfo.UserInfo;
 import org.tyler.service.IUserInfoService;
 
 /**
@@ -25,13 +26,13 @@ public class UserInfoController implements IUserInfoController {
 
     @Override
     @GetMapping
-    public IUserInfoService.UserInfo get() {
+    public UserInfo get() {
         return userInfoService.get();
     }
 
     @Override
     @PostMapping
-    public IUserInfoService.UserInfo save(@RequestBody IUserInfoService.UserInfo userInfo) {
+    public UserInfo save(@RequestBody UserInfo userInfo) {
         return userInfoService.save(userInfo);
     }
 }
