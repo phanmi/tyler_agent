@@ -13,14 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class FileSandboxTest {
+class FileSandBoxReadAndWriteTest {
 
     @TempDir
     Path tempDir;
 
     @Test
     void writesAndReadsInsideRoot() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FileSandBoxReadAndWrite sandbox = new FileSandBoxReadAndWrite(tempDir.toString());
         sandbox.write("notes/hello.txt", "hi");
         assertEquals("hi", sandbox.read("notes/hello.txt"));
         assertTrue(Files.exists(tempDir.resolve("notes/hello.txt")));
@@ -28,7 +28,7 @@ class FileSandboxTest {
 
     @Test
     void rejectsPathTraversal() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FileSandBoxReadAndWrite sandbox = new FileSandBoxReadAndWrite(tempDir.toString());
         assertThrows(IllegalArgumentException.class,
                 () -> sandbox.write("../escape.txt", "x"));
         assertThrows(IllegalArgumentException.class,
@@ -37,20 +37,20 @@ class FileSandboxTest {
 
     @Test
     void rejectsBlankPath() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FileSandBoxReadAndWrite sandbox = new FileSandBoxReadAndWrite(tempDir.toString());
         assertThrows(IllegalArgumentException.class, () -> sandbox.read("   "));
     }
 
     @Test
     void readingMissingFileThrowsFileReadException() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FileSandBoxReadAndWrite sandbox = new FileSandBoxReadAndWrite(tempDir.toString());
         assertThrows(FileReadException.class,
                 () -> sandbox.read("does-not-exist.txt"));
     }
 
     @Test
     void existsReportsFilePresence() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FileSandBoxReadAndWrite sandbox = new FileSandBoxReadAndWrite(tempDir.toString());
         assertFalse(sandbox.exists("a.txt"));
         sandbox.write("a.txt", "x");
         assertTrue(sandbox.exists("a.txt"));

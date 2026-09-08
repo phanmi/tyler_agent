@@ -12,21 +12,25 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 把文件读写限制在一个沙箱工作目录内，防止路径穿越访问目录之外的文件。
+ * 文件沙箱的完整实现：同时具备读与写能力。
+ *
+ * <p>把文件读写限制在一个沙箱工作目录内，防止路径穿越访问目录之外的文件。
  *
  * <p>根目录默认是 {@code {user.home}/AppData/Local/tyler_agent}，
  * 可通过 {@code agent.workspace-dir}（或环境变量 {@code AGENT_WORKSPACE_DIR}）覆盖。
  *
  * <p>这是全项目唯一的文件 IO 出口：除日志外的所有读写都应通过本类完成。
+ * 需要「只读」或「只写」能力时，请分别注入 {@link FileSandBoxReadOnly} 或
+ * {@link FileSandBoxWriteOnly}，它们在类型层面就没有另一边的方法。
  */
 @Component
-public class FileSandbox {
+public class FileSandBoxReadAndWrite implements IFileSandBoxRead, IFileSandBoxWrite {
 
-    private static final Logger log = LoggerFactory.getLogger(FileSandbox.class);
+    private static final Logger log = LoggerFactory.getLogger(FileSandBoxReadAndWrite.class);
 
     private final Path root;
 
-    public FileSandbox(@Value("${agent.workspace-dir:}") String workspaceDir) throws IOException {
+    public FileSandBoxReadAndWrite(@Value("${agent.workspace-dir:}") String workspaceDir) throws IOException {
         this.root = resolveRoot(workspaceDir);
         Files.createDirectories(root);
     }
@@ -40,16 +44,18 @@ public class FileSandbox {
     }
 
     /** 返回沙箱根目录的绝对路径。 */
-    public Path root() {
+    private Path root() {
         return root;
     }
 
     /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */
+    @Override
     public boolean exists(String relativePath) {
         return Files.exists(resolveInside(relativePath));
     }
 
     /** 读取沙箱内的文件内容。相对路径越界或为空会抛异常。 */
+    @Override
     public String read(String relativePath) {
         log.debug("读取文件：{}", relativePath);
         try {
@@ -60,6 +66,7 @@ public class FileSandbox {
     }
 
     /** 把内容写入沙箱内的文件，自动创建父目录。 */
+    @Override
     public void write(String relativePath, String content) {
         log.debug("写入文件：{}（{} 字符）", relativePath, content == null ? 0 : content.length());
         Path target = resolveInside(relativePath);

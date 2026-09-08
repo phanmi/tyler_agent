@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.tyler.filesandbox.FileSandbox;
+import org.tyler.filesandbox.FileSandBoxReadAndWrite;
 import org.tyler.filesandbox.exceptions.FileWriteException;
 
 import java.io.IOException;
@@ -16,7 +16,7 @@ import java.util.Set;
  * 用户信息读写服务的实现。
  *
  * <p>把「JSON 序列化 / 字段校验」等业务逻辑收敛到这里，
- * 但所有文件 IO 都委托给 {@link FileSandbox}，本类不再直接触碰磁盘。
+ * 但所有文件 IO 都委托给 {@link FileSandBoxReadAndWrite}，本类不再直接触碰磁盘。
  */
 @Service
 public class UserInfoService implements IUserInfoService {
@@ -30,11 +30,11 @@ public class UserInfoService implements IUserInfoService {
     // 且 ObjectMapper 本身线程安全、可复用，手动创建最稳、零额外配置依赖。
     // 注意：它只负责「JSON 字符串 <-> 对象」的序列化；真正的落盘/回读交给 FileSandbox。
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final FileSandbox sandbox;
+    private final FileSandBoxReadAndWrite sandbox;
     private final String relativePath;
 
     public UserInfoService(
-            FileSandbox sandbox,
+            FileSandBoxReadAndWrite sandbox,
             @Value("${userinfo.file-path:userinfo.json}") String relativePath) {
         this.sandbox = sandbox;
         // 这是「沙箱内的相对路径」，而不是绝对路径；实际位置由 FileSandbox 的根目录决定。
