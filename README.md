@@ -74,7 +74,7 @@ A quick, plain-language tour of the main packages:
 | Package | What it does |
 |---|---|
 | `controller` | The front door for web requests. It receives messages from the UI and passes them along, without doing any real work itself. |
-| `service` | The brain. It runs the chat loop, decides when to call a tool, and manages your saved profile and API key. |
+| `service` | The brain. It runs the chat loop, decides when to call a tool, manages your saved profile and API key, and creates and reuses the OpenAI client. |
 | `tool` | The toolbox. Each tool is one small capability the AI can choose to use (read a file, write a file, get the time, read your profile, record food). |
 | `filesandbox` | The fenced-off file area. All reading and writing goes through here, and it refuses to touch anything outside the sandbox folder. |
 | `model` | Plain data records — the shapes of the things Tyler works with (a food item, your user info). No logic, just data. |

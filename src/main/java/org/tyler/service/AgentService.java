@@ -1,7 +1,6 @@
 package org.tyler.service;
 
 import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.errors.PermissionDeniedException;
 import com.openai.errors.UnauthorizedException;
 import com.openai.models.responses.FunctionTool;
@@ -30,29 +29,22 @@ public class AgentService implements IAgentService {
     /** 防止模型反复调用工具导致死循环的兜底上限。 */
     private static final int MAX_TOOL_ROUNDS = 5;
 
-    private final IApiKeyService apiKeyService;
+    private final IClientFactory clientFactory;
     private final String model;
     private final List<ITool> tools;
 
-    public AgentService(IApiKeyService apiKeyService,
+    public AgentService(IClientFactory clientFactory,
                         @Value("${openai.model:gpt-5.6}") String model,
                         List<ITool> tools) {
-        this.apiKeyService = apiKeyService;
+        this.clientFactory = clientFactory;
         this.model = model;
         this.tools = tools;
     }
 
     @Override
     public String ask(String message) {
-        String apiKey = apiKeyService.get();
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new OpenAIKeyException("OpenAI Key 是空的，chat 不可用");
-        }
-        // 按当前 key 现建 client：保证每次请求都用最新保存的 key，
-        // 也把「Spring 启动」与「OpenAI client 可用」彻底解耦。
-        OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey(apiKey)
-                .build();
+        // 通过工厂获取（复用或按需创建的）client；空 key、建 client 的细节都交给工厂。
+        OpenAIClient client = clientFactory.getClient();
 
         log.debug("调用 OpenAI，用户消息：{}", message);
         long start = System.currentTimeMillis();
