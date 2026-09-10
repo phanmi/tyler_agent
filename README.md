@@ -43,7 +43,7 @@ Tyler 是一个能跟你对话的小型 AI 助手，目前还是最早的 alpha 
 | Layer | Technology |
 |---|---|
 | Backend | Java 26 · Spring Boot 4.1.1 · OpenAI Java SDK (openai-java 4.54.0) |
-| Frontend | React · TypeScript · Vite |
+| Frontend | React · TypeScript · Vite · Electron |
 | Build | Maven (backend) · npm (frontend) |
 
 ## Project structure
@@ -52,6 +52,7 @@ Tyler 是一个能跟你对话的小型 AI 助手，目前还是最早的 alpha 
 tyler_agent/
 ├─ src/main/java/org/tyler/
 │  ├─ TylerAgentApplication.java   # Spring Boot entry point
+│  ├─ config/                      # app-level configuration (CORS for the desktop app)
 │  ├─ controller/                  # HTTP layer: receives requests from the UI
 │  ├─ service/                     # business logic: the chat loop + user profile
 │  ├─ tool/                        # the tools the AI can call (see below)
@@ -62,7 +63,7 @@ tyler_agent/
 ├─ src/main/resources/
 │  ├─ application.yml              # configuration (model, port, workspace folder, ...)
 │  └─ logback-spring.xml           # logging (console + rolling file)
-├─ frontend/                       # React + TypeScript + Vite app (separate project)
+├─ frontend/                       # React + TypeScript + Vite + Electron app (separate project)
 ├─ pom.xml
 └─ userinfo.json                   # saved user profile (created at runtime)
 ```
@@ -73,6 +74,7 @@ A quick, plain-language tour of the main packages:
 
 | Package | What it does |
 |---|---|
+| `config` | App-level configuration. It lets the Electron desktop window (which loads the UI from `file://`) call the local backend. |
 | `controller` | The front door for web requests. It receives messages from the UI and passes them along, without doing any real work itself. |
 | `service` | The brain. It runs the chat loop, decides when to call a tool, manages your saved profile and API key, and creates and reuses the OpenAI client. |
 | `tool` | The toolbox. Each tool is one small capability the AI can choose to use (read a file, write a file, get the time, read your profile, record food). |
@@ -120,6 +122,32 @@ Open http://localhost:5173. First, paste your OpenAI API key into the key field 
 
 - If the key is **empty**, the chat is disabled and the UI tells you to set a key.
 - If the key is **invalid**, the chat returns an error saying the key is wrong or unavailable.
+
+### Desktop app (Electron)
+
+Electron wraps everything into one desktop window and starts the backend for you:
+
+```bash
+# 1. build the backend JAR (once)
+mvn clean package
+
+# 2. build the React production bundle
+cd frontend
+npm install
+npm run build
+
+# 3. launch the desktop app (starts backend + opens window)
+npm run electron
+```
+
+Electron's main process:
+
+1. locates a Java runtime (via `JAVA_HOME`, then `~/.jdks`, then `PATH`)
+2. spawns the backend JAR (`target/tyler-agent-0.1.0.jar`)
+3. waits until the backend is ready (polls `GET /api/apikey/status`)
+4. opens the Tyler window, which loads the production build from `frontend/dist`
+
+When you close the window, Electron shuts the backend down too, so no Java process is left behind. If the backend fails to start, Electron shows an error dialog and quits.
 
 ## Configuration (`application.yml`)
 

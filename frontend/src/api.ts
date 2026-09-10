@@ -1,5 +1,11 @@
 import type { Message, UserInfo } from './types'
 
+// 生产模式（Electron 用 loadFile 加载 dist，页面 origin 是 file://）下，
+// 相对路径 '/api/...' 会被解析成 'file:///api/...'，无法命中后端。
+// 因此生产构建需要指向后端 Spring Boot 的绝对基址；开发模式保持空串，
+// 继续走 vite.config.ts 里的 /api 代理（同源，无 CORS 问题）。
+const API_BASE = import.meta.env.PROD ? 'http://127.0.0.1:8080' : ''
+
 // 与后端约定的请求体：POST /api/agent/chat
 interface ChatRequest {
   message: string
@@ -15,7 +21,7 @@ interface ChatResponse {
 // 让组件只关心「发出去一句话、拿回一句回复」，不必关心 HTTP 细节。
 // 这也是把「网络副作用」与「UI 渲染」解耦的关键一步。
 export async function sendMessage(message: string): Promise<Message> {
-  const res = await fetch('/api/agent/chat', {
+  const res = await fetch(`${API_BASE}/api/agent/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message } satisfies ChatRequest),
@@ -49,7 +55,7 @@ export async function sendMessage(message: string): Promise<Message> {
 // 读取用户信息：GET /api/userinfo。
 // 后端在文件不存在或损坏时也会返回空结构（200），因此正常路径不会 reject。
 export async function loadUserInfo(): Promise<UserInfo> {
-  const res = await fetch('/api/userinfo')
+  const res = await fetch(`${API_BASE}/api/userinfo`)
   if (!res.ok) {
     throw new Error(`读取用户信息失败（HTTP ${res.status}）`)
   }
@@ -59,7 +65,7 @@ export async function loadUserInfo(): Promise<UserInfo> {
 // 保存用户信息：POST /api/userinfo。
 // 后端校验（gender 枚举、age 整数）后写盘，并返回归一化后的结构。
 export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
-  const res = await fetch('/api/userinfo', {
+  const res = await fetch(`${API_BASE}/api/userinfo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -89,7 +95,7 @@ export interface ApiKeyStatus {
 
 // 查询 key 是否已配置：GET /api/apikey/status。
 export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
-  const res = await fetch('/api/apikey/status')
+  const res = await fetch(`${API_BASE}/api/apikey/status`)
   if (!res.ok) {
     throw new Error(`读取 API Key 状态失败（HTTP ${res.status}）`)
   }
@@ -98,7 +104,7 @@ export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
 
 // 保存 API Key：POST /api/apikey。后端 trim 后写进沙盒文件，返回配置状态。
 export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
-  const res = await fetch('/api/apikey', {
+  const res = await fetch(`${API_BASE}/api/apikey`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ apiKey }),
