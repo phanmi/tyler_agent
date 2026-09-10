@@ -67,7 +67,8 @@ Thumbs.db
 
 ### Logs ###
 *.log
-
+logs/
+*.log.gz
 
 ### Cyrene Agent ###
 .cyrene/
