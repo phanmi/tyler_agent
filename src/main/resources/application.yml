@@ -16,3 +16,7 @@ agent:
 userinfo:
   # 用户信息 JSON 的沙箱内相对路径；默认 userinfo.json，可用环境变量 USERINFO_FILE_PATH 覆盖。
   file-path: ${USERINFO_FILE_PATH:userinfo.json}
+
+chat:
+  # 聊天历史的沙箱内相对路径；默认 chat-history.json，可用环境变量 CHAT_HISTORY_FILE_PATH 覆盖。
+  history-file-path: ${CHAT_HISTORY_FILE_PATH:chat-history.json}

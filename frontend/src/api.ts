@@ -123,3 +123,35 @@ export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
 
   return (await res.json()) as ApiKeyStatus
 }
+
+// ===== 聊天历史 =====
+
+// 后端返回的历史条目：只含 role + content，id 是前端渲染概念、由前端生成。
+interface HistoryEntry {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// 读取后端保存的聊天历史：GET /api/agent/history。
+// 后端在文件不存在或损坏时返回空数组（200），因此正常路径不会 reject。
+export async function loadChatHistory(): Promise<Message[]> {
+  const res = await fetch(`${API_BASE}/api/agent/history`)
+  if (!res.ok) {
+    throw new Error(`读取聊天历史失败（HTTP ${res.status}）`)
+  }
+  const data = (await res.json()) as HistoryEntry[]
+  // 后端不返回消息 id，这里为每条生成本地唯一 id（同一批恢复用 index 保证不重复）。
+  return data.map((entry, index) => ({
+    id: `history-${Date.now()}-${index}`,
+    role: entry.role,
+    content: entry.content,
+  }))
+}
+
+// 清空后端保存的聊天历史：DELETE /api/agent/history。
+export async function clearChatHistory(): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/agent/history`, { method: 'DELETE' })
+  if (!res.ok) {
+    throw new Error(`清空聊天历史失败（HTTP ${res.status}）`)
+  }
+}

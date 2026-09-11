@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadApiKeyStatus, sendMessage } from './api'
+import { clearChatHistory, loadApiKeyStatus, loadChatHistory, sendMessage } from './api'
 import type { Message } from './types'
 import ApiKeyForm from './components/ApiKeyForm'
 import MessageBubble from './components/MessageBubble'
@@ -38,6 +38,21 @@ export default function App() {
       })
       .catch(() => {
         // 后端未启动或读取失败时，乐观放行（保持 true），让用户先尝试聊天。
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 挂载时恢复后端保存的聊天历史；失败则静默忽略（无历史也能正常开始）。
+  useEffect(() => {
+    let cancelled = false
+    loadChatHistory()
+      .then((history) => {
+        if (!cancelled) setMessages(history)
+      })
+      .catch(() => {
+        // 后端未启动或读取失败时，保持空历史，不阻塞。
       })
     return () => {
       cancelled = true
@@ -86,6 +101,23 @@ export default function App() {
     }
   }, [apiKeyConfigured])
 
+  // 清空后端历史 + 本地展示；失败时给一条 assistant 提示，用户能看到反馈。
+  const handleClear = useCallback(async () => {
+    try {
+      await clearChatHistory()
+      setMessages([])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `clear-error-${Date.now()}`,
+          role: 'assistant',
+          content: `清空对话失败：${err instanceof Error ? err.message : '未知错误'}`,
+        },
+      ])
+    }
+  }, [])
+
   return (
     <div className="app-layout">
       {/* 用户信息面板：独立于聊天流，自行负责「启动读取 + 保存写回」。 */}
@@ -97,6 +129,15 @@ export default function App() {
       <main className="card">
         <h1>Tyler Agent</h1>
         <p className="subtitle">输入一段话，ChatGPT 会回复你。</p>
+
+        {/* 工具条：有历史时显示「清空对话」，同步清后端 + 本地。 */}
+        {messages.length > 0 && (
+          <div className="chat-toolbar">
+            <button type="button" className="btn-clear" onClick={handleClear} disabled={isLoading}>
+              清空对话
+            </button>
+          </div>
+        )}
 
         {/* 消息列表：直接在这里 map 成气泡。
             暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，

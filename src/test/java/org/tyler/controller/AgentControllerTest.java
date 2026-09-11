@@ -6,6 +6,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.service.IAgentService;
+import org.tyler.service.IChatHistoryService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -17,11 +18,13 @@ class AgentControllerTest {
 
     private MockMvc mockMvc;
     private IAgentService agentService;
+    private IChatHistoryService chatHistoryService;
 
     @BeforeEach
     void setUp() {
         agentService = mock(IAgentService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new AgentController(agentService))
+        chatHistoryService = mock(IChatHistoryService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new AgentController(agentService, chatHistoryService))
                 .setControllerAdvice(new GenericExceptionHandler())
                 .build();
     }

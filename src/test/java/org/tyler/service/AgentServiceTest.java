@@ -22,7 +22,7 @@ class AgentServiceTest {
         IClientFactory clientFactory = mock(IClientFactory.class);
         when(clientFactory.getClient()).thenThrow(new OpenAIKeyException("OpenAI Key 是空的，chat 不可用"));
 
-        AgentService service = new AgentService(clientFactory, "gpt-5.6", List.of());
+        AgentService service = new AgentService(clientFactory, "gpt-5.6", List.of(), mock(IChatHistoryService.class));
 
         assertThrows(OpenAIKeyException.class, () -> service.ask("hello"));
         verify(clientFactory).getClient();
@@ -34,7 +34,7 @@ class AgentServiceTest {
         OpenAIKeyException expected = new OpenAIKeyException("OpenAI Key 是空的，chat 不可用");
         when(clientFactory.getClient()).thenThrow(expected);
 
-        AgentService service = new AgentService(clientFactory, "gpt-5.6", List.of());
+        AgentService service = new AgentService(clientFactory, "gpt-5.6", List.of(), mock(IChatHistoryService.class));
 
         OpenAIKeyException actual = assertThrows(OpenAIKeyException.class, () -> service.ask("hello"));
         assertSame(expected, actual);

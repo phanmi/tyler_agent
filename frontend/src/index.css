@@ -171,6 +171,28 @@ button:disabled {
   font-size: 12px;
 }
 
+/* ===== 聊天工具条（清空对话） ===== */
+.chat-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.btn-clear {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn-clear:hover:not(:disabled) {
+  background: #fdf2f7;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ===== 用户信息面板 ===== */
 
 /* 页面整体改为两栏布局：左侧用户信息卡片 + 右侧聊天卡片，窄屏自动换行上下堆叠。 */

@@ -3,6 +3,7 @@ package org.tyler.service;
 import com.openai.client.OpenAIClient;
 import com.openai.errors.PermissionDeniedException;
 import com.openai.errors.UnauthorizedException;
+import com.openai.models.responses.EasyInputMessage;
 import com.openai.models.responses.FunctionTool;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tyler.exceptionHandler.exception.OpenAIKeyException;
+import org.tyler.model.chat.ChatMessage;
 import org.tyler.tool.ITool;
 
 import java.util.ArrayList;
@@ -32,13 +34,16 @@ public class AgentService implements IAgentService {
     private final IClientFactory clientFactory;
     private final String model;
     private final List<ITool> tools;
+    private final IChatHistoryService chatHistoryService;
 
     public AgentService(IClientFactory clientFactory,
                         @Value("${openai.model:gpt-5.6}") String model,
-                        List<ITool> tools) {
+                        List<ITool> tools,
+                        IChatHistoryService chatHistoryService) {
         this.clientFactory = clientFactory;
         this.model = model;
         this.tools = tools;
+        this.chatHistoryService = chatHistoryService;
     }
 
     @Override
@@ -46,10 +51,13 @@ public class AgentService implements IAgentService {
         // 通过工厂获取（复用或按需创建的）client；空 key、建 client 的细节都交给工厂。
         OpenAIClient client = clientFactory.getClient();
 
-        log.debug("调用 OpenAI，用户消息：{}", message);
+        // 把「历史 + 当前消息」拼成完整 input，让模型记住前面的对话（跨轮记忆）。
+        List<ResponseInputItem> inputItems = buildHistoryInput(message);
+
+        log.debug("调用 OpenAI，用户消息：{}（携带历史 {} 条）", message, Math.max(0, inputItems.size() - 1));
         long start = System.currentTimeMillis();
         try {
-            Response response = client.responses().create(createParams(message, null, null));
+            Response response = client.responses().create(createParamsWithInput(inputItems));
             log.info("OpenAI 首次调用完成，model={}，耗时 {} ms", model, System.currentTimeMillis() - start);
 
             int rounds = 0;
@@ -61,13 +69,47 @@ public class AgentService implements IAgentService {
             }
             String reply = extractText(response);
             log.debug("OpenAI 最终回复：{}", reply);
+
+            // 拿到回复后再落盘：user + assistant 各一条。只有成功才写，避免失败污染历史。
+            chatHistoryService.append("user", message);
+            chatHistoryService.append("assistant", reply);
             return reply;
         } catch (UnauthorizedException | PermissionDeniedException e) {
             throw new OpenAIKeyException("此 API Key 错误或不可用", e);
         }
     }
 
-    /** 首次调用 / 后续调用共用的参数构造。previousResponseId 与 input 二选一。 */
+    /** 首次调用：把完整历史 + 当前消息作为 input 列表传入。 */
+    private ResponseCreateParams createParamsWithInput(List<ResponseInputItem> input) {
+        return ResponseCreateParams.builder()
+                .model(model)
+                .tools(toOpenAiTools())
+                .input(ResponseCreateParams.Input.ofResponse(input))
+                .build();
+    }
+
+    /** 读取历史并转成 OpenAI 的 input item 列表，末尾追加当前用户消息。 */
+    private List<ResponseInputItem> buildHistoryInput(String currentMessage) {
+        List<ResponseInputItem> items = new ArrayList<>();
+        for (ChatMessage msg : chatHistoryService.get()) {
+            items.add(toInputItem(msg.role(), msg.content()));
+        }
+        items.add(toInputItem("user", currentMessage));
+        return items;
+    }
+
+    private ResponseInputItem toInputItem(String role, String content) {
+        EasyInputMessage.Role openAiRole = "assistant".equals(role)
+                ? EasyInputMessage.Role.ASSISTANT
+                : EasyInputMessage.Role.USER;
+        EasyInputMessage message = EasyInputMessage.builder()
+                .role(openAiRole)
+                .content(content)
+                .build();
+        return ResponseInputItem.ofEasyInputMessage(message);
+    }
+
+    /** 工具轮次调用：用 previousResponseId 续写，携带本轮的 function call output。 */
     private ResponseCreateParams createParams(String message,
                                               String previousResponseId,
                                               List<ResponseInputItem> input) {
