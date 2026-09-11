@@ -12,9 +12,23 @@ const POLL_INTERVAL_MS = 500
 
 let backendProcess = null
 
-// 定位 java 可执行文件：JAVA_HOME → ~/.jdks 扫描 → PATH 上的 java。
-// Phase 6 会改为直接指向 bundle 进来的 JRE，届时这里会进一步简化。
+// 定位 java 可执行文件：优先用 bundle 进来的 JRE（resources/runtime），
+// 找不到再回退到 JAVA_HOME → ~/.jdks 扫描 → PATH 上的 java。
 function resolveJavaPath() {
+    if (app.isPackaged) {
+        const candidates = [
+            path.join(process.resourcesPath, 'runtime', 'bin', 'java.exe'),
+            path.join(process.resourcesPath, 'bin', 'java.exe'),
+        ]
+        for (const c of candidates) {
+            if (fs.existsSync(c)) return c
+        }
+    }
+
+    // 开发态：优先 bundle 进来的 JRE（Phase 6）
+    const bundled = path.join(__dirname, '..', '..', 'resources', 'runtime', 'bin', 'java.exe')
+    if (fs.existsSync(bundled)) return bundled
+
     if (process.env.JAVA_HOME) {
         const fromHome = path.join(process.env.JAVA_HOME, 'bin', 'java.exe')
         if (fs.existsSync(fromHome)) return fromHome
@@ -33,6 +47,9 @@ function resolveJavaPath() {
 // 定位 backend JAR：允许环境变量 BACKEND_JAR_PATH 覆盖，否则按源码目录结构找 target 下的产物。
 function resolveJarPath() {
     if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
+    if (app.isPackaged) {
+        return path.join(process.resourcesPath, 'tyler-agent-0.1.0.jar')
+    }
     return path.join(__dirname, '..', '..', 'target', 'tyler-agent-0.1.0.jar')
 }
 

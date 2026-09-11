@@ -75,6 +75,10 @@ logs/
 ### Node / Vite frontend ###
 frontend/node_modules/
 frontend/dist/
+frontend/out/
 
 ## user json ##
 userinfo.json
+
+### Bundled Java Runtime (Phase 6) ###
+resources/runtime/

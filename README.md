@@ -64,6 +64,7 @@ tyler_agent/
 │  ├─ application.yml              # configuration (model, port, workspace folder, ...)
 │  └─ logback-spring.xml           # logging (console + rolling file)
 ├─ frontend/                       # React + TypeScript + Vite + Electron app (separate project)
+├─ resources/runtime/              # bundled JRE (Temurin 26) so users don't need Java installed
 ├─ pom.xml
 └─ userinfo.json                   # saved user profile (created at runtime)
 ```
@@ -142,12 +143,14 @@ npm run electron
 
 Electron's main process:
 
-1. locates a Java runtime (via `JAVA_HOME`, then `~/.jdks`, then `PATH`)
+1. locates a Java runtime — prefers the bundled JRE (`resources/runtime/`), then falls back to `JAVA_HOME` → `~/.jdks` → `PATH`
 2. spawns the backend JAR (`target/tyler-agent-0.1.0.jar`)
 3. waits until the backend is ready (polls `GET /api/apikey/status`)
 4. opens the Tyler window, which loads the production build from `frontend/dist`
 
 When you close the window, Electron shuts the backend down too, so no Java process is left behind. If the backend fails to start, Electron shows an error dialog and quits.
+
+The bundled JRE under `resources/runtime/` is what makes Tyler self-contained: end users won't need to install Java. Electron always tries this bundled runtime first.
 
 ## Configuration (`application.yml`)
 
