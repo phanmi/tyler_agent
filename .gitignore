@@ -76,6 +76,8 @@ logs/
 frontend/node_modules/
 frontend/dist/
 frontend/out/
+# 临时：out2 是 Phase 8 绕锁的产物，Cyrene 锁着 app.asar 删不掉，待下次重启后删除目录并移除本行
+frontend/out2/
 
 ## user json ##
 userinfo.json

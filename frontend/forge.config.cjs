@@ -1,5 +1,4 @@
-// Electron Forge 配置（Phase 7）
-// 只做 package（生成 Tyler.exe），安装器 maker 留到 Phase 8 再补。
+// Electron Forge 配置（Phase 7 打 package，Phase 8 补 Squirrel.Windows 安装器）。
 module.exports = {
   packagerConfig: {
     name: 'Tyler',
@@ -14,5 +13,14 @@ module.exports = {
       '../target/tyler-agent-0.1.0.jar',
     ],
   },
-  makers: [],
+  makers: [
+    {
+      name: '@electron-forge/maker-squirrel',
+      config: {
+        name: 'Tyler',
+        authors: 'Tyler',
+        description: 'Tyler — AI Agent Desktop',
+      },
+    },
+  ],
 }

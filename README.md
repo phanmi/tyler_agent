@@ -152,6 +152,32 @@ When you close the window, Electron shuts the backend down too, so no Java proce
 
 The bundled JRE under `resources/runtime/` is what makes Tyler self-contained: end users won't need to install Java. Electron always tries this bundled runtime first.
 
+### Windows installer (Squirrel)
+
+To build a Windows installer that end users can double-click:
+
+```bash
+cd frontend
+npm run make
+```
+
+The installer artifacts land in `frontend/out/make/squirrel.windows/x64/`:
+
+- `Tyler-0.1.0 Setup.exe` — the installer (double-click to install)
+- `Tyler-0.1.0-full.nupkg` — the Squirrel package
+- `RELEASES` — release metadata
+
+Installing:
+
+- **Interactive**: double-click `Tyler-0.1.0 Setup.exe`.
+- **Silent**: `Tyler-0.1.0 Setup.exe /S` installs to `%LOCALAPPDATA%\Tyler` with no UI.
+
+Uninstalling:
+
+- Run `%LOCALAPPDATA%\Tyler\Update.exe --uninstall`.
+
+> The installer is unsigned in alpha, so Windows SmartScreen shows an "unknown publisher" warning — expected until code signing is added (planned later).
+
 ## Configuration (`application.yml`)
 
 | Setting | Environment variable | Default | Description |
