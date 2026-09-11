@@ -70,9 +70,9 @@ public class AgentService implements IAgentService {
             String reply = extractText(response);
             log.debug("OpenAI 最终回复：{}", reply);
 
-            // 拿到回复后再落盘：user + assistant 各一条。只有成功才写，避免失败污染历史。
-            chatHistoryService.append("user", message);
-            chatHistoryService.append("assistant", reply);
+            // 拿到回复后再落盘：user + assistant 一次性写成完整一轮，
+            // 避免两次写入中间失败留下一条没有回答的 user 消息。
+            chatHistoryService.appendExchange(message, reply);
             return reply;
         } catch (UnauthorizedException | PermissionDeniedException e) {
             throw new OpenAIKeyException("此 API Key 错误或不可用", e);

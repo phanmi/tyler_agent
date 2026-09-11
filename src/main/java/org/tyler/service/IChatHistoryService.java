@@ -12,6 +12,7 @@ import java.util.List;
  * <ul>
  *   <li>{@link #get()} 返回截断后、从 user 开头、角色交替的历史（文件不存在/损坏返回空列表）。</li>
  *   <li>{@link #append(String, String)} 追加一条消息并写回，返回追加后的完整历史。</li>
+ *   <li>{@link #appendExchange(String, String)} 一次性追加完整一轮（user + assistant）并写回，返回追加后的完整历史。</li>
  *   <li>{@link #clear()} 清空历史，返回空列表。</li>
  * </ul>
  */
@@ -22,6 +23,9 @@ public interface IChatHistoryService {
 
     /** 追加一条消息（role 只能是 user / assistant），返回追加后的完整历史。 */
     List<ChatMessage> append(String role, String content);
+
+    /** 一次性追加完整一轮对话（user + assistant），返回追加后的完整历史。 */
+    List<ChatMessage> appendExchange(String userMessage, String assistantReply);
 
     /** 清空历史，返回空列表。 */
     List<ChatMessage> clear();

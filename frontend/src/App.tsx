@@ -19,6 +19,9 @@ export default function App() {
   // apiKeyConfigured：key 是否已配置。初始乐观设为 true（后端未启动时不让用户被卡住），
   // 挂载后异步回填真实状态。
   const [apiKeyConfigured, setApiKeyConfigured] = useState(true)
+  // isHistoryLoading：启动恢复历史期间为 true，用于暂时禁用输入框，
+  // 避免用户在历史加载完成前发消息、随后被 setMessages(history) 覆盖。
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
 
   // 指向消息列表末尾的锚点元素，用于「新消息到达时自动滚动到底部」。
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -53,6 +56,9 @@ export default function App() {
       })
       .catch(() => {
         // 后端未启动或读取失败时，保持空历史，不阻塞。
+      })
+      .finally(() => {
+        if (!cancelled) setIsHistoryLoading(false)
       })
     return () => {
       cancelled = true
@@ -152,7 +158,7 @@ export default function App() {
           <div ref={bottomRef} />
         </div>
 
-        <MessageInput onSend={handleSend} disabled={isLoading} />
+        <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
         <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
       </main>
     </div>

@@ -28,9 +28,6 @@ public class ChatHistoryService implements IChatHistoryService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatHistoryService.class);
 
-    /** 历史最多保留的消息条数（约 10 轮对话），防止 token 无限膨胀。 */
-    private static final int MAX_MESSAGES = 20;
-
     private static final Set<String> VALID_ROLES = Set.of("user", "assistant");
 
     // 与 UserInfoService 一致：直接 new 一个 ObjectMapper（线程安全、可复用），
@@ -40,14 +37,23 @@ public class ChatHistoryService implements IChatHistoryService {
     private final IFileSandboxWrite writer;
     private final String relativePath;
 
+    /**
+     * 历史最多保留的消息条数（约 10 轮对话），防止 token 无限膨胀。
+     * TODO: 后续提供运行时调整 maxMessages 的办法（如配置刷新 / 管理接口）；
+     *       当前只支持启动时通过 {@code chat.max-messages} 注入，运行期不可变。
+     */
+    private final int maxMessages;
+
     public ChatHistoryService(
             IFileSandboxRead reader,
             IFileSandboxWrite writer,
-            @Value("${chat.history-file-path:chat-history.json}") String relativePath) {
+            @Value("${chat.history-file-path:chat-history.json}") String relativePath,
+            @Value("${chat.max-messages:20}") int maxMessages) {
         this.reader = reader;
         this.writer = writer;
         // 沙箱内的相对路径，实际位置由 FileSandbox 的根目录决定。
         this.relativePath = relativePath;
+        this.maxMessages = maxMessages;
     }
 
     @Override
@@ -81,13 +87,25 @@ public class ChatHistoryService implements IChatHistoryService {
     }
 
     @Override
+    public List<ChatMessage> appendExchange(String userMessage, String assistantReply) {
+        // 一次性读 → 追加 user + assistant 两条 → 归一化 → 写一次，
+        // 避免「第一次写成功、第二次写失败」留下一条没有回答的 user 消息。
+        List<ChatMessage> history = new ArrayList<>(get());
+        history.add(new ChatMessage("user", userMessage));
+        history.add(new ChatMessage("assistant", assistantReply));
+        List<ChatMessage> normalized = normalize(history);
+        write(normalized);
+        return normalized;
+    }
+
+    @Override
     public List<ChatMessage> clear() {
         write(List.of());
         return List.of();
     }
 
     /**
-     * 清洗 + 截断：跳过脏数据、只保留最近 {@link #MAX_MESSAGES} 条，
+     * 清洗 + 截断：跳过脏数据、只保留最近 {@link #maxMessages} 条，
      * 并保证列表从 user 开头（去掉开头的 assistant，使角色对齐）。
      */
     private List<ChatMessage> normalize(List<ChatMessage> history) {
@@ -104,8 +122,8 @@ public class ChatHistoryService implements IChatHistoryService {
             }
             result.add(new ChatMessage(msg.role(), msg.content()));
         }
-        if (result.size() > MAX_MESSAGES) {
-            result = new ArrayList<>(result.subList(result.size() - MAX_MESSAGES, result.size()));
+        if (result.size() > maxMessages) {
+            result = new ArrayList<>(result.subList(result.size() - maxMessages, result.size()));
         }
         // 从 user 开头：若截断后第一条是 assistant，去掉它（正常追加是 user→assistant 成对，去掉后仍交替）。
         while (!result.isEmpty() && !"user".equals(result.get(0).role())) {
