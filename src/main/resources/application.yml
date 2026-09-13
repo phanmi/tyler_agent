@@ -22,3 +22,7 @@ chat:
   history-file-path: ${CHAT_HISTORY_FILE_PATH:chat-history.json}
   # 历史最多保留的消息条数；默认 20，可用环境变量 CHAT_MAX_MESSAGES 覆盖。
   max-messages: ${CHAT_MAX_MESSAGES:20}
+
+food:
+  # 食物记录 JSON 的沙箱内相对路径；默认 food-records.json，可用环境变量 FOOD_FILE_PATH 覆盖。
+  file-path: ${FOOD_FILE_PATH:food-records.json}
