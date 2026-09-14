@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { clearChatHistory, loadApiKeyStatus, loadChatHistory, sendMessage } from './api'
 import type { Message } from './types'
 import ApiKeyForm from './components/ApiKeyForm'
+import FoodCalendar from './components/FoodCalendar'
 import MessageBubble from './components/MessageBubble'
 import MessageInput from './components/MessageInput'
 import UserInfoForm from './components/UserInfoForm'
@@ -131,6 +132,9 @@ export default function App() {
 
       {/* API Key 面板：负责「输入 + 保存」，配置状态由 App 统一持有并下发。 */}
       <ApiKeyForm configured={apiKeyConfigured} onConfiguredChange={setApiKeyConfigured} />
+
+      {/* 饮食日历面板：点选日期查当天食物 + 营养汇总，独立于聊天流。 */}
+      <FoodCalendar />
 
       <main className="card">
         <h1>Tyler Agent</h1>

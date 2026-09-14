@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
+import org.tyler.dal.IFoodRecordDAL;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;
@@ -18,13 +19,20 @@ import java.util.Map;
 /**
  * 让 LLM 解析用户每天吃的食物，输出结构化的 {@link Food}。
  *
- * <p>当前阶段只负责「解析」、不落盘：把模型生成的 JSON 参数反序列化成
- * {@link Food} 并校验字段，再把结构化结果回显给模型。
+ * <p>负责「解析 + 保存 + 回显」：把模型生成的 JSON 参数反序列化成
+ * {@link Food} 并校验字段，调用 {@link IFoodRecordDAL} 落盘到本地，
+ * 再把结构化结果回显给模型。
  */
 @Component
 public class RecordFoodTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final IFoodRecordDAL dal;
+
+    public RecordFoodTool(IFoodRecordDAL dal) {
+        this.dal = dal;
+    }
 
     @Override
     public String name() {
@@ -48,8 +56,10 @@ public class RecordFoodTool implements ITool {
             throw new IllegalArgumentException("解析食物参数失败：" + e.getMessage(), e);
         }
         validate(food);
+        // 先落盘，再以 saveFoodByDate 返回值为准序列化回显。
+        Food saved = dal.saveFoodByDate(food);
         try {
-            return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(food);
+            return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(saved);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("序列化食物记录失败", e);
         }

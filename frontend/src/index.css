@@ -295,3 +295,202 @@ button:disabled {
 .userinfo-msg--err {
   color: #d64545;
 }
+
+
+/* ===== 饮食日历面板 ===== */
+
+.calendar-card {
+  width: 360px;
+  flex-shrink: 0;
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+  background: var(--card);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calendar-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.calendar-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 覆盖 react-calendar 默认样式，贴合粉色主题。
+   全局 button 样式会把日历按钮染成粉底白字，这里必须显式重置。 */
+.calendar-card .react-calendar {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  width: 100%;
+  line-height: 1.4;
+}
+
+.calendar-card .react-calendar__navigation {
+  margin-bottom: 8px;
+}
+
+.calendar-card .react-calendar__navigation button {
+  align-self: auto;
+  color: var(--text);
+  background: transparent;
+  border-radius: 8px;
+  min-width: 36px;
+  font-size: 14px;
+  font-weight: 400;
+  padding: 6px;
+}
+
+.calendar-card .react-calendar__navigation button:enabled:hover,
+.calendar-card .react-calendar__navigation button:enabled:focus {
+  background: #fdf2f7;
+  color: var(--accent);
+}
+
+.calendar-card .react-calendar__month-view__weekdays {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.calendar-card .react-calendar__month-view__weekdays abbr {
+  text-decoration: none;
+}
+
+.calendar-card .react-calendar__tile {
+  align-self: auto;
+  background: transparent;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.calendar-card .react-calendar__tile:enabled:hover,
+.calendar-card .react-calendar__tile:enabled:focus {
+  background: #fdf2f7;
+  color: var(--accent);
+}
+
+.calendar-card .react-calendar__tile--now {
+  background: #fdf2f7;
+  color: var(--accent);
+}
+
+.calendar-card .react-calendar__tile--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.calendar-card .react-calendar__tile--active:enabled:hover,
+.calendar-card .react-calendar__tile--active:enabled:focus {
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.calendar-card .react-calendar__tile--now.react-calendar__tile--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 食物列表与汇总 */
+.food-panel h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.food-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.food-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fbfbfe;
+}
+
+.food-item__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.food-item__name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.food-item__amount {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.food-item__calories {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.food-item__macros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.food-summary {
+  margin-top: 12px;
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.food-summary strong {
+  color: var(--text);
+}
+
+.food-summary span {
+  color: var(--muted);
+}
+
+.food-loading {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.food-error {
+  color: #d64545;
+  font-size: 13px;
+}
+
+.food-empty {
+  color: var(--muted);
+  font-size: 13px;
+}

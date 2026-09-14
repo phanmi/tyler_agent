@@ -27,3 +27,30 @@ export interface UserInfo {
     expectationFromLLM: string
   }
 }
+
+
+// ===== 食物记录 =====
+
+// 通用摄入信息：字段与后端 GenericInfo record 对齐。
+// 数值字段（amount / calories）在 JSON 里是 number，后端可空，故用 number | null。
+export interface GenericInfo {
+  foodName: string | null
+  amount: number | null
+  unit: string | null
+  calories: number | null
+  date: string | null
+}
+
+// 宏量营养素：字段与后端 MacroNutrients record 对齐。
+export interface MacroNutrients {
+  protein: number | null
+  carbs: number | null
+  fat: number | null
+  fiber: number | null
+}
+
+// 一次食物摄入记录：字段与后端 Food record 对齐。
+export interface Food {
+  genericInfo: GenericInfo | null
+  macroNutrients: MacroNutrients | null
+}
