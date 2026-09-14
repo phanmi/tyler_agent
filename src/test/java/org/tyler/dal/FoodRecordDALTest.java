@@ -112,4 +112,40 @@ class FoodRecordDALTest {
         assertThrows(IllegalArgumentException.class, () -> dal.getFoodByDate(null));
         assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodByDate("  "));
     }
+
+    @Test
+    void deleteFoodFromDateRemovesOnlyMatchingRecord() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+        dal.saveFoodByDate(food("banana", "2026-09-12"));
+        dal.saveFoodByDate(food("chicken", "2026-09-13"));
+
+        boolean removed = dal.deleteFoodFromDate(food("banana", "2026-09-12"), "2026-09-12");
+
+        assertTrue(removed);
+        assertEquals(2, dal.getAllFoodRecords().size());
+        List<Food> remaining = dal.getFoodByDate("2026-09-12");
+        assertEquals(1, remaining.size());
+        assertEquals("apple", remaining.get(0).genericInfo().foodName());
+    }
+
+    @Test
+    void deleteFoodFromDateReturnsFalseWhenNoMatch() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+
+        boolean removed = dal.deleteFoodFromDate(food("banana", "2026-09-12"), "2026-09-12");
+
+        assertFalse(removed);
+        assertEquals(1, dal.getAllFoodRecords().size());
+    }
+
+    @Test
+    void deleteFoodFromDateThrowsOnInvalidArgs() throws IOException {
+        FoodRecordDAL dal = newDal();
+
+        assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(food("apple", "2026-09-12"), null));
+        assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(food("apple", "2026-09-12"), "  "));
+        assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(null, "2026-09-12"));
+    }
 }

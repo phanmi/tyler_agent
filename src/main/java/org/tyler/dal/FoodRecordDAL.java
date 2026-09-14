@@ -29,13 +29,7 @@ public class FoodRecordDAL implements IFoodRecordDAL {
     @Override
     public List<Food> getFoodByDate(String date) {
         requireDate(date);
-        List<Food> result = new ArrayList<>();
-        for (Food food : dao.load()) {
-            if (food != null && date.equals(dateOf(food))) {
-                result.add(food);
-            }
-        }
-        return result;
+        return dao.loadByDate(date);
     }
 
     @Override
@@ -46,10 +40,7 @@ public class FoodRecordDAL implements IFoodRecordDAL {
         String date = dateOf(food);
         requireDate(date);
 
-        // 追加语义：同一天可以吃多餐，覆盖会丢数据，所以读出现有列表后追加再写回。
-        List<Food> foods = new ArrayList<>(dao.load());
-        foods.add(food);
-        dao.save(foods);
+        dao.saveByDate(date, food);
         log.info("已追加食物记录：{}", date);
         return food;
     }
@@ -69,6 +60,29 @@ public class FoodRecordDAL implements IFoodRecordDAL {
         if (removed) {
             dao.save(remaining);
             log.info("已删除 {} 的食物记录", date);
+        }
+        return removed;
+    }
+
+    @Override
+    public boolean deleteFoodFromDate(Food food, String date) {
+        requireDate(date);
+        if (food == null) {
+            throw new IllegalArgumentException("Food 不能为空");
+        }
+        List<Food> foods = new ArrayList<>(dao.load());
+        List<Food> remaining = new ArrayList<>();
+        boolean removed = false;
+        for (Food f : foods) {
+            if (!removed && f != null && date.equals(dateOf(f)) && food.equals(f)) {
+                removed = true;
+            } else {
+                remaining.add(f);
+            }
+        }
+        if (removed) {
+            dao.save(remaining);
+            log.info("已删除 {} 的一条食物记录", date);
         }
         return removed;
     }

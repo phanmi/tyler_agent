@@ -81,6 +81,57 @@ class FoodRecordDAOTest {
     }
 
     @Test
+    void loadByDateFiltersByDate() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        FoodRecordDAO dao = new FoodRecordDAO(sandbox, sandbox, FILE);
+        dao.save(List.of(
+                food("apple", "2026-09-12"),
+                food("banana", "2026-09-12"),
+                food("chicken", "2026-09-13")));
+
+        List<Food> result = dao.loadByDate("2026-09-12");
+
+        assertEquals(2, result.size());
+        assertEquals("apple", result.get(0).genericInfo().foodName());
+        assertEquals("banana", result.get(1).genericInfo().foodName());
+    }
+
+    @Test
+    void loadByDateReturnsEmptyWhenNoMatch() throws IOException {
+        FoodRecordDAO dao = newDao();
+        dao.save(List.of(food("apple", "2026-09-12")));
+
+        assertTrue(dao.loadByDate("2026-09-13").isEmpty());
+    }
+
+    @Test
+    void saveByDateAppends() throws IOException {
+        FoodRecordDAO dao = newDao();
+        dao.saveByDate("2026-09-12", food("apple", "2026-09-12"));
+        dao.saveByDate("2026-09-12", food("banana", "2026-09-12"));
+
+        assertEquals(2, dao.load().size());
+        assertEquals(2, dao.loadByDate("2026-09-12").size());
+    }
+
+    @Test
+    void loadByDateThrowsOnBlankDate() throws IOException {
+        FoodRecordDAO dao = newDao();
+
+        assertThrows(IllegalArgumentException.class, () -> dao.loadByDate(null));
+        assertThrows(IllegalArgumentException.class, () -> dao.loadByDate("  "));
+    }
+
+    @Test
+    void saveByDateThrowsOnInvalidArgs() throws IOException {
+        FoodRecordDAO dao = newDao();
+
+        assertThrows(IllegalArgumentException.class, () -> dao.saveByDate(null, food("apple", "2026-09-12")));
+        assertThrows(IllegalArgumentException.class, () -> dao.saveByDate("  ", food("apple", "2026-09-12")));
+        assertThrows(IllegalArgumentException.class, () -> dao.saveByDate("2026-09-12", null));
+    }
+
+    @Test
     void saveThrowsIllegalStateWhenPermissionDenied() {
         IFileSandboxRead reader = mock(IFileSandboxRead.class);
         IFileSandboxWrite writer = mock(IFileSandboxWrite.class);

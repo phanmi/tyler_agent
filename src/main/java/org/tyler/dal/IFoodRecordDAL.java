@@ -23,4 +23,7 @@ public interface IFoodRecordDAL {
 
     /** 返回全部食物记录。 */
     List<Food> getAllFoodRecords();
+
+    /** 删除指定日期下第一条与给定 food 结构相等（record equals）的记录，返回是否真的删除了。 */
+    boolean deleteFoodFromDate(Food food, String date);
 }

@@ -12,6 +12,7 @@ import org.tyler.filesandbox.exceptions.FileWriteException;
 import org.tyler.model.food.Food;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -74,6 +75,40 @@ public class FoodRecordDAO implements IFoodRecordDAO {
             log.error("写食物记录文件失败：{}", relativePath, e);
             // 抛 IllegalStateException 走 GenericExceptionHandler 的兜底，返回 500。
             throw new IllegalStateException("保存食物记录失败，请稍后重试", e);
+        }
+    }
+
+    @Override
+    public List<Food> loadByDate(String date) {
+        requireDate(date);
+        List<Food> result = new ArrayList<>();
+        for (Food food : load()) {
+            if (food != null && date.equals(dateOf(food))) {
+                result.add(food);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void saveByDate(String date, Food food) {
+        requireDate(date);
+        if (food == null) {
+            throw new IllegalArgumentException("Food 不能为空");
+        }
+        // 追加语义：同一天可以吃多餐，覆盖会丢数据，所以读出现有列表后追加再写回。
+        List<Food> foods = new ArrayList<>(load());
+        foods.add(food);
+        save(foods);
+    }
+
+    private static String dateOf(Food food) {
+        return food.genericInfo() == null ? null : food.genericInfo().date();
+    }
+
+    private static void requireDate(String date) {
+        if (date == null || date.isBlank()) {
+            throw new IllegalArgumentException("日期不能为空");
         }
     }
 }

@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -132,5 +133,76 @@ class FoodRecordDAOCacheTest {
         assertEquals("orange", result.get(1).genericInfo().foodName());
         verify(delegate, times(1)).load();
         verify(delegate, times(1)).save(any());
+    }
+
+    @Test
+    void loadByDateReadsBucketDirectly() {
+        FoodRecordDAO delegate = mock(FoodRecordDAO.class);
+        when(delegate.load()).thenReturn(List.of(
+                food("apple", "2026-09-12"),
+                food("banana", "2026-09-13"),
+                food("orange", "2026-09-12")));
+        FoodRecordDAOCache cache = new FoodRecordDAOCache(delegate);
+
+        List<Food> result = cache.loadByDate("2026-09-12");
+
+        assertEquals(2, result.size());
+        assertEquals("apple", result.get(0).genericInfo().foodName());
+        assertEquals("orange", result.get(1).genericInfo().foodName());
+        // 再按另一日期取，仍命中同一份缓存，不回源。
+        cache.loadByDate("2026-09-13");
+        verify(delegate, times(1)).load();
+    }
+
+    @Test
+    void loadByDateReturnsEmptyWhenBucketMissing() {
+        FoodRecordDAO delegate = mock(FoodRecordDAO.class);
+        when(delegate.load()).thenReturn(List.of(food("apple", "2026-09-12")));
+        FoodRecordDAOCache cache = new FoodRecordDAOCache(delegate);
+
+        assertTrue(cache.loadByDate("2026-09-13").isEmpty());
+    }
+
+    @Test
+    void saveByDateWritesThroughAndAppendsToBucket() {
+        FoodRecordDAO delegate = mock(FoodRecordDAO.class);
+        when(delegate.load()).thenReturn(List.of(food("apple", "2026-09-12")));
+        FoodRecordDAOCache cache = new FoodRecordDAOCache(delegate);
+        cache.load(); // 缓存 = {09-12: [apple]}
+
+        Food banana = food("banana", "2026-09-12");
+        cache.saveByDate("2026-09-12", banana);
+
+        verify(delegate).saveByDate("2026-09-12", banana);
+        List<Food> result = cache.loadByDate("2026-09-12");
+        assertEquals(2, result.size());
+        assertEquals("apple", result.get(0).genericInfo().foodName());
+        assertEquals("banana", result.get(1).genericInfo().foodName());
+        verify(delegate, times(1)).load();
+    }
+
+    @Test
+    void saveByDateDoesNotPolluteCacheOnFailure() {
+        FoodRecordDAO delegate = mock(FoodRecordDAO.class);
+        when(delegate.load()).thenReturn(List.of(food("apple", "2026-09-12")));
+        doThrow(new IllegalStateException("disk full")).when(delegate).saveByDate(any(), any());
+        FoodRecordDAOCache cache = new FoodRecordDAOCache(delegate);
+        cache.load();
+
+        assertThrows(IllegalStateException.class,
+                () -> cache.saveByDate("2026-09-12", food("banana", "2026-09-12")));
+
+        List<Food> result = cache.loadByDate("2026-09-12");
+        assertEquals(1, result.size());
+        assertEquals("apple", result.get(0).genericInfo().foodName());
+        verify(delegate, times(1)).load();
+    }
+
+    @Test
+    void loadByDateThrowsOnBlankDate() {
+        FoodRecordDAOCache cache = new FoodRecordDAOCache(mock(FoodRecordDAO.class));
+
+        assertThrows(IllegalArgumentException.class, () -> cache.loadByDate(null));
+        assertThrows(IllegalArgumentException.class, () -> cache.loadByDate("  "));
     }
 }

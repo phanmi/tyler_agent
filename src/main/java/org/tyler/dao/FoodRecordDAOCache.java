@@ -76,4 +76,30 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
         }
         return result;
     }
+
+    @Override
+    public synchronized List<Food> loadByDate(String date) {
+        requireDate(date);
+        // 冷缓存：先整表回源、分桶回填；热缓存：直接按日期 Map 直取，不展平不扫描。
+        if (cached == null) {
+            cached = bucketByDate(delegate.load());
+        }
+        List<Food> bucket = cached.get(date);
+        return bucket == null ? List.of() : new ArrayList<>(bucket);
+    }
+
+    @Override
+    public synchronized void saveByDate(String date, Food food) {
+        // 写穿：先落盘成功，再把 food 追加进对应日期桶；失败时缓存保持旧值、异常照常上抛。
+        delegate.saveByDate(date, food);
+        if (cached != null) {
+            cached.computeIfAbsent(date, k -> new ArrayList<>()).add(food);
+        }
+    }
+
+    private static void requireDate(String date) {
+        if (date == null || date.isBlank()) {
+            throw new IllegalArgumentException("日期不能为空");
+        }
+    }
 }
