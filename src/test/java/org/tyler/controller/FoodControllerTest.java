@@ -4,7 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.tyler.dal.IFoodRecordDAL;
+import org.tyler.dal.foodrecord.IFoodRecordDAL;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;

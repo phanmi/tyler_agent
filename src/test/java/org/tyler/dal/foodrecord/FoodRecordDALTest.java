@@ -1,8 +1,8 @@
-package org.tyler.dal;
+package org.tyler.dal.foodrecord;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.dao.FoodRecordDAO;
+import org.tyler.dao.foodrecord.FoodRecordDAO;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;

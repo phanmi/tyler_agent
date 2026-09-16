@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.tyler.dal.IFoodRecordDAL;
+import org.tyler.dal.foodrecord.IFoodRecordDAL;
 import org.tyler.model.food.Food;
 
 import java.util.List;

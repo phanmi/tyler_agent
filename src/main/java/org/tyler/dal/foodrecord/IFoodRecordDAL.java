@@ -1,4 +1,4 @@
-package org.tyler.dal;
+package org.tyler.dal.foodrecord;
 
 import org.tyler.model.food.Food;
 

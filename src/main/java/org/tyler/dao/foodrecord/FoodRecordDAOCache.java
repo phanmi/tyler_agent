@@ -1,6 +1,5 @@
-package org.tyler.dao;
+package org.tyler.dao.foodrecord;
 
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.tyler.model.food.Food;
 
@@ -23,7 +22,6 @@ import java.util.Map;
  * <p>单例 bean，{@code load}/{@code save} 用 {@code synchronized} 保证线程安全，
  * 对外返回防御性拷贝，避免外部改动污染缓存。
  */
-@Primary
 @Component
 public class FoodRecordDAOCache implements IFoodRecordDAO {
 

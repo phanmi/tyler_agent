@@ -1,4 +1,4 @@
-package org.tyler.dao;
+package org.tyler.dao.foodrecord;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

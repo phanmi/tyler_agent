@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
-import org.tyler.dal.IFoodRecordDAL;
+import org.tyler.dal.foodrecord.IFoodRecordDAL;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;

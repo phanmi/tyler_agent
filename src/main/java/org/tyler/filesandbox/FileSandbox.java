@@ -24,7 +24,7 @@ import java.nio.file.Path;
  * {@link IFileSandboxWrite}；同一个本类 bean 能同时提供两种 capability。
  */
 @Component
-public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite {
+public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSandboxPath {
 
     private static final Logger log = LoggerFactory.getLogger(FileSandbox.class);
 
@@ -46,6 +46,12 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite {
     /** 返回沙箱根目录的绝对路径。 */
     private Path root() {
         return root;
+    }
+
+    /** 把相对路径解析到沙箱内的绝对路径，并校验没有越界（与 read/write 同源）。 */
+    @Override
+    public Path resolve(String relativePath) {
+        return resolveInside(relativePath);
     }
 
     /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */

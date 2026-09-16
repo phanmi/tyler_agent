@@ -1,4 +1,4 @@
-package org.tyler.dao;
+package org.tyler.dao.foodrecord;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

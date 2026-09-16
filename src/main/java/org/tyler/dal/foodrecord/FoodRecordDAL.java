@@ -1,9 +1,9 @@
-package org.tyler.dal;
+package org.tyler.dal.foodrecord;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.tyler.dao.IFoodRecordDAO;
+import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.model.food.Food;
 
 import java.util.ArrayList;
