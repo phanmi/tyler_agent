@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
-import org.tyler.filesandbox.exceptions.FileReadException;
+import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.tool.ITool;
 

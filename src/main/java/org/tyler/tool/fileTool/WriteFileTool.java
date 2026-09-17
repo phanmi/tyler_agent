@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
-import org.tyler.filesandbox.exceptions.FileWriteException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.tool.ITool;
 

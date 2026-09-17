@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodRecord;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,17 +49,8 @@ public class FoodRecordDAL implements IFoodRecordDAL {
     @Override
     public boolean deleteFoodByDate(String date) {
         requireDate(date);
-        List<Food> remaining = new ArrayList<>();
-        boolean removed = false;
-        for (Food food : dao.load()) {
-            if (food != null && date.equals(dateOf(food))) {
-                removed = true;
-            } else {
-                remaining.add(food);
-            }
-        }
+        boolean removed = dao.deleteByDate(date);
         if (removed) {
-            dao.save(remaining);
             log.info("已删除 {} 的食物记录", date);
         }
         return removed;
@@ -70,21 +62,17 @@ public class FoodRecordDAL implements IFoodRecordDAL {
         if (food == null) {
             throw new IllegalArgumentException("Food 不能为空");
         }
-        List<Food> foods = new ArrayList<>(dao.load());
-        List<Food> remaining = new ArrayList<>();
-        boolean removed = false;
-        for (Food f : foods) {
-            if (!removed && f != null && date.equals(dateOf(f)) && food.equals(f)) {
-                removed = true;
-            } else {
-                remaining.add(f);
+        List<FoodRecord> records = dao.loadRecordsByDate(date);
+        for (FoodRecord record : records) {
+            if (food.equals(record.food())) {
+                boolean removed = dao.deleteById(record.id());
+                if (removed) {
+                    log.info("已删除 {} 的一条食物记录", date);
+                }
+                return removed;
             }
         }
-        if (removed) {
-            dao.save(remaining);
-            log.info("已删除 {} 的一条食物记录", date);
-        }
-        return removed;
+        return false;
     }
 
     @Override

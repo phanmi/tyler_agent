@@ -2,7 +2,7 @@ package org.tyler.dal.foodrecord;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.dao.foodrecord.FoodRecordDAO;
+import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
@@ -26,15 +26,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class FoodRecordDALTest {
 
-    private static final String FILE = "food-records.json";
+    private static final String DB_FILE = "food-record.sqlite";
 
     @TempDir
     Path tempDir;
 
-    private FoodRecordDAL newDal() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        FoodRecordDAO dao = new FoodRecordDAO(sandbox, sandbox, FILE);
-        return new FoodRecordDAL(dao);
+    private FoodRecordDAL newDal() {
+        try {
+            FileSandbox sandbox = new FileSandbox(tempDir.toString());
+            FoodRecordDAOSqlite dao = new FoodRecordDAOSqlite(sandbox, DB_FILE);
+            return new FoodRecordDAL(dao);
+        } catch (IOException e) {
+            throw new RuntimeException("无法创建测试沙箱", e);
+        }
     }
 
     private static Food food(String name, String date) {

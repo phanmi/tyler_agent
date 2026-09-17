@@ -5,7 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
-import org.tyler.filesandbox.exceptions.FileWriteException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;

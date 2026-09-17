@@ -24,5 +24,7 @@ chat:
   max-messages: ${CHAT_MAX_MESSAGES:20}
 
 food:
+  # 食物记录 SQLite 数据库的沙箱内相对路径；默认 food-record.sqlite，可用环境变量 FOOD_DATABASE_PATH 覆盖。
+  database-path: ${FOOD_DATABASE_PATH:food-record.sqlite}
   # 食物记录 JSON 的沙箱内相对路径；默认 food-records.json，可用环境变量 FOOD_FILE_PATH 覆盖。
   file-path: ${FOOD_FILE_PATH:food-records.json}

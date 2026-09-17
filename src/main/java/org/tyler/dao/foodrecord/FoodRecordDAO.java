@@ -8,8 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
-import org.tyler.filesandbox.exceptions.FileWriteException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodRecord;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,6 +101,21 @@ public class FoodRecordDAO implements IFoodRecordDAO {
         List<Food> foods = new ArrayList<>(load());
         foods.add(food);
         save(foods);
+    }
+
+    @Override
+    public List<FoodRecord> loadRecordsByDate(String date) {
+        throw new UnsupportedOperationException("JSON DAO 不支持返回带主键的记录");
+    }
+
+    @Override
+    public boolean deleteByDate(String date) {
+        throw new UnsupportedOperationException("JSON DAO 不支持按日期删除");
+    }
+
+    @Override
+    public boolean deleteById(long id) {
+        throw new UnsupportedOperationException("JSON DAO 不支持按主键删除");
     }
 
     private static String dateOf(Food food) {

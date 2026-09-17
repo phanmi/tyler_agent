@@ -2,6 +2,7 @@ package org.tyler.dao.foodrecord;
 
 import org.springframework.stereotype.Component;
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodRecord;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,12 +26,12 @@ import java.util.Map;
 @Component
 public class FoodRecordDAOCache implements IFoodRecordDAO {
 
-    private final FoodRecordDAO delegate;
+    private final FoodRecordDAOSqlite delegate;
 
     /** 按日期分桶的缓存；volatile 保证跨线程可见性。 */
     private volatile Map<String, List<Food>> cached;
 
-    public FoodRecordDAOCache(FoodRecordDAO delegate) {
+    public FoodRecordDAOCache(FoodRecordDAOSqlite delegate) {
         this.delegate = delegate;
     }
 
@@ -93,6 +94,33 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
         if (cached != null) {
             cached.computeIfAbsent(date, k -> new ArrayList<>()).add(food);
         }
+    }
+
+    @Override
+    public synchronized List<FoodRecord> loadRecordsByDate(String date) {
+        // 带主键的记录直接回源，不缓存（缓存按日期分桶存的是 Food，不含 id）。
+        requireDate(date);
+        return delegate.loadRecordsByDate(date);
+    }
+
+    @Override
+    public synchronized boolean deleteByDate(String date) {
+        requireDate(date);
+        boolean removed = delegate.deleteByDate(date);
+        if (removed && cached != null) {
+            cached.remove(date);
+        }
+        return removed;
+    }
+
+    @Override
+    public synchronized boolean deleteById(long id) {
+        boolean removed = delegate.deleteById(id);
+        if (removed) {
+            // 缓存无法定位到具体 id，整体失效，下次访问回源。
+            cached = null;
+        }
+        return removed;
     }
 
     private static void requireDate(String date) {

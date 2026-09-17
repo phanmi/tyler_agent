@@ -1,6 +1,7 @@
 package org.tyler.dao.foodrecord;
 
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodRecord;
 
 import java.util.List;
 
@@ -25,4 +26,13 @@ public interface IFoodRecordDAO {
 
     /** 追加保存一条食物记录到指定日期；日期为空或 food 为空抛 {@link IllegalArgumentException}。 */
     void saveByDate(String date, Food food);
+
+    /** 返回指定日期（YYYY-MM-DD）下带主键 {@code id} 与写入时间的记录；日期为空抛 {@link IllegalArgumentException}。 */
+    List<FoodRecord> loadRecordsByDate(String date);
+
+    /** 删除指定日期（YYYY-MM-DD）下的全部记录，返回是否真的删除了至少一条；日期为空抛 {@link IllegalArgumentException}。 */
+    boolean deleteByDate(String date);
+
+    /** 按主键删除单条记录，返回是否真的删除了一条。 */
+    boolean deleteById(long id);
 }

@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
-import org.tyler.filesandbox.exceptions.FileWriteException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.model.userInfo.Other;
 import org.tyler.model.userInfo.User;
 import org.tyler.model.userInfo.UserInfo;
