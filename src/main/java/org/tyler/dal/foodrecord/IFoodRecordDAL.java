@@ -1,6 +1,7 @@
 package org.tyler.dal.foodrecord;
 
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodEntry;
 
 import java.util.List;
 
@@ -26,4 +27,10 @@ public interface IFoodRecordDAL {
 
     /** 删除指定日期下第一条与给定 food 结构相等（record equals）的记录，返回是否真的删除了。 */
     boolean deleteFoodFromDate(Food food, String date);
+
+    /** 返回指定日期（YYYY-MM-DD）下带主键 {@code id} 的记录投影；无记录返回空列表。 */
+    List<FoodEntry> getFoodRecordsByDate(String date);
+
+    /** 按主键删除单条食物记录，返回是否真的删除了一条。 */
+    boolean deleteFoodById(long id);
 }

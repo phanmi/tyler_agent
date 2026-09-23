@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodEntry;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;
 
@@ -151,5 +152,55 @@ class FoodRecordDALTest {
         assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(food("apple", "2026-09-12"), null));
         assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(food("apple", "2026-09-12"), "  "));
         assertThrows(IllegalArgumentException.class, () -> dal.deleteFoodFromDate(null, "2026-09-12"));
+    }
+
+    @Test
+    void getFoodRecordsByDateReturnsEntriesWithIds() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+        dal.saveFoodByDate(food("banana", "2026-09-12"));
+        dal.saveFoodByDate(food("chicken", "2026-09-13"));
+
+        List<FoodEntry> result = dal.getFoodRecordsByDate("2026-09-12");
+
+        assertEquals(2, result.size());
+        assertEquals("apple", result.get(0).food().genericInfo().foodName());
+        assertEquals("banana", result.get(1).food().genericInfo().foodName());
+        // 主键 id 由 SQLite 自增，应各自唯一且递增。
+        assertTrue(result.get(0).id() > 0);
+        assertTrue(result.get(1).id() > result.get(0).id());
+    }
+
+    @Test
+    void getFoodRecordsByDateReturnsEmptyWhenNoMatch() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+
+        assertTrue(dal.getFoodRecordsByDate("2026-09-13").isEmpty());
+    }
+
+    @Test
+    void deleteFoodByIdRemovesSingleRecord() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+        dal.saveFoodByDate(food("banana", "2026-09-12"));
+
+        long id = dal.getFoodRecordsByDate("2026-09-12").get(0).id();
+
+        boolean removed = dal.deleteFoodById(id);
+
+        assertTrue(removed);
+        List<FoodEntry> remaining = dal.getFoodRecordsByDate("2026-09-12");
+        assertEquals(1, remaining.size());
+        assertEquals("banana", remaining.get(0).food().genericInfo().foodName());
+    }
+
+    @Test
+    void deleteFoodByIdReturnsFalseWhenNoMatch() throws IOException {
+        FoodRecordDAL dal = newDal();
+        dal.saveFoodByDate(food("apple", "2026-09-12"));
+
+        assertFalse(dal.deleteFoodById(999999L));
+        assertEquals(1, dal.getAllFoodRecords().size());
     }
 }

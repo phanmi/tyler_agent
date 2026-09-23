@@ -1,4 +1,4 @@
-import type { Food, Message, UserInfo } from './types'
+import type { FoodEntry, Message, UserInfo } from './types'
 
 // 生产模式（Electron 用 loadFile 加载 dist，页面 origin 是 file://）下，
 // 相对路径 '/api/...' 会被解析成 'file:///api/...'，无法命中后端。
@@ -158,9 +158,9 @@ export async function clearChatHistory(): Promise<void> {
 
 // ===== 食物记录 =====
 
-// 按日期查询当天全部食物记录：GET /api/food?date=YYYY-MM-DD。
+// 按日期查询当天全部食物记录（带主键 id）：GET /api/food?date=YYYY-MM-DD。
 // 后端无记录时返回空数组（200），因此正常路径不会 reject。
-export async function loadFoodByDate(date: string): Promise<Food[]> {
+export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
   const res = await fetch(`${API_BASE}/api/food?date=${encodeURIComponent(date)}`)
   if (!res.ok) {
     let detail = ''
@@ -172,5 +172,37 @@ export async function loadFoodByDate(date: string): Promise<Food[]> {
     }
     throw new Error(detail || `读取食物记录失败（HTTP ${res.status}）`)
   }
-  return (await res.json()) as Food[]
+  return (await res.json()) as FoodEntry[]
+}
+
+// 删除单条食物记录：DELETE /api/food/{id}。
+export async function deleteFood(id: number): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/api/food/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const err = (await res.json()) as { error?: string; message?: string }
+      detail = err.error ?? err.message ?? ''
+    } catch {
+      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+    }
+    throw new Error(detail || `删除失败（HTTP ${res.status}）`)
+  }
+  return (await res.json()) as boolean
+}
+
+// 删除指定日期下的全部食物记录：DELETE /api/food/date/YYYY-MM-DD。
+export async function deleteFoodByDate(date: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const err = (await res.json()) as { error?: string; message?: string }
+      detail = err.error ?? err.message ?? ''
+    } catch {
+      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+    }
+    throw new Error(detail || `删除失败（HTTP ${res.status}）`)
+  }
+  return (await res.json()) as boolean
 }

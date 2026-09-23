@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { loadFoodByDate } from '../api'
-import type { Food } from '../types'
+import { deleteFood, deleteFoodByDate, loadFoodByDate } from '../api'
+import type { FoodEntry } from '../types'
 
 // 把本地 Date 转成后端约定的 YYYY-MM-DD（本地时区，与后端日期语义一致）。
 function toDateString(date: Date): string {
@@ -17,11 +17,11 @@ function fmt(value?: number | null): string {
   return value == null ? '—' : String(value)
 }
 
-// 饮食日历面板：点选日期 → 拉取当天食物记录 → 逐条展示 + 当日营养汇总。
+// 饮食日历面板：点选日期 → 拉取当天食物记录 → 逐条展示 + 当日营养汇总 + 删除入口。
 // 状态只属于本组件（选中日期 / 食物列表 / loading / error），不干扰聊天流的消息状态。
 export default function FoodCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
-  const [foods, setFoods] = useState<Food[]>([])
+  const [foods, setFoods] = useState<FoodEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -45,16 +45,49 @@ export default function FoodCalendar() {
     load(selectedDate)
   }, [selectedDate, load])
 
+  // 删除单条：二次确认后按主键删除，删除后重新拉取列表（数据库是唯一事实来源）。
+  const handleDeleteOne = useCallback(
+    async (entry: FoodEntry) => {
+      const name = entry.food.genericInfo?.foodName ?? '未命名'
+      if (!window.confirm(`确定删除「${name}」这条记录吗？`)) {
+        return
+      }
+      setError('')
+      try {
+        await deleteFood(entry.id)
+        await load(selectedDate)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '未知错误')
+      }
+    },
+    [selectedDate, load],
+  )
+
+  // 删除当天全部：二次确认后删除整日记录，删除后重新拉取列表。
+  const handleDeleteByDate = useCallback(async () => {
+    const dateStr = toDateString(selectedDate)
+    if (!window.confirm(`确定删除 ${dateStr} 这一天的全部记录吗？此操作不可撤销。`)) {
+      return
+    }
+    setError('')
+    try {
+      await deleteFoodByDate(dateStr)
+      await load(selectedDate)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '未知错误')
+    }
+  }, [selectedDate, load])
+
   // 当日营养汇总：null 按 0 参与求和。
   const totals = useMemo(() => {
     const sum = (values: (number | null | undefined)[]) =>
       values.reduce<number>((acc, v) => acc + (v ?? 0), 0)
     return {
-      calories: sum(foods.map((f) => f.genericInfo?.calories)),
-      protein: sum(foods.map((f) => f.macroNutrients?.protein)),
-      carbs: sum(foods.map((f) => f.macroNutrients?.carbs)),
-      fat: sum(foods.map((f) => f.macroNutrients?.fat)),
-      fiber: sum(foods.map((f) => f.macroNutrients?.fiber)),
+      calories: sum(foods.map((e) => e.food.genericInfo?.calories)),
+      protein: sum(foods.map((e) => e.food.macroNutrients?.protein)),
+      carbs: sum(foods.map((e) => e.food.macroNutrients?.carbs)),
+      fat: sum(foods.map((e) => e.food.macroNutrients?.fat)),
+      fiber: sum(foods.map((e) => e.food.macroNutrients?.fiber)),
     }
   }, [foods])
 
@@ -86,17 +119,24 @@ export default function FoodCalendar() {
         {!loading && !error && foods.length > 0 && (
           <>
             <ul className="food-list">
-              {foods.map((food, index) => {
-                const info = food.genericInfo
-                const macro = food.macroNutrients
+              {foods.map((entry) => {
+                const info = entry.food.genericInfo
+                const macro = entry.food.macroNutrients
                 return (
-                  <li className="food-item" key={`${toDateString(selectedDate)}-${index}`}>
+                  <li className="food-item" key={entry.id}>
                     <div className="food-item__head">
                       <span className="food-item__name">{info?.foodName ?? '未命名'}</span>
                       <span className="food-item__amount">
                         {fmt(info?.amount)} {info?.unit ?? ''}
                       </span>
                       <span className="food-item__calories">{fmt(info?.calories)} kcal</span>
+                      <button
+                        className="food-item__delete"
+                        type="button"
+                        onClick={() => handleDeleteOne(entry)}
+                      >
+                        删除
+                      </button>
                     </div>
                     <div className="food-item__macros">
                       <span>蛋白 {fmt(macro?.protein)}g</span>
@@ -117,6 +157,14 @@ export default function FoodCalendar() {
               <span>脂肪 {totals.fat}g</span>
               <span>纤维 {totals.fiber}g</span>
             </div>
+
+            <button
+              className="food-delete-day"
+              type="button"
+              onClick={handleDeleteByDate}
+            >
+              删除这一天
+            </button>
           </>
         )}
       </div>

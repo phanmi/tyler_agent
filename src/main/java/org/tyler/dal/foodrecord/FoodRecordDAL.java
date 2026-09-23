@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.model.food.Food;
+import org.tyler.model.food.FoodEntry;
 import org.tyler.model.food.FoodRecord;
 
 import java.util.ArrayList;
@@ -84,6 +85,25 @@ public class FoodRecordDAL implements IFoodRecordDAL {
             }
         }
         return result;
+    }
+
+    @Override
+    public List<FoodEntry> getFoodRecordsByDate(String date) {
+        requireDate(date);
+        List<FoodEntry> result = new ArrayList<>();
+        for (FoodRecord record : dao.loadRecordsByDate(date)) {
+            result.add(new FoodEntry(record.id(), record.food()));
+        }
+        return result;
+    }
+
+    @Override
+    public boolean deleteFoodById(long id) {
+        boolean removed = dao.deleteById(id);
+        if (removed) {
+            log.info("已删除 id={} 的食物记录", id);
+        }
+        return removed;
     }
 
     private static String dateOf(Food food) {

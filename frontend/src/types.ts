@@ -54,3 +54,10 @@ export interface Food {
   genericInfo: GenericInfo | null
   macroNutrients: MacroNutrients | null
 }
+
+// 一条已落库食物记录：后端 FoodEntry record 的投影（带数据库主键 id）。
+// 前端删除单条时用 id 直接 DELETE /api/food/{id}，无需再比较整个 Food。
+export interface FoodEntry {
+  id: number
+  food: Food
+}
