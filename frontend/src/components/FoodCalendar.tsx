@@ -3,6 +3,7 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { deleteFood, deleteFoodByDate, loadFoodByDate } from '../api'
 import type { FoodEntry } from '../types'
+import ConfirmDialog from './ConfirmDialog'
 
 // 把本地 Date 转成后端约定的 YYYY-MM-DD（本地时区，与后端日期语义一致）。
 function toDateString(date: Date): string {
@@ -17,6 +18,9 @@ function fmt(value?: number | null): string {
   return value == null ? '—' : String(value)
 }
 
+// 待确认的删除操作：单条（携带完整 entry）或整日。
+type PendingDelete = { kind: 'one'; entry: FoodEntry } | { kind: 'day' } | null
+
 // 饮食日历面板：点选日期 → 拉取当天食物记录 → 逐条展示 + 当日营养汇总 + 删除入口。
 // 状态只属于本组件（选中日期 / 食物列表 / loading / error），不干扰聊天流的消息状态。
 export default function FoodCalendar() {
@@ -24,6 +28,7 @@ export default function FoodCalendar() {
   const [foods, setFoods] = useState<FoodEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [pending, setPending] = useState<PendingDelete>(null)
 
   // 点选日期后拉取当天食物记录。
   const load = useCallback(async (date: Date) => {
@@ -45,38 +50,37 @@ export default function FoodCalendar() {
     load(selectedDate)
   }, [selectedDate, load])
 
-  // 删除单条：二次确认后按主键删除，删除后重新拉取列表（数据库是唯一事实来源）。
-  const handleDeleteOne = useCallback(
-    async (entry: FoodEntry) => {
-      const name = entry.food.genericInfo?.foodName ?? '未命名'
-      if (!window.confirm(`确定删除「${name}」这条记录吗？`)) {
-        return
-      }
-      setError('')
-      try {
-        await deleteFood(entry.id)
-        await load(selectedDate)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '未知错误')
-      }
-    },
-    [selectedDate, load],
-  )
+  // 点「删除」只是打开确认框，真正删除在 ConfirmDialog 的 onConfirm 里执行。
+  // 用自定义 modal 取代 window.confirm：Electron 无边框窗口下原生同步对话框关闭后
+  // 焦点不归还渲染进程，会导致整个应用无法输入/点击，故这里改为完全非阻塞的自绘确认框。
+  const requestDeleteOne = useCallback((entry: FoodEntry) => {
+    setPending({ kind: 'one', entry })
+  }, [])
 
-  // 删除当天全部：二次确认后删除整日记录，删除后重新拉取列表。
-  const handleDeleteByDate = useCallback(async () => {
-    const dateStr = toDateString(selectedDate)
-    if (!window.confirm(`确定删除 ${dateStr} 这一天的全部记录吗？此操作不可撤销。`)) {
-      return
-    }
+  const requestDeleteDay = useCallback(() => {
+    setPending({ kind: 'day' })
+  }, [])
+
+  const cancelDelete = useCallback(() => {
+    setPending(null)
+  }, [])
+
+  // 确认删除：按 pending 类型执行对应删除，先关弹窗再落删，删除后重新拉取列表。
+  const confirmDelete = useCallback(async () => {
+    if (!pending) return
+    setPending(null)
     setError('')
     try {
-      await deleteFoodByDate(dateStr)
+      if (pending.kind === 'one') {
+        await deleteFood(pending.entry.id)
+      } else {
+        await deleteFoodByDate(toDateString(selectedDate))
+      }
       await load(selectedDate)
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
     }
-  }, [selectedDate, load])
+  }, [pending, selectedDate, load])
 
   // 当日营养汇总：null 按 0 参与求和。
   const totals = useMemo(() => {
@@ -133,7 +137,7 @@ export default function FoodCalendar() {
                       <button
                         className="food-item__delete"
                         type="button"
-                        onClick={() => handleDeleteOne(entry)}
+                        onClick={() => requestDeleteOne(entry)}
                       >
                         删除
                       </button>
@@ -161,13 +165,26 @@ export default function FoodCalendar() {
             <button
               className="food-delete-day"
               type="button"
-              onClick={handleDeleteByDate}
+              onClick={requestDeleteDay}
             >
               删除这一天
             </button>
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={pending !== null}
+        title={pending?.kind === 'one' ? '删除这条记录' : '删除这一天'}
+        message={
+          pending?.kind === 'one'
+            ? `确定删除「${pending.entry.food.genericInfo?.foodName ?? '未命名'}」这条记录吗？`
+            : `确定删除 ${toDateString(selectedDate)} 这一天的全部记录吗？此操作不可撤销。`
+        }
+        confirmText="删除"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </aside>
   )
 }

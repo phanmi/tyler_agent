@@ -1,0 +1,194 @@
+/* ===== Tyler 主题 · 应用骨架布局 =====
+   title bar + sidebar + main 区域 + 设置页 + 可收起侧栏。
+   只负责「结构摆位」，具体组件视觉在 theme.css / chat.css。 */
+
+/* 顶层骨架：标题栏在上，主体在下。 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+/* 标题栏之下：sidebar + main 并排。 */
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ===== 自定义标题栏 ===== */
+.titlebar {
+  height: var(--titlebar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  /* 标题文字区可拖拽移动窗口（无边框窗口必需）。 */
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-4);
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.titlebar__logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.titlebar__controls {
+  display: flex;
+  /* 按钮区不可拖拽，否则点按钮会触发拖窗口。 */
+  -webkit-app-region: no-drag;
+}
+
+.titlebar__btn {
+  width: 46px;
+  height: var(--titlebar-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--font-md);
+  cursor: pointer;
+  padding: 0;
+  align-self: stretch;
+  transition: background 0.15s ease;
+}
+
+.titlebar__btn:hover {
+  background: var(--tint);
+}
+
+.titlebar__btn--close:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ===== 左侧导航栏 ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar__label {
+  padding: 0 var(--space-3);
+  font-size: var(--font-xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  align-self: stretch;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.nav-item--active {
+  background: var(--tint);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-item__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== 主内容区 ===== */
+.app-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-5);
+  overflow: hidden;
+  display: flex;
+}
+
+/* 聊天页：聊天主体 + 可收起日历侧栏并排。 */
+.chat-view {
+  flex: 1;
+  display: flex;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.chat-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 日历侧栏：可收起。收起后 chat-pane 自动加宽。 */
+.calendar-panel {
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.calendar-panel .calendar-card {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== 设置页 ===== */
+.settings-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-right: var(--space-1);
+}
+
+.settings-page__title {
+  margin: 0;
+  font-size: var(--font-xl);
+}

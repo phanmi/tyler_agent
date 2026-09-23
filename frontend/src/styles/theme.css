@@ -1,13 +1,7 @@
-/* 全局样式：色板复用旧版 static/index.html 的粉色主题，保持一致气质。 */
-:root {
-  --accent: #e0569a;
-  --accent-dark: #c74482;
-  --bg: #f6f7fb;
-  --card: #ffffff;
-  --text: #2b2f3a;
-  --muted: #8a8fa3;
-  --border: #e4e7ee;
-}
+/* ===== Tyler 主题 · 全局 reset / 基础元素 / 业务组件样式 =====
+   跨页面复用的视觉都在这：reset、标题、按钮、输入框，
+   以及 userinfo / calendar / food 三块组件。
+   颜色 / 圆角 / 间距 / 阴影 / 字体一律引用 tokens.css。 */
 
 * {
   box-sizing: border-box;
@@ -21,132 +15,65 @@ body,
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
   color: var(--text);
-  background: linear-gradient(135deg, #fdf2f7 0%, var(--bg) 40%, #eef1fb 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  background: linear-gradient(135deg, var(--tint) 0%, var(--bg) 40%, #eef1fb 100%);
+  overflow: hidden; /* 应用骨架内部自行滚动，body 不产生滚动条 */
 }
 
-/* 聊天卡片：整体容器，纵向三段——标题 / 消息列表 / 输入区。 */
-.card {
-  width: 100%;
-  max-width: 640px;
-  height: min(80vh, 720px);
-  background: var(--card);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
-  padding: 28px 32px;
-  display: flex;
-  flex-direction: column;
-}
-
+/* ===== 标题 ===== */
 h1 {
-  margin: 0 0 4px;
-  font-size: 24px;
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-xl);
   letter-spacing: 0.5px;
 }
 
+h2 {
+  margin: 0;
+  font-size: var(--font-lg);
+}
+
+h3 {
+  margin: 0 0 10px;
+  font-size: var(--font-md);
+  color: var(--text);
+}
+
 .subtitle {
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-5);
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--font-md);
 }
 
-/* 消息列表：占据中间弹性空间，内容溢出时在内部滚动（而非撑破卡片）。 */
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 8px 4px;
-  margin-bottom: 16px;
-}
-
-.empty {
-  color: var(--muted);
-  text-align: center;
-  margin-top: 32px;
-}
-
-/* 单条气泡：默认靠左（assistant），user 靠右。 */
-.bubble {
-  display: flex;
-}
-.bubble--assistant {
-  justify-content: flex-start;
-}
-.bubble--user {
-  justify-content: flex-end;
-}
-
-.bubble__content {
-  max-width: 78%;
-  padding: 12px 16px;
-  border-radius: 14px;
-  line-height: 1.6;
-  font-size: 15px;
-  white-space: pre-wrap; /* 保留换行，让多行回复正常显示 */
-  word-break: break-word;
-}
-
-.bubble--assistant .bubble__content {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
-}
-
-.bubble--user .bubble__content {
-  background: var(--accent);
-  color: #fff;
-  border-bottom-right-radius: 4px;
-}
-
-.loading-bubble {
-  color: var(--muted);
-  font-style: italic;
-  font-size: 14px;
-  padding: 4px;
-}
-
-.input-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
+/* ===== 表单基础元素 ===== */
 textarea {
   width: 100%;
   min-height: 84px;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-base);
   line-height: 1.6;
   color: var(--text);
-  background: #fbfbfe;
+  background: var(--surface);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(224, 86, 154, 0.12);
+  box-shadow: var(--shadow-focus);
 }
 
 button {
   align-self: flex-end;
   border: none;
-  border-radius: 12px;
-  padding: 12px 28px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-7);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-base);
   font-weight: 600;
   color: #fff;
   background: var(--accent);
@@ -157,94 +84,60 @@ button {
 button:hover:not(:disabled) {
   background: var(--accent-dark);
 }
+
 button:active:not(:disabled) {
   transform: translateY(1px);
 }
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.hint {
-  margin: 12px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* ===== 聊天工具条（清空对话） ===== */
-.chat-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.btn-clear {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.btn-clear:hover:not(:disabled) {
-  background: #fdf2f7;
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ===== 用户信息面板 ===== */
-
-/* 页面整体改为两栏布局：左侧用户信息卡片 + 右侧聊天卡片，窄屏自动换行上下堆叠。 */
-.app-layout {
-  display: flex;
-  gap: 24px;
+/* ===== 通用卡片 ===== */
+.card {
   width: 100%;
-  max-width: 1040px;
-  align-items: stretch;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.userinfo-card {
-  width: 320px;
-  flex-shrink: 0;
-  max-height: min(80vh, 720px);
-  overflow-y: auto;
+  height: 100%;
   background: var(--card);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
-  padding: 24px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6) var(--space-7);
   display: flex;
   flex-direction: column;
-  gap: 14px;
 }
 
-.userinfo-card h2 {
-  margin: 0;
-  font-size: 18px;
+/* ===== 用户信息 / API Key 面板 ===== */
+.userinfo-card {
+  width: 100%;
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .userinfo-subtitle {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
   line-height: 1.5;
 }
 
 .userinfo-card fieldset {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   margin: 0;
-  padding: 12px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
 .userinfo-card legend {
-  padding: 0 6px;
-  font-size: 13px;
+  padding: 0 var(--space-2);
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--accent);
 }
@@ -252,8 +145,8 @@ button:disabled {
 .userinfo-card label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
+  gap: var(--space-1);
+  font-size: var(--font-sm);
   color: var(--muted);
 }
 
@@ -262,12 +155,12 @@ button:disabled {
 .userinfo-card textarea {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--font-md);
   color: var(--text);
-  background: #fbfbfe;
+  background: var(--surface);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -276,7 +169,7 @@ button:disabled {
 .userinfo-card textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(224, 86, 154, 0.12);
+  box-shadow: var(--shadow-focus);
 }
 
 .userinfo-card button {
@@ -285,43 +178,34 @@ button:disabled {
 
 .userinfo-msg {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .userinfo-msg--ok {
-  color: #2e9e5b;
+  color: var(--success);
 }
 
 .userinfo-msg--err {
-  color: #d64545;
+  color: var(--danger);
 }
-
 
 /* ===== 饮食日历面板 ===== */
-
 .calendar-card {
-  width: 360px;
-  flex-shrink: 0;
-  max-height: min(80vh, 720px);
-  overflow-y: auto;
+  width: 100%;
   background: var(--card);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(80, 60, 120, 0.12);
-  padding: 24px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-.calendar-card h2 {
-  margin: 0;
-  font-size: 18px;
+  gap: var(--space-3);
+  overflow-y: auto;
 }
 
 .calendar-subtitle {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
   line-height: 1.5;
 }
 
@@ -336,28 +220,28 @@ button:disabled {
 }
 
 .calendar-card .react-calendar__navigation {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .calendar-card .react-calendar__navigation button {
   align-self: auto;
   color: var(--text);
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   min-width: 36px;
-  font-size: 14px;
+  font-size: var(--font-md);
   font-weight: 400;
-  padding: 6px;
+  padding: var(--space-2);
 }
 
 .calendar-card .react-calendar__navigation button:enabled:hover,
 .calendar-card .react-calendar__navigation button:enabled:focus {
-  background: #fdf2f7;
+  background: var(--tint);
   color: var(--accent);
 }
 
 .calendar-card .react-calendar__month-view__weekdays {
-  font-size: 12px;
+  font-size: var(--font-xs);
   color: var(--muted);
   text-transform: none;
 }
@@ -370,20 +254,20 @@ button:disabled {
   align-self: auto;
   background: transparent;
   color: var(--text);
-  border-radius: 10px;
-  padding: 8px 4px;
-  font-size: 13px;
+  border-radius: var(--radius-tile);
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--font-sm);
   font-weight: 400;
 }
 
 .calendar-card .react-calendar__tile:enabled:hover,
 .calendar-card .react-calendar__tile:enabled:focus {
-  background: #fdf2f7;
+  background: var(--tint);
   color: var(--accent);
 }
 
 .calendar-card .react-calendar__tile--now {
-  background: #fdf2f7;
+  background: var(--tint);
   color: var(--accent);
 }
 
@@ -403,10 +287,10 @@ button:disabled {
   color: #fff;
 }
 
-/* 食物列表与汇总 */
+/* ===== 食物列表与汇总 ===== */
 .food-panel h3 {
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--font-md);
   color: var(--text);
 }
 
@@ -421,91 +305,90 @@ button:disabled {
 
 .food-item {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  padding: 10px var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: #fbfbfe;
+  gap: var(--space-2);
+  background: var(--surface);
 }
 
 .food-item__head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .food-item__name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-md);
 }
 
 .food-item__amount {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .food-item__calories {
   margin-left: auto;
   color: var(--accent);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .food-item__delete {
-  margin-left: 8px;
+  margin-left: var(--space-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 2px 10px;
   background: transparent;
-  color: #d64545;
-  font-size: 12px;
+  color: var(--danger);
+  font-size: var(--font-xs);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .food-item__delete:hover {
-  background: #d64545;
-  border-color: #d64545;
+  background: var(--danger);
+  border-color: var(--danger);
   color: #fff;
 }
 
 .food-delete-day {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   width: 100%;
-  border: 1px solid #d64545;
-  border-radius: 10px;
-  padding: 8px 0;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-tile);
+  padding: var(--space-2) 0;
   background: transparent;
-  color: #d64545;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: var(--font-sm);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .food-delete-day:hover {
-  background: #d64545;
+  background: var(--danger);
   color: #fff;
 }
-
 
 .food-item__macros {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 12px;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--font-xs);
   color: var(--muted);
 }
 
 .food-summary {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   border-top: 1px dashed var(--border);
-  padding-top: 12px;
+  padding-top: var(--space-3);
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 13px;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--font-sm);
 }
 
 .food-summary strong {
@@ -519,15 +402,88 @@ button:disabled {
 .food-loading {
   color: var(--muted);
   font-style: italic;
-  font-size: 13px;
+  font-size: var(--font-sm);
 }
 
 .food-error {
-  color: #d64545;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: var(--font-sm);
 }
 
 .food-empty {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--font-sm);
+}
+
+/* ===== 确认对话框（自定义 modal，替代 window.confirm） ===== */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(43, 47, 58, 0.4);
+}
+
+.confirm-dialog {
+  width: min(360px, calc(100vw - 2 * var(--space-6)));
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.confirm-dialog__title {
+  margin: 0;
+  font-size: var(--font-lg);
+  color: var(--text);
+}
+
+.confirm-dialog__message {
+  margin: 0;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.confirm-btn {
+  align-self: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.confirm-actions .confirm-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.confirm-btn--danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.confirm-actions .confirm-btn--danger:hover {
+  background: #c33a3a;
+  border-color: #c33a3a;
+  color: #fff;
 }

@@ -1,0 +1,133 @@
+/* ===== Tyler 主题 · 聊天页 =====
+   聊天页头部、消息列表、气泡、输入区、工具条、hint。 */
+
+.chat-pane__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.chat-pane__title {
+  margin: 0;
+  font-size: var(--font-lg);
+  font-weight: 600;
+}
+
+.chat-pane__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 日历侧栏 toggle */
+.btn-calendar {
+  align-self: auto;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.btn-calendar:hover:not(:disabled) {
+  background: var(--tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-calendar--active {
+  background: var(--tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 清空对话 */
+.btn-clear {
+  align-self: auto;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.btn-clear:hover:not(:disabled) {
+  background: var(--tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ===== 消息列表 ===== */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-2) var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin-top: var(--space-8);
+}
+
+/* ===== 气泡 ===== */
+.bubble {
+  display: flex;
+}
+
+.bubble--assistant {
+  justify-content: flex-start;
+}
+
+.bubble--user {
+  justify-content: flex-end;
+}
+
+.bubble__content {
+  max-width: 78%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  line-height: 1.6;
+  font-size: var(--font-base);
+  white-space: pre-wrap; /* 保留换行，让多行回复正常显示 */
+  word-break: break-word;
+}
+
+.bubble--assistant .bubble__content {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: var(--radius-xs);
+}
+
+.bubble--user .bubble__content {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+.loading-bubble {
+  color: var(--muted);
+  font-style: italic;
+  font-size: var(--font-md);
+  padding: var(--space-1);
+}
+
+/* ===== 输入区 ===== */
+.input-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hint {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: var(--font-xs);
+}

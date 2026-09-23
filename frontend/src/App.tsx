@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clearChatHistory, loadApiKeyStatus, loadChatHistory, sendMessage } from './api'
 import type { Message } from './types'
-import ApiKeyForm from './components/ApiKeyForm'
 import FoodCalendar from './components/FoodCalendar'
 import MessageBubble from './components/MessageBubble'
 import MessageInput from './components/MessageInput'
-import UserInfoForm from './components/UserInfoForm'
+import SettingsPage from './components/SettingsPage'
+import Sidebar from './components/Sidebar'
+import type { View } from './components/Sidebar'
+import TitleBar from './components/TitleBar'
 
 // App 是整棵组件树的根，也是消息状态的唯一所有者（single source of truth）。
 // 为什么状态必须放这里？
@@ -23,6 +25,10 @@ export default function App() {
   // isHistoryLoading：启动恢复历史期间为 true，用于暂时禁用输入框，
   // 避免用户在历史加载完成前发消息、随后被 setMessages(history) 覆盖。
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
+  // view：当前页（聊天 / 设置），纯 state 切换，不引入路由。
+  const [view, setView] = useState<View>('chat')
+  // calendarOpen：聊天页内饮食日历侧栏是否展开，收起后聊天区加宽。
+  const [calendarOpen, setCalendarOpen] = useState(true)
 
   // 指向消息列表末尾的锚点元素，用于「新消息到达时自动滚动到底部」。
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -69,44 +75,47 @@ export default function App() {
   // handleSend：输入框提交后的回调。
   // 流程：先把用户的话塞进历史 → 置 loading → 调后端 → 把回复塞进历史。
   // 失败时也塞一条 assistant 消息、内容是错误提示，保证用户总能看到反馈。
-  const handleSend = useCallback(async (text: string) => {
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-    }
-    setMessages((prev) => [...prev, userMessage])
+  const handleSend = useCallback(
+    async (text: string) => {
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: text,
+      }
+      setMessages((prev) => [...prev, userMessage])
 
-    // 空 key：直接给一条 assistant 提示，不发 chat 请求（前端主拦截，后端还有兜底）。
-    if (!apiKeyConfigured) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `hint-${Date.now()}`,
-          role: 'assistant',
-          content: 'OpenAI Key 是空的，chat 不可用',
-        },
-      ])
-      return
-    }
+      // 空 key：直接给一条 assistant 提示，不发 chat 请求（前端主拦截，后端还有兜底）。
+      if (!apiKeyConfigured) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `hint-${Date.now()}`,
+            role: 'assistant',
+            content: 'OpenAI Key 是空的，chat 不可用',
+          },
+        ])
+        return
+      }
 
-    setIsLoading(true)
-    try {
-      const reply = await sendMessage(text)
-      setMessages((prev) => [...prev, reply])
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          content: `出错了：${err instanceof Error ? err.message : '未知错误'}`,
-        },
-      ])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [apiKeyConfigured])
+      setIsLoading(true)
+      try {
+        const reply = await sendMessage(text)
+        setMessages((prev) => [...prev, reply])
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: `出错了：${err instanceof Error ? err.message : '未知错误'}`,
+          },
+        ])
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [apiKeyConfigured],
+  )
 
   // 清空后端历史 + 本地展示；失败时给一条 assistant 提示，用户能看到反馈。
   const handleClear = useCallback(async () => {
@@ -126,45 +135,74 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app-layout">
-      {/* 用户信息面板：独立于聊天流，自行负责「启动读取 + 保存写回」。 */}
-      <UserInfoForm />
+    <div className="app-shell">
+      {/* 自绘标题栏：替代系统边框，提供最小化/最大化/关闭。 */}
+      <TitleBar />
 
-      {/* API Key 面板：负责「输入 + 保存」，配置状态由 App 统一持有并下发。 */}
-      <ApiKeyForm configured={apiKeyConfigured} onConfiguredChange={setApiKeyConfigured} />
+      <div className="app-body">
+        {/* 左侧导航：聊天 / 设置。 */}
+        <Sidebar current={view} onNavigate={setView} />
 
-      {/* 饮食日历面板：点选日期查当天食物 + 营养汇总，独立于聊天流。 */}
-      <FoodCalendar />
+        <main className="app-main">
+          {view === 'chat' ? (
+            <div className="chat-view">
+              {/* 聊天主体：占据主要空间。 */}
+              <section className="chat-pane card">
+                <header className="chat-pane__header">
+                  <h1 className="chat-pane__title">Tyler</h1>
+                  <div className="chat-pane__actions">
+                    <button
+                      type="button"
+                      className={`btn-calendar ${calendarOpen ? 'btn-calendar--active' : ''}`}
+                      onClick={() => setCalendarOpen((v) => !v)}
+                    >
+                      📅 日历
+                    </button>
+                    {messages.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn-clear"
+                        onClick={handleClear}
+                        disabled={isLoading}
+                      >
+                        清空对话
+                      </button>
+                    )}
+                  </div>
+                </header>
 
-      <main className="card">
-        <h1>Tyler Agent</h1>
-        <p className="subtitle">输入一段话，ChatGPT 会回复你。</p>
+                {/* 消息列表：直接在这里 map 成气泡。
+                    暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，
+                    抽出来反而多一层间接。等列表逻辑变复杂（分组、日期分隔、虚拟滚动）再抽。 */}
+                <div className="messages" role="log" aria-live="polite">
+                  {messages.length === 0 && <div className="empty">回复会显示在这里。</div>}
+                  {messages.map((msg) => (
+                    <MessageBubble key={msg.id} message={msg} />
+                  ))}
+                  {isLoading && <div className="loading-bubble">思考中……</div>}
+                  {/* 滚动锚点：永远停留在列表末尾，配合上面的 useEffect 实现自动滚动。 */}
+                  <div ref={bottomRef} />
+                </div>
 
-        {/* 工具条：有历史时显示「清空对话」，同步清后端 + 本地。 */}
-        {messages.length > 0 && (
-          <div className="chat-toolbar">
-            <button type="button" className="btn-clear" onClick={handleClear} disabled={isLoading}>
-              清空对话
-            </button>
-          </div>
-        )}
+                <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
+                <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
+              </section>
 
-        {/* 消息列表：直接在这里 map 成气泡。
-            暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，
-            抽出来反而多一层间接。等列表逻辑变复杂（分组、日期分隔、虚拟滚动）再抽。 */}
-        <div className="messages" role="log" aria-live="polite">
-          {messages.length === 0 && <div className="empty">回复会显示在这里。</div>}
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
-          {isLoading && <div className="loading-bubble">思考中……</div>}
-          {/* 滚动锚点：永远停留在列表末尾，配合上面的 useEffect 实现自动滚动。 */}
-          <div ref={bottomRef} />
-        </div>
-
-        <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
-        <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
-      </main>
+              {/* 饮食日历：聊天页内的可收起侧栏。收起后聊天区自动加宽。 */}
+              {calendarOpen && (
+                <aside className="calendar-panel">
+                  <FoodCalendar />
+                </aside>
+              )}
+            </div>
+          ) : (
+            <SettingsPage
+              apiKeyConfigured={apiKeyConfigured}
+              onConfiguredChange={setApiKeyConfigured}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }

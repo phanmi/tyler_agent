@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
@@ -137,17 +137,48 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
+        // 自绘标题栏：去掉系统边框，由渲染进程的 TitleBar 组件替代。
+        frame: false,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            preload: path.join(__dirname, 'preload.cjs'),
         },
     })
+
+    // 把最大化状态变化推给渲染进程，前端据此切换「最大化/还原」图标。
+    const emitMaximized = () => {
+        win.webContents.send('window:maximized-changed', win.isMaximized())
+    }
+    win.on('maximize', emitMaximized)
+    win.on('unmaximize', emitMaximized)
+
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
+}
+
+// 窗口控制 IPC：renderer 通过 preload 暴露的 window.tylerWindow 触发。
+function registerWindowControls() {
+    ipcMain.on('window:minimize', (event) => {
+        BrowserWindow.fromWebContents(event.sender)?.minimize()
+    })
+    ipcMain.on('window:toggle-maximize', (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender)
+        if (!win) return
+        if (win.isMaximized()) {
+            win.unmaximize()
+        } else {
+            win.maximize()
+        }
+    })
+    ipcMain.on('window:close', (event) => {
+        BrowserWindow.fromWebContents(event.sender)?.close()
+    })
 }
 
 // 启动链：先拉起 backend，ready 后再开窗，保证 UI 一打开就能聊天。
 async function main() {
     try {
+        registerWindowControls()
         await startBackend()
         createWindow()
     } catch (err) {
