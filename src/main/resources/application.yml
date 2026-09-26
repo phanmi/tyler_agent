@@ -3,7 +3,10 @@ spring:
     name: tyler-agent
 
 server:
-  port: 8080
+  # Accept connections only from this computer.
+  address: 127.0.0.1
+  # Let the operating system choose an available loopback port.
+  port: 0
 
 openai:
   model: gpt-5.6

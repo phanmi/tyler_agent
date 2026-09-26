@@ -37,7 +37,7 @@ flowchart TB
     UI["🖥️ React UI<br/>TitleBar · Sidebar · Chat · Settings · FoodCalendar"]
     MAIN["Electron Main Process<br/>spawns backend · window controls (IPC)"]
 
-    subgraph BE["Spring Boot Backend (localhost:8080)"]
+    subgraph BE["Spring Boot Backend (127.0.0.1, assigned port)"]
         CTRL["Controller Layer<br/>Agent · ApiKey · UserInfo · Food"]
         SVC["Service Layer<br/>AgentService · ChatHistoryService · UserInfoService"]
         TOOL["Tool Layer<br/>recordFood · readFile · writeFile · getCurrentTime · GetUserInfo"]
@@ -189,23 +189,32 @@ CSS is split into four files under `frontend/src/styles/`:
 
 > **No environment variable needed.** Set your OpenAI API key from the settings page. It is stored locally in a sandbox file (`apikey.txt`) and used to authenticate requests to OpenAI. The backend can start without a key; a key is required for chat.
 
-### Backend
+### Backend (standalone)
+
+Use this command when running the backend by itself.
 
 ```bash
 mvn spring-boot:run
-# listens on http://localhost:8080
+# Spring Boot prints the assigned loopback port in its startup log
 ```
 
 ### Frontend (development)
 
 ```bash
+# Build the backend JAR once from the project root
+mvn package
+
 cd frontend
 npm install
 npm run dev
-# listens on http://localhost:5173; /api requests are proxied to 8080
+# starts the backend and Vite; prints both assigned addresses
 ```
 
-Open http://localhost:5173. First, paste your OpenAI API key into the settings page and save it, then start chatting.
+Open the Vite URL printed by `npm run dev`. Vite prefers port 5173 and chooses another available port if needed. Its `/api` proxy targets the backend process started by the same command. First, paste your OpenAI API key into the settings page and save it, then start chatting.
+
+After `npm run build`, `npm run preview` starts the built frontend with its own backend and prints the preview URL. Its port is also selected automatically if the preferred port is occupied.
+
+Both servers bind to the loopback address, so devices on the network cannot connect to these ports. Browser development requests use Vite's same-origin proxy; the backend accepts the Electron file origin for cross-origin requests. Other programs running on the same computer can still connect to loopback ports; address binding and CORS do not authenticate local processes.
 
 ### Desktop app (Electron)
 
@@ -222,7 +231,7 @@ npm run build
 npm run electron
 ```
 
-Electron's main process locates a Java runtime (prefers the bundled JRE under `resources/runtime/`, then falls back to `JAVA_HOME` → `~/.jdks` → `PATH`), spawns the backend JAR, waits until it is ready, then opens the window. Closing the window also shuts the backend down.
+Electron's main process locates a Java runtime (prefers the bundled JRE under `resources/runtime/`, then falls back to `JAVA_HOME` → `~/.jdks` → `PATH`), spawns the backend JAR, receives its assigned port, and opens the window. The preload bridge passes that backend address to React. Closing the window also shuts the backend down.
 
 ### Windows installer (Squirrel)
 
@@ -239,6 +248,8 @@ Artifacts land in `frontend/out/make/squirrel.windows/x64/` (a `Setup.exe` plus 
 
 | Setting | Environment variable | Default | Description |
 |---|---|---|---|
+| `server.address` | `SERVER_ADDRESS` | `127.0.0.1` | Loopback address; app-managed startup enforces this value. |
+| `server.port` | `SERVER_PORT` | `0` | OS-assigned port; app-managed startup enforces port `0`. |
 | `openai.model` | — | `gpt-5.6` | OpenAI model used for chat. |
 | `openai.key-file-path` | `OPENAI_KEY_FILE_PATH` | `apikey.txt` | Sandbox path for the API key. |
 | `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | *(empty)* | Sandbox folder; an empty value uses the default location. |

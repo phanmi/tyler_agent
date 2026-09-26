@@ -2,9 +2,18 @@ import type { FoodEntry, Message, UserInfo } from './types'
 
 // In production, Electron loads dist with loadFile and the page uses a file:// origin.
 // Relative /api paths would resolve to file:///api and miss the backend.
-// Use an absolute backend URL in production and an empty base URL in development
-// to route development requests through the same-origin Vite proxy.
-const API_BASE = import.meta.env.PROD ? 'http://127.0.0.1:8080' : ''
+// Electron supplies its backend's assigned port before React mounts.
+// Browser development uses relative URLs through Vite's same-origin proxy.
+let apiBase = ''
+
+export function configureApiBaseUrl(baseUrl: string): void {
+  const url = new URL(baseUrl)
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port ||
+      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('Invalid backend address')
+  }
+  apiBase = url.origin
+}
 
 // Request body for POST /api/agent/chat.
 interface ChatRequest {
@@ -21,7 +30,7 @@ interface ChatResponse {
 // so components can send and receive messages without handling HTTP details.
 // This keeps network effects separate from UI rendering.
 export async function sendMessage(message: string): Promise<Message> {
-  const res = await fetch(`${API_BASE}/api/agent/chat`, {
+  const res = await fetch(`${apiBase}/api/agent/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message } satisfies ChatRequest),
@@ -55,7 +64,7 @@ export async function sendMessage(message: string): Promise<Message> {
 // Load the profile: GET /api/userinfo.
 // Missing or invalid files produce an empty profile with HTTP 200.
 export async function loadUserInfo(): Promise<UserInfo> {
-  const res = await fetch(`${API_BASE}/api/userinfo`)
+  const res = await fetch(`${apiBase}/api/userinfo`)
   if (!res.ok) {
     throw new Error(`Failed to load profile (HTTP ${res.status})`)
   }
@@ -65,7 +74,7 @@ export async function loadUserInfo(): Promise<UserInfo> {
 // Save the profile: POST /api/userinfo.
 // The backend validates gender and integer age, saves the profile, and returns normalized values.
 export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
-  const res = await fetch(`${API_BASE}/api/userinfo`, {
+  const res = await fetch(`${apiBase}/api/userinfo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -95,7 +104,7 @@ export interface ApiKeyStatus {
 
 // Check key status: GET /api/apikey/status.
 export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
-  const res = await fetch(`${API_BASE}/api/apikey/status`)
+  const res = await fetch(`${apiBase}/api/apikey/status`)
   if (!res.ok) {
     throw new Error(`Failed to load API key status (HTTP ${res.status})`)
   }
@@ -104,7 +113,7 @@ export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
 
 // Save the API key: POST /api/apikey. The backend trims it, saves it, and returns its status.
 export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
-  const res = await fetch(`${API_BASE}/api/apikey`, {
+  const res = await fetch(`${apiBase}/api/apikey`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ apiKey }),
@@ -135,7 +144,7 @@ interface HistoryEntry {
 // Load saved chat history: GET /api/agent/history.
 // Missing or invalid history files produce an empty array with HTTP 200.
 export async function loadChatHistory(): Promise<Message[]> {
-  const res = await fetch(`${API_BASE}/api/agent/history`)
+  const res = await fetch(`${apiBase}/api/agent/history`)
   if (!res.ok) {
     throw new Error(`Failed to load chat history (HTTP ${res.status})`)
   }
@@ -150,7 +159,7 @@ export async function loadChatHistory(): Promise<Message[]> {
 
 // Clear saved chat history: DELETE /api/agent/history.
 export async function clearChatHistory(): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/agent/history`, { method: 'DELETE' })
+  const res = await fetch(`${apiBase}/api/agent/history`, { method: 'DELETE' })
   if (!res.ok) {
     throw new Error(`Failed to clear chat history (HTTP ${res.status})`)
   }
@@ -161,7 +170,7 @@ export async function clearChatHistory(): Promise<void> {
 // Load a day's food records with IDs: GET /api/food?date=YYYY-MM-DD.
 // The backend returns an empty array with HTTP 200 when no records exist.
 export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
-  const res = await fetch(`${API_BASE}/api/food?date=${encodeURIComponent(date)}`)
+  const res = await fetch(`${apiBase}/api/food?date=${encodeURIComponent(date)}`)
   if (!res.ok) {
     let detail = ''
     try {
@@ -177,7 +186,7 @@ export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
 
 // Delete one food record: DELETE /api/food/{id}.
 export async function deleteFood(id: number): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/api/food/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${apiBase}/api/food/${id}`, { method: 'DELETE' })
   if (!res.ok) {
     let detail = ''
     try {
@@ -193,7 +202,7 @@ export async function deleteFood(id: number): Promise<boolean> {
 
 // Delete all food records for a date: DELETE /api/food/date/YYYY-MM-DD.
 export async function deleteFoodByDate(date: string): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
+  const res = await fetch(`${apiBase}/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
   if (!res.ok) {
     let detail = ''
     try {

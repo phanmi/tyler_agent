@@ -7,17 +7,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * Global CORS configuration.
  *
- * <p>The frontend runs in two environments:
- * <ul>
- *   <li>Development: Vite (http://localhost:5173) proxies /api requests,
- *       keeping them same-origin from the browser's perspective.</li>
- *   <li>Production (Electron): the main process loads dist/index.html through loadFile,
- *       giving it a file:// origin. Calls to http://127.0.0.1:8080/api/** are cross-origin
- *       and require backend CORS support.</li>
- * </ul>
+ * <p>Development requests use Vite's same-origin /api proxy, regardless of
+ * the frontend port. Electron loads dist/index.html from a file:// URL and
+ * calls the backend on its assigned loopback port, which requires CORS.
  *
- * <p>CORS applies only to /api/** and does not allow credentials.
- * Future hardening can restrict the listening address and allowed origins.
+ * <p>CORS applies only to /api/** and does not allow credentials. The file origin
+ * is represented as {@code null} in browser CORS requests.
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
@@ -25,7 +20,7 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("*")
+                .allowedOrigins("null")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(false);

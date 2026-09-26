@@ -13,3 +13,8 @@ contextBridge.exposeInMainWorld('tylerWindow', {
     return () => ipcRenderer.removeListener('window:maximized-changed', listener)
   },
 })
+
+// The main process supplies the port assigned to its own backend child.
+contextBridge.exposeInMainWorld('tylerBackend', {
+  getBaseUrl: () => ipcRenderer.invoke('backend:get-url'),
+})
