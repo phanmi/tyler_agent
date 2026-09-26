@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const readline = require('node:readline')
+const releaseVersion = require('../package.json').version
 
 const READY_TIMEOUT_MS = 30000
 
@@ -36,8 +37,9 @@ function resolveJavaPath(packaged = false, resourcesPath = '') {
 
 function resolveJarPath(packaged = false, resourcesPath = '') {
     if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
-    if (packaged) return path.join(resourcesPath, 'tyler-agent-0.2.0.jar')
-    return path.join(__dirname, '..', '..', 'target', 'tyler-agent-0.2.0.jar')
+    const jarName = `tyler-agent-${releaseVersion}.jar`
+    if (packaged) return path.join(resourcesPath, jarName)
+    return path.join(__dirname, '..', '..', 'target', jarName)
 }
 
 // Start one backend and accept a port only from its own ready message.

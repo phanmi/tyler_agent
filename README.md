@@ -2,7 +2,7 @@
 
 > A personal AI assistant with a desktop UI that remembers your conversations and tracks what you eat.
 
-**Version:** V0.2.0 · **Commit:** `61cc1ca`
+**Release version:** Defined in [.mvn/maven.config](.mvn/maven.config).
 
 ---
 
@@ -122,6 +122,7 @@ tyler_agent/
 │     ├─ App.tsx                  # Application shell and view switching
 │     └─ types.ts                 # Frontend data contracts
 ├─ resources/runtime/             # Bundled JRE (Temurin 26)
+├─ .mvn/maven.config               # Single release version setting
 ├─ pom.xml
 └─ README.md
 ```
@@ -181,6 +182,20 @@ CSS is split into four files under `frontend/src/styles/`:
 ---
 
 ## How to Run
+
+### Release version
+
+Edit the `-Drevision=` value in `.mvn/maven.config` to set the backend and frontend release version. Maven uses it for the project version and backend JAR name. Frontend npm commands synchronize `package.json` and `package-lock.json` before building or packaging; Electron and Forge use that synchronized version to locate the JAR.
+
+```bash
+# From the project root, after updating .mvn/maven.config
+mvn package
+cd frontend
+npm run build
+npm run make
+```
+
+Run `npm run sync-version` to update the frontend metadata immediately without starting a build. Build the backend JAR for the new version before launching the desktop app.
 
 ### Prerequisites
 

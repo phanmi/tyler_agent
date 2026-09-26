@@ -1,4 +1,7 @@
 // Electron Forge configuration: application packaging and the Squirrel.Windows installer.
+const releaseVersion = require('./package.json').version
+const jarName = `tyler-agent-${releaseVersion}.jar`
+
 module.exports = {
   packagerConfig: {
     name: 'Tyler',
@@ -7,10 +10,10 @@ module.exports = {
     // extraResource entries are copied to process.resourcesPath outside the ASAR archive.
     // Directories are copied recursively; main.cjs checks both preserved and flattened layouts,
     // so java.exe can be found under resources/runtime/ or resources/.
-    // Individual files retain their names, including resources/tyler-agent-0.2.0.jar.
+    // Individual files retain their names, including the versioned backend JAR.
     extraResource: [
       '../resources/runtime',
-      '../target/tyler-agent-0.2.0.jar',
+      `../target/${jarName}`,
     ],
   },
   makers: [
