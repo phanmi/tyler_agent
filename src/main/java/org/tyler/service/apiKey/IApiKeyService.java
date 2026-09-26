@@ -1,19 +1,19 @@
 package org.tyler.service.apiKey;
 
 /**
- * OpenAI API Key 的读写契约。
+ * Contract for reading and saving the OpenAI API key.
  *
- * <p>Key 以纯文本形式存在沙盒文件里，通过 {@code isConfigured} / {@code get} / {@code save}
- * 三个方法管理；本契约不暴露文件路径等 IO 细节。
+ * <p>Manages a plain-text sandbox file through {@code isConfigured}, {@code get},
+ * and {@code save}, without exposing file paths.
  */
 public interface IApiKeyService {
 
-    /** 是否已配置一个非空的 API Key。 */
+    /** Returns whether a nonblank API key is configured. */
     boolean isConfigured();
 
-    /** 读取当前保存的 API Key；文件不存在时返回空串。 */
+    /** Returns the saved API key, or an empty string if the file is missing. */
     String get();
 
-    /** 保存 API Key（trim 后写盘）；传空串表示清空。 */
+    /** Trims and saves the API key; an empty string clears it. */
     void save(String apiKey);
 }

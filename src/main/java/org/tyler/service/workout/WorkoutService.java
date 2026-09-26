@@ -7,7 +7,7 @@ import org.tyler.model.workout.Workout;
 import java.util.Map;
 import java.util.Optional;
 
-/** 服务入口；通过 DAL 契约访问训练记录。 */
+/** Service entry point for workout operations through the DAL interface. */
 @Service
 public class WorkoutService implements IWorkoutService {
 

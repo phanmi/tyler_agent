@@ -7,7 +7,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 返回服务器本地时区的当前日期与时间。
+ * Returns the current date and time in the server's local time zone.
  */
 @Component
 public class GetCurrentTimeTool implements ITool {

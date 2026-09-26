@@ -13,11 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 对 {@link ChatHistoryService} 的核心读写语义做单元测试。
+ * Tests chat history persistence in {@link ChatHistoryService}.
  *
- * <p>不 mock {@code IFileSandboxRead/Write}，而是注入真实的 {@link FileSandbox}（落在
- * {@code @TempDir}），这样能真实覆盖「文件不存在 / 损坏 JSON / 从 user 开头」等依赖
- * 真实文件内容的场景，而不是靠 stub 假装磁盘行为。
+ * <p>Uses a real {@link FileSandbox} under {@code @TempDir}
+ * to cover missing files, invalid JSON, and removal of leading assistant messages
+ * with actual persisted data.
  */
 class ChatHistoryServiceTest {
 
@@ -50,7 +50,7 @@ class ChatHistoryServiceTest {
         assertEquals("assistant", saved.get(1).role());
         assertEquals("world", saved.get(1).content());
 
-        // 重新读取：应从磁盘读回同样的内容，而非只返回内存里的那份。
+        // Read again to verify the saved content is loaded from disk.
         List<ChatMessage> reloaded = service.get();
         assertEquals(2, reloaded.size());
         assertEquals("hello", reloaded.get(0).content());
@@ -61,14 +61,14 @@ class ChatHistoryServiceTest {
     void keepsAtMostMaxMessages() throws IOException {
         ChatHistoryService service = newService(20);
 
-        // 追加 11 轮 = 22 条，应截断到最近 20 条（最旧的一轮被丢弃）。
+        // Eleven exchanges produce 22 messages; retain the latest 20.
         for (int i = 1; i <= 11; i++) {
             service.appendExchange("q" + i, "a" + i);
         }
 
         List<ChatMessage> history = service.get();
         assertEquals(20, history.size());
-        // 最旧的 user1/assistant1 被截掉，第一条应是 user2。
+        // The first exchange is discarded, so user2 becomes the first message.
         assertEquals("user", history.get(0).role());
         assertEquals("q2", history.get(0).content());
     }
@@ -77,7 +77,7 @@ class ChatHistoryServiceTest {
     void historyStartsWithUser() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         ChatHistoryService service = new ChatHistoryService(sandbox, sandbox, FILE, 20);
-        // 手写一个开头是 assistant 的历史，验证 get() 会把开头的 assistant 剥掉。
+        // Write history starting with an assistant to test removal of leading assistant entries.
         sandbox.write(FILE, "[{\"role\":\"assistant\",\"content\":\"a\"},"
                 + "{\"role\":\"user\",\"content\":\"q\"},"
                 + "{\"role\":\"assistant\",\"content\":\"a2\"}]");
@@ -112,7 +112,7 @@ class ChatHistoryServiceTest {
 
     @Test
     void maxMessagesIsConfigurable() throws IOException {
-        // 注入 maxMessages=4：追加 3 轮 = 6 条，应截断到 4 条，证明该值可配置生效。
+        // A limit of four messages retains two of three exchanges.
         ChatHistoryService service = newService(4);
         for (int i = 1; i <= 3; i++) {
             service.appendExchange("q" + i, "a" + i);

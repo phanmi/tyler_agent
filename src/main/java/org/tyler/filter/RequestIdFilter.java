@@ -12,11 +12,11 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * 为每次请求生成 / 提取一个 requestId 并写入 MDC，
- * 让 Controller → Service → Tool → 异常日志能串成一条链路。
+ * Extracts or generates a request ID and places it in the MDC
+ * to correlate controller, service, tool, and exception logs.
  *
- * <p>优先使用请求头 {@code X-Request-Id}，缺失时生成短 UUID；
- * 请求结束后在 {@code finally} 中清理，避免线程复用串味。
+ * <p>Uses the {@code X-Request-Id} header or generates a short UUID.
+ * Clears the MDC in {@code finally} so reused threads cannot retain an old ID.
  */
 @Component
 public class RequestIdFilter extends OncePerRequestFilter {

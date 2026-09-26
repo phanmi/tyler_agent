@@ -22,10 +22,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 对 {@link FoodRecordDAOCache} 的缓存命中 / 写穿 / 失败不污染语义做单元测试。
+ * Tests cache hits, persistence-first writes, and failure isolation in {@link FoodRecordDAOCache}.
  *
- * <p>delegate 用 mock {@link FoodRecordDAOSqlite}（具体类），只验证缓存装饰器的行为，
- * 不触碰真实 SQLite IO。
+ * <p>Mocks {@link FoodRecordDAOSqlite} to focus on the decorator's behavior
+ * without using a real SQLite database.
  */
 class FoodRecordDAOCacheTest {
 

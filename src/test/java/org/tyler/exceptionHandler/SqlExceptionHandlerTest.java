@@ -9,11 +9,11 @@ import org.tyler.exceptionHandler.exception.SQLReadException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 直接对 {@link SqlExceptionHandler} 的数据库异常分支做单元测试。
+ * Tests the database exception branches in {@link SqlExceptionHandler}.
  *
- * <p>不走 Spring 容器，直接实例化 handler 调用其 {@code @ExceptionHandler} 方法，
- * 验证 {@link DataAccessResourceFailureException}（{@code DataAccessException} 的具体子类）
- * 和 DAO 自定义异常都被映射成 500 以及统一的错误文案。
+ * <p>Calls the handler's exception methods directly without a Spring container.
+ * Verifies that {@link DataAccessResourceFailureException}
+ * and custom DAO exceptions return HTTP 500 with a consistent error message.
  */
 class SqlExceptionHandlerTest {
 
@@ -24,22 +24,22 @@ class SqlExceptionHandlerTest {
         var response = handler.handleDataAccess(new DataAccessResourceFailureException("boom"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("数据库操作失败，请稍后重试", response.getBody().error());
+        assertEquals("Database operation failed. Please try again later", response.getBody().error());
     }
 
     @Test
     void sqlPersistentExceptionReturns500() {
-        var response = handler.handleSqlPersistent(new SQLPersistentException("写入后未返回主键"));
+        var response = handler.handleSqlPersistent(new SQLPersistentException("Insertion did not return an ID"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("数据库操作失败，请稍后重试", response.getBody().error());
+        assertEquals("Database operation failed. Please try again later", response.getBody().error());
     }
 
     @Test
     void sqlReadExceptionReturns500() {
-        var response = handler.handleSqlRead(new SQLReadException("SQL 资源缺失"));
+        var response = handler.handleSqlRead(new SQLReadException("Missing SQL resource"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("数据库操作失败，请稍后重试", response.getBody().error());
+        assertEquals("Database operation failed. Please try again later", response.getBody().error());
     }
 }

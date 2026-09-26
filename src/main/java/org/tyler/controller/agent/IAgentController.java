@@ -5,7 +5,7 @@ import org.tyler.model.chat.ChatMessage;
 import java.util.List;
 
 /**
- * Agent 相关的 REST 契约。
+ * REST contract for agent operations.
  */
 public interface IAgentController {
 

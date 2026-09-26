@@ -12,7 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 对 {@link OpenAIClientFactory} 的缓存 / 重建 / 空 key 路径做单元测试。
+ * Tests client caching, rebuilding, and missing-key handling in {@link OpenAIClientFactory}.
  */
 class OpenAIClientFactoryTest {
 

@@ -7,24 +7,24 @@ server:
 
 openai:
   model: gpt-5.6
-  # OpenAI API Key 的沙箱内相对路径；默认 apikey.txt，可用环境变量 OPENAI_KEY_FILE_PATH 覆盖。
+  # Sandbox-relative API key path; override with OPENAI_KEY_FILE_PATH.
   key-file-path: ${OPENAI_KEY_FILE_PATH:apikey.txt}
 
 agent:
   workspace-dir: ${AGENT_WORKSPACE_DIR:}
 
 userinfo:
-  # 用户信息 JSON 的沙箱内相对路径；默认 userinfo.json，可用环境变量 USERINFO_FILE_PATH 覆盖。
+  # Sandbox-relative profile JSON path; override with USERINFO_FILE_PATH.
   file-path: ${USERINFO_FILE_PATH:userinfo.json}
 
 chat:
-  # 聊天历史的沙箱内相对路径；默认 chat-history.json，可用环境变量 CHAT_HISTORY_FILE_PATH 覆盖。
+  # Sandbox-relative history path; override with CHAT_HISTORY_FILE_PATH.
   history-file-path: ${CHAT_HISTORY_FILE_PATH:chat-history.json}
-  # 历史最多保留的消息条数；默认 20，可用环境变量 CHAT_MAX_MESSAGES 覆盖。
+  # Maximum retained message count; override with CHAT_MAX_MESSAGES.
   max-messages: ${CHAT_MAX_MESSAGES:20}
 
 food:
-  # 食物记录 SQLite 数据库的沙箱内相对路径；默认 food-record.sqlite，可用环境变量 FOOD_DATABASE_PATH 覆盖。
+  # Sandbox-relative food SQLite path; override with FOOD_DATABASE_PATH.
   database-path: ${FOOD_DATABASE_PATH:food-record.sqlite}
-  # 食物记录 JSON 的沙箱内相对路径；默认 food-records.json，可用环境变量 FOOD_FILE_PATH 覆盖。
+  # Legacy food JSON path within the sandbox; override with FOOD_FILE_PATH.
   file-path: ${FOOD_FILE_PATH:food-records.json}

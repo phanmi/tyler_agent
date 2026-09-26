@@ -1,7 +1,7 @@
-/* ===== Tyler 主题 · 全局 reset / 基础元素 / 业务组件样式 =====
-   跨页面复用的视觉都在这：reset、标题、按钮、输入框，
-   以及 userinfo / calendar / food 三块组件。
-   颜色 / 圆角 / 间距 / 阴影 / 字体一律引用 tokens.css。 */
+/* ===== Tyler theme: resets, base elements, and components =====
+   Shared visuals for headings, buttons, inputs,
+   profile, calendar, and food components.
+   Use tokens.css for colors, radii, spacing, shadows, and fonts. */
 
 * {
   box-sizing: border-box;
@@ -18,10 +18,10 @@ body {
   font-family: var(--font-sans);
   color: var(--text);
   background: linear-gradient(135deg, var(--tint) 0%, var(--bg) 40%, #eef1fb 100%);
-  overflow: hidden; /* 应用骨架内部自行滚动，body 不产生滚动条 */
+  overflow: hidden; /* Scroll within the application shell rather than the body. */
 }
 
-/* ===== 标题 ===== */
+/* ===== Headings ===== */
 h1 {
   margin: 0 0 var(--space-1);
   font-size: var(--font-xl);
@@ -45,7 +45,7 @@ h3 {
   font-size: var(--font-md);
 }
 
-/* ===== 表单基础元素 ===== */
+/* ===== Form elements ===== */
 textarea {
   width: 100%;
   min-height: 84px;
@@ -94,7 +94,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ===== 通用卡片 ===== */
+/* ===== Shared cards ===== */
 .card {
   width: 100%;
   height: 100%;
@@ -106,7 +106,7 @@ button:disabled {
   flex-direction: column;
 }
 
-/* ===== 用户信息 / API Key 面板 ===== */
+/* ===== Profile and API key panels ===== */
 .userinfo-card {
   width: 100%;
   background: var(--card);
@@ -189,7 +189,7 @@ button:disabled {
   color: var(--danger);
 }
 
-/* ===== 饮食日历面板 ===== */
+/* ===== Food calendar ===== */
 .calendar-card {
   width: 100%;
   background: var(--card);
@@ -209,8 +209,8 @@ button:disabled {
   line-height: 1.5;
 }
 
-/* 覆盖 react-calendar 默认样式，贴合粉色主题。
-   全局 button 样式会把日历按钮染成粉底白字，这里必须显式重置。 */
+/* Override react-calendar defaults to match the pink theme.
+   Reset calendar buttons affected by the global button styles. */
 .calendar-card .react-calendar {
   border: none;
   background: transparent;
@@ -287,7 +287,7 @@ button:disabled {
   color: #fff;
 }
 
-/* ===== 食物列表与汇总 ===== */
+/* ===== Food list and summary ===== */
 .food-panel h3 {
   margin: 0 0 10px;
   font-size: var(--font-md);
@@ -415,7 +415,7 @@ button:disabled {
   font-size: var(--font-sm);
 }
 
-/* ===== 确认对话框（自定义 modal，替代 window.confirm） ===== */
+/* ===== Custom confirmation modal ===== */
 .confirm-overlay {
   position: fixed;
   inset: 0;

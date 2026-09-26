@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 
 /**
- * 基本信息：姓名 / 性别 / 年龄 / 职业类型。
+ * Basic profile information: name, gender, age, and occupation.
  */
 public record User(
         @JsonProperty("Name") String name,

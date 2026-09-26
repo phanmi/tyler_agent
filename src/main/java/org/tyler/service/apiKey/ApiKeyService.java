@@ -8,10 +8,10 @@ import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 
 /**
- * OpenAI API Key 读写服务的实现。
+ * Service for reading and saving the OpenAI API key.
  *
- * <p>Key 保存在沙盒内一个纯文本文件里，所有 IO 都通过注入的
- * {@link IFileSandboxRead} / {@link IFileSandboxWrite} 完成，本类不直接触碰磁盘。
+ * <p>The key is stored as plain text in a sandbox file.
+ * All file access goes through {@link IFileSandboxRead} and {@link IFileSandboxWrite}.
  */
 @Service
 public class ApiKeyService implements IApiKeyService {
@@ -28,7 +28,7 @@ public class ApiKeyService implements IApiKeyService {
             @Value("${openai.key-file-path:apikey.txt}") String relativePath) {
         this.reader = reader;
         this.writer = writer;
-        // 沙箱内的相对路径，实际位置由 FileSandbox 的根目录决定。
+        // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
     }
 
@@ -39,7 +39,7 @@ public class ApiKeyService implements IApiKeyService {
 
     @Override
     public String get() {
-        // 先判存在，避免 reader.read() 对「不存在」抛 FileReadException。
+        // Check existence before reading to avoid an error for a missing file.
         if (!reader.exists(relativePath)) {
             return "";
         }
@@ -51,6 +51,6 @@ public class ApiKeyService implements IApiKeyService {
     public void save(String apiKey) {
         String normalized = apiKey == null ? "" : apiKey.trim();
         writer.write(relativePath, normalized);
-        log.info("OpenAI API Key 已保存到 {}", relativePath);
+        log.info("Saved the OpenAI API key to {}", relativePath);
     }
 }

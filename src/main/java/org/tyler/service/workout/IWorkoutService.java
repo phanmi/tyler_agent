@@ -5,7 +5,7 @@ import org.tyler.model.workout.Workout;
 import java.util.Map;
 import java.util.Optional;
 
-/** 训练记录的增删改查服务契约。 */
+/** Contract for creating, reading, updating, and deleting workouts. */
 public interface IWorkoutService {
 
     long saveWorkout(Workout workout);

@@ -1,7 +1,7 @@
 package org.tyler.exceptionHandler.exception;
 
 /**
- * OpenAI API Key 缺失、错误或失效时抛出。
+ * Thrown when the OpenAI API key is missing, invalid, or expired.
  */
 public class OpenAIKeyException extends RuntimeException {
 

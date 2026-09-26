@@ -1,8 +1,8 @@
-/* ===== Tyler 主题 · 应用骨架布局 =====
-   title bar + sidebar + main 区域 + 设置页 + 可收起侧栏。
-   只负责「结构摆位」，具体组件视觉在 theme.css / chat.css。 */
+/* ===== Tyler theme: application layout =====
+   Title bar, sidebar, main content, settings, and collapsible panels.
+   Component visuals are defined in theme.css and chat.css. */
 
-/* 顶层骨架：标题栏在上，主体在下。 */
+/* Application shell: title bar above the main body. */
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -10,14 +10,14 @@
   width: 100%;
 }
 
-/* 标题栏之下：sidebar + main 并排。 */
+/* Sidebar and main content sit below the title bar. */
 .app-body {
   flex: 1;
   display: flex;
   min-height: 0;
 }
 
-/* ===== 自定义标题栏 ===== */
+/* ===== Custom title bar ===== */
 .titlebar {
   height: var(--titlebar-height);
   flex-shrink: 0;
@@ -26,7 +26,7 @@
   justify-content: space-between;
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  /* 标题文字区可拖拽移动窗口（无边框窗口必需）。 */
+  /* Drag the frameless window from its title area. */
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -50,7 +50,7 @@
 
 .titlebar__controls {
   display: flex;
-  /* 按钮区不可拖拽，否则点按钮会触发拖窗口。 */
+  /* Keep controls clickable without dragging the window. */
   -webkit-app-region: no-drag;
 }
 
@@ -80,7 +80,7 @@
   color: #fff;
 }
 
-/* ===== 左侧导航栏 ===== */
+/* ===== Navigation sidebar ===== */
 .sidebar {
   width: var(--sidebar-width);
   flex-shrink: 0;
@@ -139,7 +139,7 @@
   justify-content: center;
 }
 
-/* ===== 主内容区 ===== */
+/* ===== Main content ===== */
 .app-main {
   flex: 1;
   min-width: 0;
@@ -148,7 +148,7 @@
   display: flex;
 }
 
-/* 聊天页：聊天主体 + 可收起日历侧栏并排。 */
+/* Chat page: messages beside a collapsible calendar. */
 .chat-view {
   flex: 1;
   display: flex;
@@ -163,7 +163,7 @@
   flex-direction: column;
 }
 
-/* 日历侧栏：可收起。收起后 chat-pane 自动加宽。 */
+/* Collapsing the calendar automatically widens the chat pane. */
 .calendar-panel {
   width: 340px;
   flex-shrink: 0;
@@ -177,7 +177,7 @@
   min-height: 0;
 }
 
-/* ===== 设置页 ===== */
+/* ===== Settings page ===== */
 .settings-page {
   flex: 1;
   min-width: 0;

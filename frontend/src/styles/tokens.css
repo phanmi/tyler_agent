@@ -1,23 +1,23 @@
-/* ===== Tyler 主题 · 设计 token =====
-   所有颜色 / 圆角 / 间距 / 阴影 / 字体统一在这里定义。
-   组件样式只引用变量、不写死数值，换主题只需改这一处。 */
+/* ===== Tyler theme: design tokens =====
+   Shared colors, radii, spacing, shadows, and font sizes.
+   Components use these variables so theme changes can be made here. */
 
 :root {
-  /* --- 颜色（粉色主题） --- */
+  /* --- Colors (pink theme) --- */
   --accent: #e0569a;
   --accent-dark: #c74482;
   --accent-soft: rgba(224, 86, 154, 0.12);
   --bg: #f6f7fb;
   --card: #ffffff;
-  --surface: #fbfbfe; /* 输入框 / 列表项等浅底 */
-  --tint: #fdf2f7; /* 粉色浅底，hover / 今日标记 */
+  --surface: #fbfbfe; /* Light background for inputs and list items. */
+  --tint: #fdf2f7; /* Pale pink for hover states and today's date. */
   --text: #2b2f3a;
   --muted: #8a8fa3;
   --border: #e4e7ee;
   --danger: #d64545;
   --success: #2e9e5b;
 
-  /* --- 圆角 --- */
+  /* --- Radii --- */
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -25,7 +25,7 @@
   --radius-tile: 10px;
   --radius-xl: 20px;
 
-  /* --- 间距 --- */
+  /* --- Spacing --- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -35,11 +35,11 @@
   --space-7: 28px;
   --space-8: 32px;
 
-  /* --- 阴影 --- */
+  /* --- Shadows --- */
   --shadow-card: 0 20px 50px rgba(80, 60, 120, 0.12);
   --shadow-focus: 0 0 0 3px rgba(224, 86, 154, 0.12);
 
-  /* --- 字体 --- */
+  /* --- Fonts --- */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", sans-serif;
   --font-xs: 12px;
@@ -49,7 +49,7 @@
   --font-lg: 18px;
   --font-xl: 24px;
 
-  /* --- 骨架尺寸 --- */
+  /* --- Layout dimensions --- */
   --titlebar-height: 40px;
   --sidebar-width: 200px;
 }

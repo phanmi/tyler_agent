@@ -22,7 +22,7 @@ class WriteFileToolTest {
         FileSandbox full = new FileSandbox(tempDir.toString());
         WriteFileTool tool = new WriteFileTool(full);
         String result = tool.execute("{\"path\":\"p.txt\",\"content\":\"abc\"}");
-        assertEquals("已写入 p.txt", result);
+        assertEquals("Wrote p.txt", result);
         assertEquals("abc", full.read("p.txt"));
     }
 

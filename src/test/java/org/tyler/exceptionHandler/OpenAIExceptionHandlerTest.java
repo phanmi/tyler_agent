@@ -7,7 +7,7 @@ import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 直接对 {@link OpenAIExceptionHandler} 做单元测试：OpenAIKeyException 应映射为 401。
+ * Verifies that {@link OpenAIExceptionHandler} maps OpenAIKeyException to HTTP 401.
  */
 class OpenAIExceptionHandlerTest {
 
@@ -15,9 +15,9 @@ class OpenAIExceptionHandlerTest {
 
     @Test
     void openAIKeyExceptionReturns401() {
-        var response = handler.handleOpenAIKey(new OpenAIKeyException("此 API Key 错误或不可用"));
+        var response = handler.handleOpenAIKey(new OpenAIKeyException("This API key is invalid or unavailable"));
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertEquals("此 API Key 错误或不可用", response.getBody().error());
+        assertEquals("This API key is invalid or unavailable", response.getBody().error());
     }
 }

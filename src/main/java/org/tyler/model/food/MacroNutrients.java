@@ -3,12 +3,12 @@ package org.tyler.model.food;
 import java.math.BigDecimal;
 
 /**
- * 宏量营养素：蛋白质 / 碳水化合物 / 脂肪 / 膳食纤维。
+ * Macronutrients: protein, carbohydrates, fat, and dietary fiber.
  *
- * @param protein 蛋白质（g）
- * @param carbs   碳水化合物（g）
- * @param fat     脂肪（g）
- * @param fiber   膳食纤维（g）
+ * @param protein protein in grams
+ * @param carbs   carbohydrates in grams
+ * @param fat     fat in grams
+ * @param fiber   dietary fiber in grams
  */
 public record MacroNutrients(
         BigDecimal protein,

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -93,13 +93,13 @@
 <body>
   <main class="card">
     <h1>Tyler Agent</h1>
-    <p class="subtitle">输入一段话，ChatGPT 会回复你。</p>
-    <div id="reply" class="reply placeholder" role="status" aria-live="polite">回复会显示在这里。</div>
+    <p class="subtitle">Send a message to chat with Tyler.</p>
+    <div id="reply" class="reply placeholder" role="status" aria-live="polite">Replies will appear here.</div>
     <form id="chatForm">
-      <textarea id="message" placeholder="写点什么……（Ctrl + Enter 发送）" required></textarea>
-      <button type="submit" id="sendBtn">发送</button>
+      <textarea id="message" placeholder="Write a message... (Ctrl + Enter to send)" required></textarea>
+      <button type="submit" id="sendBtn">Send</button>
     </form>
-    <p class="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
+    <p class="hint">Shift + Enter for a new line. Ctrl + Enter to send.</p>
   </main>
 
   <script>
@@ -115,7 +115,7 @@
 
     async function send(message) {
       sendBtn.disabled = true;
-      setReply('思考中……', 'loading');
+      setReply('Thinking...', 'loading');
       try {
         const res = await fetch('/api/agent/chat', {
           method: 'POST',
@@ -128,14 +128,14 @@
           try {
             const err = await res.json();
             detail = err.error || err.message || '';
-          } catch (_) { /* 忽略解析失败 */ }
-          throw new Error(detail || ('请求失败（HTTP ' + res.status + '）'));
+          } catch (_) { /* Ignore an invalid response body. */ }
+          throw new Error(detail || ('Request failed (HTTP ' + res.status + ')'));
         }
 
         const data = await res.json();
-        setReply(data.reply || '（空回复）');
+        setReply(data.reply || '(Empty reply)');
       } catch (err) {
-        setReply('出错了：' + err.message, 'error');
+        setReply('Error: ' + err.message, 'error');
       } finally {
         sendBtn.disabled = false;
         messageEl.focus();

@@ -20,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 对 {@link FoodRecordDAL} 的「按日期」业务语义做单元测试。
+ * Tests date-based operations in {@link FoodRecordDAL}.
  *
- * <p>组合真实的 {@link FoodRecordDAO} + {@link FileSandbox}（落在 {@code @TempDir}），
- * 验证按日期过滤、追加、删除、全量读取的真实读写联动。
+ * <p>Uses a real SQLite DAO and {@link FileSandbox} under {@code @TempDir}
+ * to verify filtering, appends, deletion, and reading all records.
  */
 class FoodRecordDALTest {
 
@@ -38,7 +38,7 @@ class FoodRecordDALTest {
             FoodRecordDAOSqlite dao = new FoodRecordDAOSqlite(sandbox, DB_FILE);
             return new FoodRecordDAL(dao);
         } catch (IOException e) {
-            throw new RuntimeException("无法创建测试沙箱", e);
+            throw new RuntimeException("Failed to create the test sandbox", e);
         }
     }
 
@@ -166,7 +166,7 @@ class FoodRecordDALTest {
         assertEquals(2, result.size());
         assertEquals("apple", result.get(0).food().genericInfo().foodName());
         assertEquals("banana", result.get(1).food().genericInfo().foodName());
-        // 主键 id 由 SQLite 自增，应各自唯一且递增。
+        // SQLite IDs should be positive, unique, and increasing.
         assertTrue(result.get(0).id() > 0);
         assertTrue(result.get(1).id() > result.get(0).id());
     }

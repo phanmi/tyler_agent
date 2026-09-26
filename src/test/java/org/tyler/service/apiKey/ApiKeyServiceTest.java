@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 对 {@link ApiKeyService} 做基于临时沙盒目录的单元测试：
- * 覆盖 save/get 往返、trim、空 key 判定、文件不存在、空白串清空等路径。
+ * Tests {@link ApiKeyService} using a temporary sandbox directory.
+ * Covers save/load round trips, trimming, missing files, and clearing a key.
  */
 class ApiKeyServiceTest {
 

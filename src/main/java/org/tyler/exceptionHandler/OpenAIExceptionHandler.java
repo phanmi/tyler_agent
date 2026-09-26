@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 
 /**
- * 处理 OpenAI API Key 相关的异常。
+ * Handles OpenAI API key errors.
  */
 @RestControllerAdvice
 public class OpenAIExceptionHandler implements IExceptionHandler {
@@ -18,7 +18,7 @@ public class OpenAIExceptionHandler implements IExceptionHandler {
 
     @ExceptionHandler(OpenAIKeyException.class)
     public ResponseEntity<ErrorResponse> handleOpenAIKey(OpenAIKeyException ex) {
-        log.warn("OpenAI API Key 校验失败：{}", ex.getMessage());
+        log.warn("OpenAI API key validation failed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(ex.getMessage()));
     }

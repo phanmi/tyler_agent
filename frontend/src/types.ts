@@ -1,20 +1,20 @@
-// 消息数据契约：整条聊天记录的最小单元。
-// role 决定这条消息是谁说的，进而决定气泡的对齐方式与配色：
-//   user      → 靠右、粉色底
-//   assistant → 靠左、白色底
+// A message is the smallest unit of a conversation.
+// The role identifies the speaker and determines bubble alignment and color:
+//   user      → right-aligned, pink background
+//   assistant → left-aligned, white background
 export interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
 }
 
-// ===== 用户信息 =====
+// ===== User profile =====
 
-// 性别：三选一 + 空串（未选择）。
-export type Gender = '' | '男' | '女' | '其他'
+// Gender options plus an empty string for no selection.
+export type Gender = '' | 'Male' | 'Female' | 'Other'
 
-// 用户信息契约：字段名与后端落盘 JSON 完全一致（用户指定的结构）。
-//   User.Age 为 number | null（空 = 未填写），其余字段均为 string（空串 = 未填写）。
+// Profile field names match the backend's persisted JSON structure.
+// Age is number | null; other fields are strings, with an empty string meaning unspecified.
 export interface UserInfo {
   User: {
     Name: string
@@ -29,10 +29,10 @@ export interface UserInfo {
 }
 
 
-// ===== 食物记录 =====
+// ===== Food records =====
 
-// 通用摄入信息：字段与后端 GenericInfo record 对齐。
-// 数值字段（amount / calories）在 JSON 里是 number，后端可空，故用 number | null。
+// General intake information matches the backend GenericInfo record.
+// Numeric fields are JSON numbers and can be null.
 export interface GenericInfo {
   foodName: string | null
   amount: number | null
@@ -41,7 +41,7 @@ export interface GenericInfo {
   date: string | null
 }
 
-// 宏量营养素：字段与后端 MacroNutrients record 对齐。
+// Macronutrients match the backend MacroNutrients record.
 export interface MacroNutrients {
   protein: number | null
   carbs: number | null
@@ -49,14 +49,14 @@ export interface MacroNutrients {
   fiber: number | null
 }
 
-// 一次食物摄入记录：字段与后端 Food record 对齐。
+// A food intake entry matches the backend Food record.
 export interface Food {
   genericInfo: GenericInfo | null
   macroNutrients: MacroNutrients | null
 }
 
-// 一条已落库食物记录：后端 FoodEntry record 的投影（带数据库主键 id）。
-// 前端删除单条时用 id 直接 DELETE /api/food/{id}，无需再比较整个 Food。
+// A persisted food entry includes its database ID and matches FoodEntry.
+// Delete entries by ID with DELETE /api/food/{id}.
 export interface FoodEntry {
   id: number
   food: Food

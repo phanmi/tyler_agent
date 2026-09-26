@@ -5,7 +5,7 @@ import org.tyler.model.workout.Workout;
 import java.util.Map;
 import java.util.Optional;
 
-/** 训练记录的业务数据访问契约。 */
+/** Contract for workout data access operations. */
 public interface IWorkoutDAL {
 
     long saveWorkout(Workout workout);

@@ -1,16 +1,16 @@
 package org.tyler.filesandbox;
 
 /**
- * 文件沙箱的「只写」能力契约。
+ * Write-only file sandbox contract.
  *
- * <p>只暴露 {@code exists} 与 {@code write}，从类型层面就不具备读能力。
- * 需要「只写」能力时注入本接口即可，无需依赖完整实现。
+ * <p>Exposes only {@code exists} and {@code write}.
+ * Inject this interface when a caller needs no read access.
  */
 public interface IFileSandboxWrite {
 
-    /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */
+    /** Checks for a sandbox file; blank or out-of-bounds paths are rejected. */
     boolean exists(String relativePath);
 
-    /** 把内容写入沙箱内的文件，自动创建父目录。 */
+    /** Writes a sandbox file and creates parent directories as needed. */
     void write(String relativePath, String content);
 }

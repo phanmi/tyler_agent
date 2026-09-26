@@ -1,25 +1,25 @@
 import type { FoodEntry, Message, UserInfo } from './types'
 
-// 生产模式（Electron 用 loadFile 加载 dist，页面 origin 是 file://）下，
-// 相对路径 '/api/...' 会被解析成 'file:///api/...'，无法命中后端。
-// 因此生产构建需要指向后端 Spring Boot 的绝对基址；开发模式保持空串，
-// 继续走 vite.config.ts 里的 /api 代理（同源，无 CORS 问题）。
+// In production, Electron loads dist with loadFile and the page uses a file:// origin.
+// Relative /api paths would resolve to file:///api and miss the backend.
+// Use an absolute backend URL in production and an empty base URL in development
+// to route development requests through the same-origin Vite proxy.
 const API_BASE = import.meta.env.PROD ? 'http://127.0.0.1:8080' : ''
 
-// 与后端约定的请求体：POST /api/agent/chat
+// Request body for POST /api/agent/chat.
 interface ChatRequest {
   message: string
 }
 
-// 后端返回体：非流式、单轮，只有 reply 一个字段。
+// The non-streaming response contains a single reply field.
 interface ChatResponse {
   reply?: string
 }
 
-// 封装对后端聊天接口的调用。
-// 把网络细节（fetch、JSON 序列化、错误归一化）集中在这里，
-// 让组件只关心「发出去一句话、拿回一句回复」，不必关心 HTTP 细节。
-// 这也是把「网络副作用」与「UI 渲染」解耦的关键一步。
+// Call the backend chat API.
+// Keep fetch, JSON serialization, and error handling in one place
+// so components can send and receive messages without handling HTTP details.
+// This keeps network effects separate from UI rendering.
 export async function sendMessage(message: string): Promise<Message> {
   const res = await fetch(`${API_BASE}/api/agent/chat`, {
     method: 'POST',
@@ -27,43 +27,43 @@ export async function sendMessage(message: string): Promise<Message> {
     body: JSON.stringify({ message } satisfies ChatRequest),
   })
 
-  // 后端异常时返回非 2xx 状态码，尝试从响应体里解析出人类可读的错误信息。
+  // For non-2xx responses, try to read a useful error message from the body.
   if (!res.ok) {
     let detail = ''
     try {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `请求失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Request failed (HTTP ${res.status})`)
   }
 
   const data = (await res.json()) as ChatResponse
 
-  // 后端不返回消息 id，这里用「时间戳 + 随机数」拼一个本地唯一 id，
-  // 作为这条 assistant 消息的 React key。将来接入真实会话持久化时可替换为后端 id。
+  // The backend does not return message IDs; combine a timestamp and random value
+  // for the assistant message's React key until persistent IDs are available.
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role: 'assistant',
-    content: data.reply ?? '（空回复）',
+    content: data.reply ?? '(Empty reply)',
   }
 }
 
-// ===== 用户信息 =====
+// ===== User profile =====
 
-// 读取用户信息：GET /api/userinfo。
-// 后端在文件不存在或损坏时也会返回空结构（200），因此正常路径不会 reject。
+// Load the profile: GET /api/userinfo.
+// Missing or invalid files produce an empty profile with HTTP 200.
 export async function loadUserInfo(): Promise<UserInfo> {
   const res = await fetch(`${API_BASE}/api/userinfo`)
   if (!res.ok) {
-    throw new Error(`读取用户信息失败（HTTP ${res.status}）`)
+    throw new Error(`Failed to load profile (HTTP ${res.status})`)
   }
   return (await res.json()) as UserInfo
 }
 
-// 保存用户信息：POST /api/userinfo。
-// 后端校验（gender 枚举、age 整数）后写盘，并返回归一化后的结构。
+// Save the profile: POST /api/userinfo.
+// The backend validates gender and integer age, saves the profile, and returns normalized values.
 export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
   const res = await fetch(`${API_BASE}/api/userinfo`, {
     method: 'POST',
@@ -71,16 +71,16 @@ export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
     body: JSON.stringify(data),
   })
 
-  // 与 sendMessage 一致：非 2xx 时尝试从响应体解析人类可读的错误信息。
+  // As in sendMessage, try to read an error message from non-2xx responses.
   if (!res.ok) {
     let detail = ''
     try {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `保存失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Failed to save (HTTP ${res.status})`)
   }
 
   return (await res.json()) as UserInfo
@@ -88,21 +88,21 @@ export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
 
 // ===== OpenAI API Key =====
 
-// API Key 状态契约：只暴露「是否已配置」，绝不含 key 明文。
+// API key status exposes only whether a key is configured, never the key itself.
 export interface ApiKeyStatus {
   configured: boolean
 }
 
-// 查询 key 是否已配置：GET /api/apikey/status。
+// Check key status: GET /api/apikey/status.
 export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
   const res = await fetch(`${API_BASE}/api/apikey/status`)
   if (!res.ok) {
-    throw new Error(`读取 API Key 状态失败（HTTP ${res.status}）`)
+    throw new Error(`Failed to load API key status (HTTP ${res.status})`)
   }
   return (await res.json()) as ApiKeyStatus
 }
 
-// 保存 API Key：POST /api/apikey。后端 trim 后写进沙盒文件，返回配置状态。
+// Save the API key: POST /api/apikey. The backend trims it, saves it, and returns its status.
 export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
   const res = await fetch(`${API_BASE}/api/apikey`, {
     method: 'POST',
@@ -116,31 +116,31 @@ export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `保存失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Failed to save (HTTP ${res.status})`)
   }
 
   return (await res.json()) as ApiKeyStatus
 }
 
-// ===== 聊天历史 =====
+// ===== Chat history =====
 
-// 后端返回的历史条目：只含 role + content，id 是前端渲染概念、由前端生成。
+// Saved history contains role and content; the frontend generates IDs for rendering.
 interface HistoryEntry {
   role: 'user' | 'assistant'
   content: string
 }
 
-// 读取后端保存的聊天历史：GET /api/agent/history。
-// 后端在文件不存在或损坏时返回空数组（200），因此正常路径不会 reject。
+// Load saved chat history: GET /api/agent/history.
+// Missing or invalid history files produce an empty array with HTTP 200.
 export async function loadChatHistory(): Promise<Message[]> {
   const res = await fetch(`${API_BASE}/api/agent/history`)
   if (!res.ok) {
-    throw new Error(`读取聊天历史失败（HTTP ${res.status}）`)
+    throw new Error(`Failed to load chat history (HTTP ${res.status})`)
   }
   const data = (await res.json()) as HistoryEntry[]
-  // 后端不返回消息 id，这里为每条生成本地唯一 id（同一批恢复用 index 保证不重复）。
+  // Generate local message IDs, using the index to keep each restored batch unique.
   return data.map((entry, index) => ({
     id: `history-${Date.now()}-${index}`,
     role: entry.role,
@@ -148,18 +148,18 @@ export async function loadChatHistory(): Promise<Message[]> {
   }))
 }
 
-// 清空后端保存的聊天历史：DELETE /api/agent/history。
+// Clear saved chat history: DELETE /api/agent/history.
 export async function clearChatHistory(): Promise<void> {
   const res = await fetch(`${API_BASE}/api/agent/history`, { method: 'DELETE' })
   if (!res.ok) {
-    throw new Error(`清空聊天历史失败（HTTP ${res.status}）`)
+    throw new Error(`Failed to clear chat history (HTTP ${res.status})`)
   }
 }
 
-// ===== 食物记录 =====
+// ===== Food records =====
 
-// 按日期查询当天全部食物记录（带主键 id）：GET /api/food?date=YYYY-MM-DD。
-// 后端无记录时返回空数组（200），因此正常路径不会 reject。
+// Load a day's food records with IDs: GET /api/food?date=YYYY-MM-DD.
+// The backend returns an empty array with HTTP 200 when no records exist.
 export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
   const res = await fetch(`${API_BASE}/api/food?date=${encodeURIComponent(date)}`)
   if (!res.ok) {
@@ -168,14 +168,14 @@ export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `读取食物记录失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Failed to load food records (HTTP ${res.status})`)
   }
   return (await res.json()) as FoodEntry[]
 }
 
-// 删除单条食物记录：DELETE /api/food/{id}。
+// Delete one food record: DELETE /api/food/{id}.
 export async function deleteFood(id: number): Promise<boolean> {
   const res = await fetch(`${API_BASE}/api/food/${id}`, { method: 'DELETE' })
   if (!res.ok) {
@@ -184,14 +184,14 @@ export async function deleteFood(id: number): Promise<boolean> {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `删除失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
   }
   return (await res.json()) as boolean
 }
 
-// 删除指定日期下的全部食物记录：DELETE /api/food/date/YYYY-MM-DD。
+// Delete all food records for a date: DELETE /api/food/date/YYYY-MM-DD.
 export async function deleteFoodByDate(date: string): Promise<boolean> {
   const res = await fetch(`${API_BASE}/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
   if (!res.ok) {
@@ -200,9 +200,9 @@ export async function deleteFoodByDate(date: string): Promise<boolean> {
       const err = (await res.json()) as { error?: string; message?: string }
       detail = err.error ?? err.message ?? ''
     } catch {
-      // 响应体不是合法 JSON 时忽略，走下方兜底文案。
+      // Ignore invalid JSON and use the fallback message below.
     }
-    throw new Error(detail || `删除失败（HTTP ${res.status}）`)
+    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
   }
   return (await res.json()) as boolean
 }

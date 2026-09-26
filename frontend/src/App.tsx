@@ -9,37 +9,37 @@ import Sidebar from './components/Sidebar'
 import type { View } from './components/Sidebar'
 import TitleBar from './components/TitleBar'
 
-// App 是整棵组件树的根，也是消息状态的唯一所有者（single source of truth）。
-// 为什么状态必须放这里？
-//   消息历史会被「消息列表」和「输入框」两边需要——
-//   列表负责渲染、输入框负责触发追加，
-//   所以必须提升到它们共同的父级 App，谁都不私藏一份。
+// App is the component-tree root and the single source of truth for message state.
+// Message state is shared by the list and the composer:
+// the list renders the history,
+// and the composer appends new messages.
+// Their common parent owns the state to keep both views consistent.
 export default function App() {
-  // messages：累积式聊天记录，一条条往下堆，不再像旧页面那样被覆盖。
+  // messages: append new messages to the conversation history.
   const [messages, setMessages] = useState<Message[]>([])
-  // isLoading：是否正在等后端回复，用于禁用输入框、显示「思考中」。
+  // isLoading: disable input and show a thinking indicator while waiting for a reply.
   const [isLoading, setIsLoading] = useState(false)
-  // apiKeyConfigured：key 是否已配置。初始乐观设为 true（后端未启动时不让用户被卡住），
-  // 挂载后异步回填真实状态。
+  // apiKeyConfigured: optimistically allow chat until the backend returns key status.
+  // Load the actual status asynchronously after mounting.
   const [apiKeyConfigured, setApiKeyConfigured] = useState(true)
-  // isHistoryLoading：启动恢复历史期间为 true，用于暂时禁用输入框，
-  // 避免用户在历史加载完成前发消息、随后被 setMessages(history) 覆盖。
+  // isHistoryLoading: disable input while restoring saved messages
+  // so setMessages(history) cannot overwrite a newly submitted message.
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
-  // view：当前页（聊天 / 设置），纯 state 切换，不引入路由。
+  // view: switch between chat and settings using local state.
   const [view, setView] = useState<View>('chat')
-  // calendarOpen：聊天页内饮食日历侧栏是否展开，收起后聊天区加宽。
+  // calendarOpen: expand or collapse the food calendar beside the chat.
   const [calendarOpen, setCalendarOpen] = useState(true)
 
-  // 指向消息列表末尾的锚点元素，用于「新消息到达时自动滚动到底部」。
+  // Anchor at the end of the message list for automatic scrolling.
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // 当消息列表变化（新消息加入 / loading 切换）时，把滚动条拉到底部。
-  // 这个 DOM 副作用放在 App（而非某个气泡）里，保证每轮只滚一次、且滚对地方。
+  // Scroll to the bottom when messages or loading state change.
+  // Keep this DOM effect in App so each update scrolls the correct container once.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // 挂载时读取一次 key 状态并回填；失败则保持乐观放行（true），不阻塞聊天。
+  // Load key status on mount; allow chat optimistically if the request fails.
   useEffect(() => {
     let cancelled = false
     loadApiKeyStatus()
@@ -47,14 +47,14 @@ export default function App() {
         if (!cancelled) setApiKeyConfigured(data.configured)
       })
       .catch(() => {
-        // 后端未启动或读取失败时，乐观放行（保持 true），让用户先尝试聊天。
+        // Let the user try chatting even if the backend status check fails.
       })
     return () => {
       cancelled = true
     }
   }, [])
 
-  // 挂载时恢复后端保存的聊天历史；失败则静默忽略（无历史也能正常开始）。
+  // Restore saved history on mount; a failed restore leaves an empty conversation.
   useEffect(() => {
     let cancelled = false
     loadChatHistory()
@@ -62,7 +62,7 @@ export default function App() {
         if (!cancelled) setMessages(history)
       })
       .catch(() => {
-        // 后端未启动或读取失败时，保持空历史，不阻塞。
+        // Keep an empty history if the backend is unavailable.
       })
       .finally(() => {
         if (!cancelled) setIsHistoryLoading(false)
@@ -72,9 +72,9 @@ export default function App() {
     }
   }, [])
 
-  // handleSend：输入框提交后的回调。
-  // 流程：先把用户的话塞进历史 → 置 loading → 调后端 → 把回复塞进历史。
-  // 失败时也塞一条 assistant 消息、内容是错误提示，保证用户总能看到反馈。
+  // handleSend: called when the composer submits a message.
+  // Append the user message, set loading, call the backend, and append the reply.
+  // Append an assistant error message when the request fails.
   const handleSend = useCallback(
     async (text: string) => {
       const userMessage: Message = {
@@ -84,14 +84,14 @@ export default function App() {
       }
       setMessages((prev) => [...prev, userMessage])
 
-      // 空 key：直接给一条 assistant 提示，不发 chat 请求（前端主拦截，后端还有兜底）。
+      // Show a missing-key message before calling the chat API; the backend also validates it.
       if (!apiKeyConfigured) {
         setMessages((prev) => [
           ...prev,
           {
             id: `hint-${Date.now()}`,
             role: 'assistant',
-            content: 'OpenAI Key 是空的，chat 不可用',
+            content: 'OpenAI API key is empty; chat is unavailable',
           },
         ])
         return
@@ -107,7 +107,7 @@ export default function App() {
           {
             id: `error-${Date.now()}`,
             role: 'assistant',
-            content: `出错了：${err instanceof Error ? err.message : '未知错误'}`,
+            content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
           },
         ])
       } finally {
@@ -117,7 +117,7 @@ export default function App() {
     [apiKeyConfigured],
   )
 
-  // 清空后端历史 + 本地展示；失败时给一条 assistant 提示，用户能看到反馈。
+  // Clear saved and displayed history; show an assistant error message on failure.
   const handleClear = useCallback(async () => {
     try {
       await clearChatHistory()
@@ -128,7 +128,7 @@ export default function App() {
         {
           id: `clear-error-${Date.now()}`,
           role: 'assistant',
-          content: `清空对话失败：${err instanceof Error ? err.message : '未知错误'}`,
+          content: `Failed to clear conversation: ${err instanceof Error ? err.message : 'Unknown error'}`,
         },
       ])
     }
@@ -136,17 +136,17 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* 自绘标题栏：替代系统边框，提供最小化/最大化/关闭。 */}
+      {/* Custom title bar with minimize, maximize, and close controls. */}
       <TitleBar />
 
       <div className="app-body">
-        {/* 左侧导航：聊天 / 设置。 */}
+        {/* Sidebar navigation: chat and settings. */}
         <Sidebar current={view} onNavigate={setView} />
 
         <main className="app-main">
           {view === 'chat' ? (
             <div className="chat-view">
-              {/* 聊天主体：占据主要空间。 */}
+              {/* Main chat area. */}
               <section className="chat-pane card">
                 <header className="chat-pane__header">
                   <h1 className="chat-pane__title">Tyler</h1>
@@ -156,7 +156,7 @@ export default function App() {
                       className={`btn-calendar ${calendarOpen ? 'btn-calendar--active' : ''}`}
                       onClick={() => setCalendarOpen((v) => !v)}
                     >
-                      📅 日历
+                      📅 Calendar
                     </button>
                     {messages.length > 0 && (
                       <button
@@ -165,30 +165,30 @@ export default function App() {
                         onClick={handleClear}
                         disabled={isLoading}
                       >
-                        清空对话
+                        Clear conversation
                       </button>
                     )}
                   </div>
                 </header>
 
-                {/* 消息列表：直接在这里 map 成气泡。
-                    暂未单独抽出 MessageList 组件——当前规模下它只有「map + 滚动」两件小事，
-                    抽出来反而多一层间接。等列表逻辑变复杂（分组、日期分隔、虚拟滚动）再抽。 */}
+                {/* Render messages as bubbles directly here.
+                    The list currently needs only mapping and scrolling.
+                    Extract a component if grouping, date separators, or virtualization are added. */}
                 <div className="messages" role="log" aria-live="polite">
-                  {messages.length === 0 && <div className="empty">回复会显示在这里。</div>}
+                  {messages.length === 0 && <div className="empty">Replies will appear here.</div>}
                   {messages.map((msg) => (
                     <MessageBubble key={msg.id} message={msg} />
                   ))}
-                  {isLoading && <div className="loading-bubble">思考中……</div>}
-                  {/* 滚动锚点：永远停留在列表末尾，配合上面的 useEffect 实现自动滚动。 */}
+                  {isLoading && <div className="loading-bubble">Thinking...</div>}
+                  {/* The anchor stays at the end of the list for the scrolling effect. */}
                   <div ref={bottomRef} />
                 </div>
 
                 <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
-                <p className="hint">Shift + Enter 换行，Ctrl + Enter 发送。</p>
+                <p className="hint">Shift + Enter for a new line. Ctrl + Enter to send.</p>
               </section>
 
-              {/* 饮食日历：聊天页内的可收起侧栏。收起后聊天区自动加宽。 */}
+              {/* Collapsible food calendar; closing it gives the chat more space. */}
               {calendarOpen && (
                 <aside className="calendar-panel">
                   <FoodCalendar />

@@ -17,21 +17,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 食物记录的最底层文件 IO 实现。
+ * File-based persistence for food records.
  *
- * <p>只负责「JSON 序列化 + 通过 {@link IFileSandboxRead}/{@link IFileSandboxWrite} 落盘/回读」，
- * 与 {@link org.tyler.service.userInfo.UserInfoService} 同一套范式，本类不直接触碰磁盘。
+ * <p>Serializes JSON and delegates storage to {@link IFileSandboxRead}/{@link IFileSandboxWrite},
+ * following {@link org.tyler.service.userInfo.UserInfoService} without accessing disk directly.
  *
- * <p>TODO: 当前临时以 JSON 文件（{@code food-records.json}）承载；计划后续用
- * SQLite 数据库替换本实现，对外契约 {@link IFoodRecordDAO} 保持不变。
+ * <p>This legacy implementation stores records in {@code food-records.json}.
+ * SQLite is available through the same {@link IFoodRecordDAO} contract.
  */
 @Repository
 public class FoodRecordDAO implements IFoodRecordDAO {
 
     private static final Logger log = LoggerFactory.getLogger(FoodRecordDAO.class);
 
-    // 直接 new 一个 ObjectMapper：线程安全、可复用，只负责「JSON 字符串 <-> 对象」序列化，
-    // 真正的落盘/回读交给 FileSandbox。
+    // Reuse a thread-safe ObjectMapper for JSON serialization;
+    // FileSandbox performs the actual reads and writes.
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final IFileSandboxRead reader;
     private final IFileSandboxWrite writer;
@@ -43,13 +43,13 @@ public class FoodRecordDAO implements IFoodRecordDAO {
             @Value("${food.file-path:food-records.json}") String relativePath) {
         this.reader = reader;
         this.writer = writer;
-        // 沙箱内的相对路径，实际位置由 FileSandbox 的根目录决定。
+        // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
     }
 
     @Override
     public List<Food> load() {
-        // 先判存在，避免 reader.read() 对「不存在」抛 FileReadException。
+        // Check existence before reading to avoid FileReadException for a missing file.
         if (!reader.exists(relativePath)) {
             return List.of();
         }
@@ -57,11 +57,11 @@ public class FoodRecordDAO implements IFoodRecordDAO {
             List<Food> foods = objectMapper.readValue(
                     reader.read(relativePath),
                     new TypeReference<List<Food>>() {});
-            log.debug("已读取食物记录：{}", relativePath);
+            log.debug("Loaded food records from {}", relativePath);
             return foods == null ? List.of() : foods;
         } catch (Exception e) {
-            // 文件被手改坏 / JSON 不合法 / 读取失败时，不抛异常，返回空列表兜底。
-            log.warn("读取食物记录文件失败，返回空列表：{}", relativePath, e);
+            // Return an empty list if the file is unreadable or contains invalid JSON.
+            log.warn("Failed to read food records; returning an empty list: {}", relativePath, e);
             return List.of();
         }
     }
@@ -71,11 +71,11 @@ public class FoodRecordDAO implements IFoodRecordDAO {
         try {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(foods);
             writer.write(relativePath, json);
-            log.debug("食物记录已写入 {}（{} 条）", relativePath, foods == null ? 0 : foods.size());
+            log.debug("Saved {} food records to {}", foods == null ? 0 : foods.size(), relativePath);
         } catch (IOException | FileWriteException e) {
-            log.error("写食物记录文件失败：{}", relativePath, e);
-            // 抛 IllegalStateException 走 GenericExceptionHandler 的兜底，返回 500。
-            throw new IllegalStateException("保存食物记录失败，请稍后重试", e);
+            log.error("Failed to write food records: {}", relativePath, e);
+            // GenericExceptionHandler maps IllegalStateException to HTTP 500.
+            throw new IllegalStateException("Failed to save food records. Please try again later", e);
         }
     }
 
@@ -95,9 +95,9 @@ public class FoodRecordDAO implements IFoodRecordDAO {
     public void saveByDate(String date, Food food) {
         requireDate(date);
         if (food == null) {
-            throw new IllegalArgumentException("Food 不能为空");
+            throw new IllegalArgumentException("Food must not be null");
         }
-        // 追加语义：同一天可以吃多餐，覆盖会丢数据，所以读出现有列表后追加再写回。
+        // Append to the existing list so multiple meals on the same day are retained.
         List<Food> foods = new ArrayList<>(load());
         foods.add(food);
         save(foods);
@@ -105,17 +105,17 @@ public class FoodRecordDAO implements IFoodRecordDAO {
 
     @Override
     public List<FoodRecord> loadRecordsByDate(String date) {
-        throw new UnsupportedOperationException("JSON DAO 不支持返回带主键的记录");
+        throw new UnsupportedOperationException("The JSON DAO does not support records with IDs");
     }
 
     @Override
     public boolean deleteByDate(String date) {
-        throw new UnsupportedOperationException("JSON DAO 不支持按日期删除");
+        throw new UnsupportedOperationException("The JSON DAO does not support deletion by date");
     }
 
     @Override
     public boolean deleteById(long id) {
-        throw new UnsupportedOperationException("JSON DAO 不支持按主键删除");
+        throw new UnsupportedOperationException("The JSON DAO does not support deletion by ID");
     }
 
     private static String dateOf(Food food) {
@@ -124,7 +124,7 @@ public class FoodRecordDAO implements IFoodRecordDAO {
 
     private static void requireDate(String date) {
         if (date == null || date.isBlank()) {
-            throw new IllegalArgumentException("日期不能为空");
+            throw new IllegalArgumentException("Date must not be blank");
         }
     }
 }

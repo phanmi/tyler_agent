@@ -23,11 +23,11 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 /**
- * 对 {@link FoodRecordDAO} 的核心文件 IO 语义做单元测试。
+ * Tests file-based persistence in {@link FoodRecordDAO}.
  *
- * <p>「文件不存在 / 损坏 JSON / 正确数据」用真实 {@link FileSandbox}（落在 {@code @TempDir}）
- * 覆盖，保证测的是真实磁盘行为；「权限不足」则用 mock {@link IFileSandboxWrite} 抛
- * {@link FileWriteException}，跨平台稳定，不依赖 Windows ACL。
+ * <p>Missing files, invalid JSON, and valid data use a real {@link FileSandbox}
+ * under {@code @TempDir}. Permission failures use a mocked {@link IFileSandboxWrite}
+ * that throws {@link FileWriteException}, avoiding platform-specific ACL behavior.
  */
 class FoodRecordDAOTest {
 
@@ -69,7 +69,7 @@ class FoodRecordDAOTest {
     void loadReturnsCorrectData() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         FoodRecordDAO dao = new FoodRecordDAO(sandbox, sandbox, FILE);
-        // 先 save 再 load：验证序列化 + 反序列化往返一致。
+        // Verify the save/load serialization round trip.
         dao.save(List.of(food("apple", "2026-09-12"), food("banana", "2026-09-12")));
 
         List<Food> loaded = dao.load();

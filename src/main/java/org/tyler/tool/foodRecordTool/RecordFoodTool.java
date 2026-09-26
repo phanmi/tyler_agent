@@ -17,11 +17,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 让 LLM 解析用户每天吃的食物，输出结构化的 {@link Food}。
+ * Converts a user's food description into a structured {@link Food} record.
  *
- * <p>负责「解析 + 保存 + 回显」：把模型生成的 JSON 参数反序列化成
- * {@link Food} 并校验字段，调用 {@link IFoodRecordDAL} 落盘到本地，
- * 再把结构化结果回显给模型。
+ * <p>Deserializes the model's JSON arguments, validates the resulting
+ * {@link Food}, saves it through {@link IFoodRecordDAL},
+ * and returns the saved record to the model.
  */
 @Component
 public class RecordFoodTool implements ITool {
@@ -53,26 +53,26 @@ public class RecordFoodTool implements ITool {
         try {
             food = MAPPER.readValue(argumentsJson, Food.class);
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("解析食物参数失败：" + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to parse food arguments: " + e.getMessage(), e);
         }
         validate(food);
-        // 先落盘，再以 saveFoodByDate 返回值为准序列化回显。
+        // Save first, then serialize the value returned by saveFoodByDate.
         Food saved = dal.saveFoodByDate(food);
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(saved);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("序列化食物记录失败", e);
+            throw new IllegalStateException("Failed to serialize food record", e);
         }
     }
 
     private static void validate(Food food) {
         GenericInfo info = food.genericInfo();
         if (info == null) {
-            throw new IllegalArgumentException("缺少字段 genericInfo");
+            throw new IllegalArgumentException("Missing field: genericInfo");
         }
         MacroNutrients macros = food.macroNutrients();
         if (macros == null) {
-            throw new IllegalArgumentException("缺少字段 macroNutrients");
+            throw new IllegalArgumentException("Missing field: macroNutrients");
         }
         requireText(info.foodName(), "foodName");
         requireText(info.unit(), "unit");
@@ -87,16 +87,16 @@ public class RecordFoodTool implements ITool {
 
     private static void requireText(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("缺少字段 " + field);
+            throw new IllegalArgumentException("Missing field: " + field);
         }
     }
 
     private static void requireNumber(BigDecimal value, String field) {
         if (value == null) {
-            throw new IllegalArgumentException("缺少字段 " + field);
+            throw new IllegalArgumentException("Missing field: " + field);
         }
         if (value.signum() < 0) {
-            throw new IllegalArgumentException("字段 " + field + " 不能为负数");
+            throw new IllegalArgumentException("Field " + field + " must not be negative");
         }
     }
 

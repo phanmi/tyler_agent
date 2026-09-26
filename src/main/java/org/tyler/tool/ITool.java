@@ -6,13 +6,13 @@ import com.openai.models.responses.FunctionTool;
 import java.util.Map;
 
 /**
- * 一个可供 LLM 调用的工具（function tool）。
+ * A function tool available to the model.
  *
- * <p>每个工具需要：
+ * <p>Each tool provides:
  * <ul>
- *   <li>{@link #name()} —— 暴露给模型的函数名；</li>
- *   <li>{@link #description()} —— 告诉模型什么时候该调用它；</li>
- *   <li>{@link #execute(String)} —— 真正干活的 Java 方法，入参是模型传来的 JSON 参数字符串。</li>
+ *   <li>{@link #name()}: the function name exposed to the model;</li>
+ *   <li>{@link #description()}: guidance about when to use the tool;</li>
+ *   <li>{@link #execute(String)}: the implementation accepting JSON arguments.</li>
  * </ul>
  */
 public interface ITool {
@@ -22,16 +22,16 @@ public interface ITool {
     String description();
 
     /**
-     * 执行工具逻辑。
+     * Executes the tool.
      *
-     * @param argumentsJson 模型生成的 JSON 参数字符串（无参工具通常是 "{}"）
-     * @return 返回给模型的结果（通常是纯文本或 JSON 字符串）
+     * @param argumentsJson JSON arguments from the model, usually "{}" for a tool with no parameters
+     * @return result sent back to the model, usually plain text or JSON
      */
     String execute(String argumentsJson);
 
     /**
-     * 把自己描述成 OpenAI Responses API 认识的 {@link FunctionTool}。
-     * 默认只带 name + description；需要参数 schema 的工具可覆盖此方法补充 parameters。
+     * Describes this tool as a {@link FunctionTool} for the OpenAI Responses API.
+     * Defaults to name and description; override to add a parameter schema.
      */
     default FunctionTool toFunctionTool() {
         return FunctionTool.builder()

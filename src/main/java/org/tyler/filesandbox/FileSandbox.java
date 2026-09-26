@@ -12,16 +12,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 文件沙箱的唯一实现：同时具备读与写能力。
+ * File sandbox implementation supporting both reads and writes.
  *
- * <p>把文件读写限制在一个沙箱工作目录内，防止路径穿越访问目录之外的文件。
+ * <p>Restricts paths to a workspace directory to reject traversal outside it.
  *
- * <p>根目录默认是 {@code {user.home}/AppData/Local/tyler_agent}，
- * 可通过 {@code agent.workspace-dir}（或环境变量 {@code AGENT_WORKSPACE_DIR}）覆盖。
+ * <p>The default root is {@code {user.home}/AppData/Local/tyler_agent}.
+ * Override it with {@code agent.workspace-dir} or {@code AGENT_WORKSPACE_DIR}.
  *
- * <p>这是全项目唯一的文件 IO 出口：除日志外的所有读写都应通过本类完成。
- * 调用方不直接依赖本类，而是按自身需要注入 {@link IFileSandboxRead} 或
- * {@link IFileSandboxWrite}；同一个本类 bean 能同时提供两种 capability。
+ * <p>Application file access, apart from logging, goes through this sandbox.
+ * Callers inject {@link IFileSandboxRead} or {@link IFileSandboxWrite}
+ * according to the capabilities they need.
  */
 @Component
 public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSandboxPath {
@@ -43,27 +43,27 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
         return Path.of(home, "AppData", "Local", "tyler_agent").toAbsolutePath().normalize();
     }
 
-    /** 返回沙箱根目录的绝对路径。 */
+    /** Returns the absolute sandbox root. */
     private Path root() {
         return root;
     }
 
-    /** 把相对路径解析到沙箱内的绝对路径，并校验没有越界（与 read/write 同源）。 */
+    /** Resolves a relative path inside the sandbox and validates its boundaries. */
     @Override
     public Path resolve(String relativePath) {
         return resolveInside(relativePath);
     }
 
-    /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */
+    /** Checks for a sandbox file; blank or out-of-bounds paths are rejected. */
     @Override
     public boolean exists(String relativePath) {
         return Files.exists(resolveInside(relativePath));
     }
 
-    /** 读取沙箱内的文件内容。相对路径越界或为空会抛异常。 */
+    /** Reads a sandbox file; blank or out-of-bounds paths are rejected. */
     @Override
     public String read(String relativePath) {
-        log.debug("读取文件：{}", relativePath);
+        log.debug("Reading file: {}", relativePath);
         try {
             return Files.readString(resolveInside(relativePath));
         } catch (IOException e) {
@@ -71,10 +71,10 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
         }
     }
 
-    /** 把内容写入沙箱内的文件，自动创建父目录。 */
+    /** Writes a sandbox file and creates parent directories as needed. */
     @Override
     public void write(String relativePath, String content) {
-        log.debug("写入文件：{}（{} 字符）", relativePath, content == null ? 0 : content.length());
+        log.debug("Writing file: {} ({} characters)", relativePath, content == null ? 0 : content.length());
         Path target = resolveInside(relativePath);
         Path parent = target.getParent();
         if (parent != null) {
@@ -91,14 +91,14 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
         }
     }
 
-    /** 把相对路径解析到沙箱内，并校验没有越界。 */
+    /** Resolves a relative path and rejects paths outside the workspace. */
     private Path resolveInside(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
-            throw new IllegalArgumentException("文件路径不能为空");
+            throw new IllegalArgumentException("File path must not be blank");
         }
         Path resolved = root.resolve(relativePath).normalize();
         if (!resolved.startsWith(root)) {
-            throw new IllegalArgumentException("路径越出工作区：" + relativePath);
+            throw new IllegalArgumentException("Path is outside the workspace: " + relativePath);
         }
         return resolved;
     }

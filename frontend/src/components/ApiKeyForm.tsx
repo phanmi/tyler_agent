@@ -1,29 +1,29 @@
 import { useState } from 'react'
 import { saveApiKey } from '../api'
 
-// 保存状态机：控制按钮文案与提示信息。
+// Save state controls button labels and status messages.
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface ApiKeyFormProps {
-  // 当前 key 是否已配置（由 App 统一加载并回填）。
+  // Current key status, loaded and owned by App.
   configured: boolean
-  // 配置状态变化时回传给 App，让 App 决定聊天是否放行。
+  // Report status changes to App so it can enable or disable chat.
   onConfiguredChange: (configured: boolean) => void
 }
 
-// OpenAI API Key 面板：一个 password 输入框 + 保存按钮。
-// 只负责「输入 + 保存」；是否配置的状态由父组件 App 下发，本组件不自行请求加载。
+// OpenAI API key form: password input and save button.
+// App supplies configuration status; this component handles input and saving.
 export default function ApiKeyForm({ configured, onConfiguredChange }: ApiKeyFormProps) {
   const [value, setValue] = useState('')
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
-  // 点「保存」：本地校验非空后交给 api 写盘，成功后清空输入框、不回显 key。
+  // Validate a nonempty key, save it, then clear the input without displaying the saved key.
   const handleSave = async () => {
     const apiKey = value.trim()
     if (!apiKey) {
       setStatus('error')
-      setErrorMsg('请输入 API Key')
+      setErrorMsg('Enter your API key')
       return
     }
 
@@ -32,11 +32,11 @@ export default function ApiKeyForm({ configured, onConfiguredChange }: ApiKeyFor
     try {
       const res = await saveApiKey(apiKey)
       onConfiguredChange(res.configured)
-      setValue('') // 保存成功后清空输入框，绝不在界面上回显 key。
+      setValue('') // Clear the input after saving; never display the saved key.
       setStatus('saved')
     } catch (err) {
       setStatus('error')
-      setErrorMsg(err instanceof Error ? err.message : '保存失败')
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to save')
     }
   }
 
@@ -44,7 +44,7 @@ export default function ApiKeyForm({ configured, onConfiguredChange }: ApiKeyFor
     <aside className="userinfo-card">
       <h2>OpenAI API Key</h2>
       <p className="userinfo-subtitle">
-        密钥只保存在本地沙盒文件，保存后不回显。
+        Your API key is saved locally and used to connect to OpenAI. It is hidden after saving.
       </p>
 
       <label>
@@ -62,14 +62,14 @@ export default function ApiKeyForm({ configured, onConfiguredChange }: ApiKeyFor
       </label>
 
       <button type="button" onClick={handleSave} disabled={status === 'saving'}>
-        {status === 'saving' ? '保存中……' : '保存'}
+        {status === 'saving' ? 'Saving...' : 'Save'}
       </button>
 
       <p className="userinfo-subtitle">
-        状态：{configured ? '已设置 ✓' : '未设置'}
+        Status: {configured ? 'Configured ✓' : 'Not configured'}
       </p>
 
-      {status === 'saved' && <p className="userinfo-msg userinfo-msg--ok">已保存 ✓</p>}
+      {status === 'saved' && <p className="userinfo-msg userinfo-msg--ok">Saved ✓</p>}
       {status === 'error' && <p className="userinfo-msg userinfo-msg--err">{errorMsg}</p>}
     </aside>
   )

@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** 使用不可用的临时 SQLite 路径验证 DAO 的读写异常转换。 */
+/** Uses an unavailable temporary SQLite path to verify DAO exception conversion. */
 class WorkoutDAOSqliteTest {
 
     private static final String DB_FILE = "workout-record.sqlite";

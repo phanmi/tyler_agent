@@ -26,11 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 对 {@link FoodRecordDAOSqlite} 的核心 SQL 语义做单元测试。
+ * Tests SQL behavior in {@link FoodRecordDAOSqlite}.
  *
- * <p>每个用例用独立的 {@code @TempDir} 作为沙箱根目录（真实 {@link FileSandbox}），
- * 真实落 SQLite 文件，覆盖「空表读 / 纯 insert / 按日期过滤 / 追加 / 按日期删 /
- * 按主键删 / 带主键读 / 参数校验 / null 拒绝」。
+ * <p>Each test uses a real {@link FileSandbox} rooted in {@code @TempDir}.
+ * Real SQLite files cover empty reads, appends, filtering, deletion by date or ID,
+ * records with IDs, validation, and null rejection.
  */
 class FoodRecordDAOSqliteTest {
 
@@ -44,7 +44,7 @@ class FoodRecordDAOSqliteTest {
             FileSandbox sandbox = new FileSandbox(tempDir.toString());
             return new FoodRecordDAOSqlite(sandbox, DB_FILE);
         } catch (IOException e) {
-            throw new RuntimeException("无法创建测试沙箱", e);
+            throw new RuntimeException("Failed to create the test sandbox", e);
         }
     }
 
@@ -115,7 +115,7 @@ class FoodRecordDAOSqliteTest {
 
         List<Food> loaded = dao.load();
 
-        // 两次 save 都是追加，不覆盖：旧记录仍在。
+        // Both saves append records, preserving earlier entries.
         assertEquals(2, loaded.size());
         assertEquals("apple", loaded.get(0).genericInfo().foodName());
         assertEquals("banana", loaded.get(1).genericInfo().foodName());

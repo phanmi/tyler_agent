@@ -5,19 +5,19 @@ import org.tyler.model.food.FoodEntry;
 import java.util.List;
 
 /**
- * 食物记录相关的 REST 契约。
+ * REST contract for food records.
  *
- * <p>只声明 HTTP 接口的方法签名；数据模型（{@link FoodEntry} 等）已下沉到
- * {@link org.tyler.model.food} 包。
+ * <p>Declares HTTP operations; data records such as {@link FoodEntry} live in
+ * the {@link org.tyler.model.food} package.
  */
 public interface IFoodController {
 
-    /** 按日期（YYYY-MM-DD）查询当天全部食物记录（带主键 id）；无记录返回空列表。 */
+    /** Returns records with IDs for a YYYY-MM-DD date, or an empty list if none exist. */
     List<FoodEntry> foodByDate(String date);
 
-    /** 按主键删除单条食物记录，返回是否真的删除了一条。 */
+    /** Deletes one record by ID and reports whether it was removed. */
     boolean deleteFood(long id);
 
-    /** 删除指定日期（YYYY-MM-DD）下的全部食物记录，返回是否真的删除了至少一条。 */
+    /** Deletes all records for a YYYY-MM-DD date and reports whether any were removed. */
     boolean deleteFoodByDate(String date);
 }

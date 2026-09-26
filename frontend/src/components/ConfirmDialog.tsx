@@ -12,20 +12,20 @@ export interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-// 自定义确认对话框：用 React 模态框替代 window.confirm。
-// 根因：Electron 无边框窗口下，原生同步对话框关闭后焦点不归还渲染进程，
-// 导致整个应用无法输入/点击。此处改为完全非阻塞、焦点由 React 掌控的 UI。
+// Use a React confirmation modal.
+// Native synchronous dialogs can fail to restore focus in frameless Electron windows,
+// leaving the app unresponsive. This modal lets React manage focus without blocking.
 export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmText = '确定',
-  cancelText = '取消',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
   danger = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  // Esc 关闭。
+  // Close on Escape.
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {

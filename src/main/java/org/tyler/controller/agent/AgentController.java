@@ -32,18 +32,18 @@ public class AgentController implements IAgentController {
     @PostMapping("/chat")
     public ChatResponse chat(@RequestBody ChatRequest request) {
         if (request.message() == null || request.message().isBlank()) {
-            throw new IllegalArgumentException("message 不能为空");
+            throw new IllegalArgumentException("message must not be blank");
         }
         String message = request.message().trim();
-        log.info("收到聊天请求，消息长度 {} 字符", message.length());
-        log.debug("用户消息正文：{}", message);
+        log.info("Received chat request with {} characters", message.length());
+        log.debug("User message: {}", message);
 
         long start = System.currentTimeMillis();
         String reply = agentService.ask(message);
         long elapsed = System.currentTimeMillis() - start;
 
-        log.info("聊天完成，回复长度 {} 字符，总耗时 {} ms", reply.length(), elapsed);
-        log.debug("回复正文：{}", reply);
+        log.info("Chat completed: reply length {} characters, elapsed {} ms", reply.length(), elapsed);
+        log.debug("Reply: {}", reply);
         return new ChatResponse(reply);
     }
 

@@ -10,7 +10,7 @@ import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 
 /**
- * 处理文件读写相关异常。
+ * Handles file read and write failures.
  */
 @RestControllerAdvice
 public class FileExceptionHandler implements IExceptionHandler {
@@ -19,15 +19,15 @@ public class FileExceptionHandler implements IExceptionHandler {
 
     @ExceptionHandler(FileReadException.class)
     public ResponseEntity<ErrorResponse> handleFileRead(FileReadException ex) {
-        log.warn("读取文件失败：{}", ex.getMessage());
+        log.warn("Failed to read file: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("读取文件失败：" + ex.getMessage()));
+                .body(new ErrorResponse("Failed to read file: " + ex.getMessage()));
     }
 
     @ExceptionHandler(FileWriteException.class)
     public ResponseEntity<ErrorResponse> handleFileWrite(FileWriteException ex) {
-        log.warn("写入文件失败：{}", ex.getMessage());
+        log.warn("Failed to write file: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("写入文件失败：" + ex.getMessage()));
+                .body(new ErrorResponse("Failed to write file: " + ex.getMessage()));
     }
 }

@@ -1,19 +1,19 @@
 {
   "compilerOptions": {
-    // 编译目标：现代浏览器即可，配合 Vite 的 ESM 输出。
+    // Target modern browsers with Vite's ESM output.
     "target": "ES2020",
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    // bundler 解析：让 TS 理解 Vite 的裸导入与扩展名省略。
+    // Bundler resolution supports Vite's bare imports and omitted extensions.
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    // 交给 Vite 负责产出文件，TS 只做类型检查。
+    // Vite emits the build output; TypeScript only checks types.
     "noEmit": true,
     "jsx": "react-jsx",
-    // 开启严格模式 + 未使用变量检查，早期拦截低级错误。
+    // Enable strict checks and reject unused variables.
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

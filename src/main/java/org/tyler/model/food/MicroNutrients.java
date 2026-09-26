@@ -1,10 +1,10 @@
 package org.tyler.model.food;
 
 /**
- * 微量营养素（维生素、矿物质等）。
+ * Micronutrients such as vitamins and minerals.
  *
- * <p>TODO: 字段与实现方案待定，暂不接入 {@link Food}，
- * 等后续设计拍板后再决定如何实现与接入。
+ * <p>TODO: Define fields and the representation before integrating
+ * this record with {@link Food}.
  */
 public record MicroNutrients() {
 }

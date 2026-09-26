@@ -18,11 +18,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 聊天历史读写服务的实现。
+ * Service for reading and saving chat history.
  *
- * <p>把「JSON 序列化 / 截断 / 角色对齐」等业务逻辑收敛到这里，
- * 但所有文件 IO 都通过注入的 {@link IFileSandboxRead} / {@link IFileSandboxWrite} 完成，
- * 本类不直接触碰磁盘——与 {@link UserInfoService} 同一套范式。
+ * <p>Handles JSON serialization, history limits, and role normalization.
+ * File access is delegated to {@link IFileSandboxRead} and {@link IFileSandboxWrite},
+ * following the same approach as {@link UserInfoService}.
  */
 @Service
 public class ChatHistoryService implements IChatHistoryService {
@@ -31,17 +31,17 @@ public class ChatHistoryService implements IChatHistoryService {
 
     private static final Set<String> VALID_ROLES = Set.of("user", "assistant");
 
-    // 与 UserInfoService 一致：直接 new 一个 ObjectMapper（线程安全、可复用），
-    // 只负责「JSON 字符串 <-> 对象」序列化，真正的落盘/回读交给 FileSandbox。
+    // Reuse a thread-safe ObjectMapper, as in UserInfoService.
+    // It handles JSON conversion; FileSandbox handles storage.
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final IFileSandboxRead reader;
     private final IFileSandboxWrite writer;
     private final String relativePath;
 
     /**
-     * 历史最多保留的消息条数（约 10 轮对话），防止 token 无限膨胀。
-     * TODO: 后续提供运行时调整 maxMessages 的办法（如配置刷新 / 管理接口）；
-     *       当前只支持启动时通过 {@code chat.max-messages} 注入，运行期不可变。
+     * Maximum retained message count, limiting conversation context growth.
+     * TODO: Allow runtime changes through configuration refresh or an administration endpoint.
+     * Currently injected once at startup through {@code chat.max-messages}.
      */
     private final int maxMessages;
 
@@ -52,14 +52,14 @@ public class ChatHistoryService implements IChatHistoryService {
             @Value("${chat.max-messages:20}") int maxMessages) {
         this.reader = reader;
         this.writer = writer;
-        // 沙箱内的相对路径，实际位置由 FileSandbox 的根目录决定。
+        // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
         this.maxMessages = maxMessages;
     }
 
     @Override
     public List<ChatMessage> get() {
-        // 先判存在，避免 reader.read() 对「不存在」抛 FileReadException。
+        // Check existence before reading to avoid an error for a missing file.
         if (!reader.exists(relativePath)) {
             return List.of();
         }
@@ -69,8 +69,8 @@ public class ChatHistoryService implements IChatHistoryService {
                     new TypeReference<List<ChatMessage>>() {});
             return normalize(history);
         } catch (Exception e) {
-            // 文件被手改坏 / JSON 不合法 / 读取失败时，不抛 500，返回空历史兜底。
-            log.warn("读取聊天历史文件失败，返回空历史：{}", relativePath, e);
+            // Return empty history if the file is unreadable or contains invalid JSON.
+            log.warn("Failed to read chat history; returning empty history: {}", relativePath, e);
             return List.of();
         }
     }
@@ -78,7 +78,7 @@ public class ChatHistoryService implements IChatHistoryService {
     @Override
     public List<ChatMessage> append(String role, String content) {
         if (!VALID_ROLES.contains(role)) {
-            throw new IllegalArgumentException("role 只能是 user 或 assistant");
+            throw new IllegalArgumentException("role must be user or assistant");
         }
         List<ChatMessage> history = new ArrayList<>(get());
         history.add(new ChatMessage(role, content));
@@ -89,8 +89,8 @@ public class ChatHistoryService implements IChatHistoryService {
 
     @Override
     public List<ChatMessage> appendExchange(String userMessage, String assistantReply) {
-        // 一次性读 → 追加 user + assistant 两条 → 归一化 → 写一次，
-        // 避免「第一次写成功、第二次写失败」留下一条没有回答的 user 消息。
+        // Read, append a complete user/assistant exchange, normalize, and write once.
+        // This avoids leaving an unanswered user message if separate writes were to fail.
         List<ChatMessage> history = new ArrayList<>(get());
         history.add(new ChatMessage("user", userMessage));
         history.add(new ChatMessage("assistant", assistantReply));
@@ -106,8 +106,8 @@ public class ChatHistoryService implements IChatHistoryService {
     }
 
     /**
-     * 清洗 + 截断：跳过脏数据、只保留最近 {@link #maxMessages} 条，
-     * 并保证列表从 user 开头（去掉开头的 assistant，使角色对齐）。
+     * Skips invalid entries and retains at most {@link #maxMessages} recent messages.
+     * Removes leading assistant messages so history starts with a user message.
      */
     private List<ChatMessage> normalize(List<ChatMessage> history) {
         List<ChatMessage> result = new ArrayList<>();
@@ -126,7 +126,7 @@ public class ChatHistoryService implements IChatHistoryService {
         if (result.size() > maxMessages) {
             result = new ArrayList<>(result.subList(result.size() - maxMessages, result.size()));
         }
-        // 从 user 开头：若截断后第一条是 assistant，去掉它（正常追加是 user→assistant 成对，去掉后仍交替）。
+        // After truncation, discard leading assistant messages to retain complete exchanges.
         while (!result.isEmpty() && !"user".equals(result.get(0).role())) {
             result.remove(0);
         }
@@ -137,11 +137,11 @@ public class ChatHistoryService implements IChatHistoryService {
         try {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(history);
             writer.write(relativePath, json);
-            log.debug("聊天历史已写入 {}（{} 条）", relativePath, history.size());
+            log.debug("Saved {} chat messages to {}", history.size(), relativePath);
         } catch (IOException | FileWriteException e) {
-            log.error("写聊天历史文件失败：{}", relativePath, e);
-            // 抛 IllegalStateException 走 GenericExceptionHandler 的兜底，返回 500。
-            throw new IllegalStateException("保存聊天历史失败，请稍后重试", e);
+            log.error("Failed to write chat history: {}", relativePath, e);
+            // GenericExceptionHandler maps IllegalStateException to HTTP 500.
+            throw new IllegalStateException("Failed to save chat history. Please try again later", e);
         }
     }
 }

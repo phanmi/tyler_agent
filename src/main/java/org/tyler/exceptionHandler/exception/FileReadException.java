@@ -1,7 +1,7 @@
 package org.tyler.exceptionHandler.exception;
 
 /**
- * 读取工作区文件失败时抛出。
+ * Thrown when a workspace file cannot be read.
  */
 public class FileReadException extends RuntimeException {
 

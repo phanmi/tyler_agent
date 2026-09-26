@@ -5,7 +5,7 @@ import org.tyler.model.workout.Workout;
 import java.util.Map;
 import java.util.Optional;
 
-/** 训练记录的持久化契约；主键用于精确更新和删除。 */
+/** Workout persistence contract; IDs identify records for updates and deletion. */
 public interface IWorkoutDAO {
 
     long insert(Workout workout);

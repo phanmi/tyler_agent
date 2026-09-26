@@ -3,16 +3,16 @@ package org.tyler.service.userInfo;
 import org.tyler.model.userInfo.UserInfo;
 
 /**
- * 用户信息相关的服务契约。
+ * Service contract for user profiles.
  *
- * <p>数据模型（UserInfo / User / Other）已下沉到 {@link org.tyler.model} 包，
- * 这里只保留业务方法（get / save）定义读写语义。
+ * <p>UserInfo, User, and Other data records live in {@link org.tyler.model}.
+ * This interface defines the get and save operations.
  */
 public interface IUserInfoService {
 
-    /** 读取当前保存的用户信息；文件不存在或损坏时返回空结构。 */
+    /** Returns the saved profile, or an empty profile if the file is missing or invalid. */
     UserInfo get();
 
-    /** 保存用户信息，返回保存后的结构。 */
+    /** Saves a profile and returns the stored values. */
     UserInfo save(UserInfo userInfo);
 }

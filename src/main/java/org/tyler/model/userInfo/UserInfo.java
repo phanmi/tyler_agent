@@ -3,7 +3,7 @@ package org.tyler.model.userInfo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 顶层结构：User 基本信息 + Other 补充信息。
+ * Top-level profile combining User details and Other information.
  */
 public record UserInfo(
         @JsonProperty("User") User user,

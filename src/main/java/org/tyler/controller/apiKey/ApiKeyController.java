@@ -8,10 +8,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.tyler.service.apiKey.IApiKeyService;
 
 /**
- * OpenAI API Key 相关的 REST 控制器（薄控制器）。
+ * REST controller for OpenAI API key settings.
  *
- * <p>只负责 HTTP 层：路由映射 + 请求体绑定 + 委托给 {@link IApiKeyService}。
- * 出于安全考虑，任何接口都不回传 key 的明文值，只返回「是否已配置」的布尔状态。
+ * <p>Maps routes, binds request bodies, and delegates to {@link IApiKeyService}.
+ * Responses expose only configuration status, never the API key.
  */
 @RestController
 @RequestMapping("/api/apikey")

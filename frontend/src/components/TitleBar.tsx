@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-// preload 通过 contextBridge 注入到 window.tylerWindow 的窗口控制 API。
-// 只在 Electron 环境存在；浏览器 dev 模式下为 undefined，调用方需判空。
+// Window-control API exposed by preload through contextBridge as window.tylerWindow.
+// Available only in Electron; callers check for undefined in browser development mode.
 interface TylerWindowApi {
   minimize?: () => void
   toggleMaximize?: () => void
@@ -15,13 +15,13 @@ declare global {
   }
 }
 
-// 自定义标题栏：应用标题 + 最小化 / 最大化(还原) / 关闭三键。
-// 窗口移动由 CSS 的 -webkit-app-region: drag 承担（标题文字区可拖，按钮区 no-drag）。
+// Custom title bar with app title, minimize, maximize/restore, and close buttons.
+// CSS -webkit-app-region: drag moves the window; controls use no-drag.
 export default function TitleBar() {
   const [maximized, setMaximized] = useState(false)
 
-  // 订阅最大化状态变化，用于切换「最大化/还原」图标。
-  // dev（浏览器）下 window.tylerWindow 不存在，跳过订阅，避免报错。
+  // Subscribe to maximized-state changes to update the maximize/restore icon.
+  // Skip the subscription when running in a browser without window.tylerWindow.
   useEffect(() => {
     const api = window.tylerWindow
     if (!api?.onMaximizedChange) return
@@ -38,7 +38,7 @@ export default function TitleBar() {
         <button
           type="button"
           className="titlebar__btn"
-          aria-label="最小化"
+          aria-label="Minimize"
           onClick={() => window.tylerWindow?.minimize?.()}
         >
           ─
@@ -46,7 +46,7 @@ export default function TitleBar() {
         <button
           type="button"
           className="titlebar__btn"
-          aria-label={maximized ? '还原' : '最大化'}
+          aria-label={maximized ? 'Restore' : 'Maximize'}
           onClick={() => window.tylerWindow?.toggleMaximize?.()}
         >
           {maximized ? '❐' : '□'}
@@ -54,7 +54,7 @@ export default function TitleBar() {
         <button
           type="button"
           className="titlebar__btn titlebar__btn--close"
-          aria-label="关闭"
+          aria-label="Close"
           onClick={() => window.tylerWindow?.close?.()}
         >
           ✕

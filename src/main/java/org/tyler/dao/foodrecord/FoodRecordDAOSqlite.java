@@ -28,19 +28,19 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 食物记录基于 SQLite 的 DAO 实现，是当前唯一的 {@code @Primary} 主实现。
+ * SQLite food-record DAO and the {@code @Primary} implementation.
  *
- * <p>表结构严格对齐 {@code food_record} DDL：数值列以 {@link BigDecimal} 的
- * {@code toPlainString()} 写入、{@code getString} 读回，避免浮点精度丢失；
- * 全列 NOT NULL，因此写入前做严格校验，缺失字段抛 {@link SQLDataValidationException}
- * 而非静默转 0 / 空串。
+ * <p>Matches the {@code food_record} schema. Numeric values use {@link BigDecimal}
+ * with {@code toPlainString()} on write and {@code getString} on read.
+ * Required columns are validated before writing; missing values raise
+ * {@link SQLDataValidationException} instead of being replaced with zero or empty strings.
  *
- * <p>数据库文件路径由配置 {@code food.database-path} 经 {@link IFileSandboxPath#resolve}
- * 解析（与 read/write 同源，落在沙箱根目录）；全部 SQL / DDL 从 classpath 下的
- * {@code db/food_record/*.sql} 加载，不在 Java 代码里内嵌 SQL。
+ * <p>The {@code food.database-path} setting is resolved by {@link IFileSandboxPath#resolve}
+ * inside the sandbox. SQL and schema definitions are loaded from classpath resources
+ * under {@code db/food_record/*.sql}.
  *
- * <p>{@code save} 是纯 INSERT（不做覆盖写）；删除语义由 {@link #deleteByDate} /
- * {@link #deleteById} 单独承担，读取带主键用 {@link #loadRecordsByDate}。
+ * <p>{@code save} appends records. Use {@link #deleteByDate} or {@link #deleteById}
+ * for deletion and {@link #loadRecordsByDate} to read records with IDs.
  */
 @Primary
 @Repository
@@ -86,23 +86,23 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         String classpath = SQL_DIR + fileName;
         try (InputStream in = FoodRecordDAOSqlite.class.getClassLoader().getResourceAsStream(classpath)) {
             if (in == null) {
-                throw new SQLReadException("SQL 资源缺失：" + classpath);
+                throw new SQLReadException("Missing SQL resource: " + classpath);
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new SQLReadException("读取 SQL 资源失败：" + classpath, e);
+            throw new SQLReadException("Failed to read SQL resource: " + classpath, e);
         }
     }
 
     private void initSchema() {
         try {
-            // 建表与建索引属于写入操作，失败按持久化异常处理。
+            // Creating tables and indexes is a persistence operation.
             jdbcTemplate.execute(ddlCreateTable);
             jdbcTemplate.execute(ddlCreateIndex);
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("初始化食物记录表失败", e);
+            throw new SQLPersistentException("Failed to initialize the food record schema", e);
         }
-        log.debug("SQLite food_record 表已就绪");
+        log.debug("SQLite food_record schema is ready");
     }
 
     @Override
@@ -110,13 +110,13 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         try {
             return jdbcTemplate.query(sqlSelectAll, FoodRecordDAOSqlite::mapRow);
         } catch (DataAccessException e) {
-            throw new SQLReadException("读取食物记录失败", e);
+            throw new SQLReadException("Failed to read food records", e);
         }
     }
 
     @Override
     public void save(List<Food> foods) {
-        // 纯 INSERT：只追加、不清空，不做覆盖写。
+        // Append records without clearing existing data.
         if (foods == null) {
             return;
         }
@@ -133,7 +133,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         try {
             return jdbcTemplate.query(sqlSelectByDate, FoodRecordDAOSqlite::mapRow, date);
         } catch (DataAccessException e) {
-            throw new SQLReadException("按日期读取食物记录失败", e);
+            throw new SQLReadException("Failed to read food records by date", e);
         }
     }
 
@@ -141,7 +141,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     public void saveByDate(String date, Food food) {
         requireDate(date);
         if (food == null) {
-            throw new IllegalArgumentException("Food 不能为空");
+            throw new IllegalArgumentException("Food must not be null");
         }
         insert(date, food);
     }
@@ -152,7 +152,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         try {
             return jdbcTemplate.query(sqlSelectRecordsByDate, FoodRecordDAOSqlite::mapRecordRow, date);
         } catch (DataAccessException e) {
-            throw new SQLReadException("按日期读取食物记录及主键失败", e);
+            throw new SQLReadException("Failed to read food records with IDs by date", e);
         }
     }
 
@@ -162,7 +162,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         try {
             return jdbcTemplate.update(sqlDeleteByDate, date) > 0;
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("按日期删除食物记录失败", e);
+            throw new SQLPersistentException("Failed to delete food records by date", e);
         }
     }
 
@@ -171,7 +171,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         try {
             return jdbcTemplate.update(sqlDeleteById, id) > 0;
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("按主键删除食物记录失败", e);
+            throw new SQLPersistentException("Failed to delete a food record by ID", e);
         }
     }
 
@@ -192,7 +192,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
                     eatenDate,
                     LocalDateTime.now().toString());
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("保存食物记录失败", e);
+            throw new SQLPersistentException("Failed to save food records", e);
         }
     }
 
@@ -200,10 +200,10 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         GenericInfo info = food.genericInfo();
         MacroNutrients macros = food.macroNutrients();
         if (info == null) {
-            throw new SQLDataValidationException("食物记录缺少 genericInfo");
+            throw new SQLDataValidationException("Food record is missing genericInfo");
         }
         if (macros == null) {
-            throw new SQLDataValidationException("食物记录缺少 macroNutrients");
+            throw new SQLDataValidationException("Food record is missing macroNutrients");
         }
         requireText(info.foodName(), "foodName");
         requireDecimal(info.amount(), "amount");
@@ -218,13 +218,13 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
 
     private static void requireText(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new SQLDataValidationException("食物记录字段 " + field + " 不能为空");
+            throw new SQLDataValidationException("Food record field " + field + " is required");
         }
     }
 
     private static void requireDecimal(BigDecimal value, String field) {
         if (value == null) {
-            throw new SQLDataValidationException("食物记录字段 " + field + " 不能为空");
+            throw new SQLDataValidationException("Food record field " + field + " is required");
         }
     }
 
@@ -262,7 +262,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
 
     private static void requireDate(String date) {
         if (date == null || date.isBlank()) {
-            throw new IllegalArgumentException("日期不能为空");
+            throw new IllegalArgumentException("Date must not be blank");
         }
     }
 }

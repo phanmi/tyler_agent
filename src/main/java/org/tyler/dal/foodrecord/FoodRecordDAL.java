@@ -12,10 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 食物记录「按日期」业务语义的实现。
+ * Implements date-based food record operations.
  *
- * <p>只依赖 {@link IFoodRecordDAO} 完成底层读写，自身不触碰文件或 JSON；
- * 日期取值来自 {@code food.genericInfo().date()}。
+ * <p>Delegates persistence to {@link IFoodRecordDAO} without handling files or JSON.
+ * Dates come from {@code food.genericInfo().date()}.
  */
 @Service
 public class FoodRecordDAL implements IFoodRecordDAL {
@@ -37,13 +37,13 @@ public class FoodRecordDAL implements IFoodRecordDAL {
     @Override
     public Food saveFoodByDate(Food food) {
         if (food == null) {
-            throw new IllegalArgumentException("Food 不能为空");
+            throw new IllegalArgumentException("Food must not be null");
         }
         String date = dateOf(food);
         requireDate(date);
 
         dao.saveByDate(date, food);
-        log.info("已追加食物记录：{}", date);
+        log.info("Added food record for {}", date);
         return food;
     }
 
@@ -52,7 +52,7 @@ public class FoodRecordDAL implements IFoodRecordDAL {
         requireDate(date);
         boolean removed = dao.deleteByDate(date);
         if (removed) {
-            log.info("已删除 {} 的食物记录", date);
+            log.info("Deleted food records for {}", date);
         }
         return removed;
     }
@@ -61,14 +61,14 @@ public class FoodRecordDAL implements IFoodRecordDAL {
     public boolean deleteFoodFromDate(Food food, String date) {
         requireDate(date);
         if (food == null) {
-            throw new IllegalArgumentException("Food 不能为空");
+            throw new IllegalArgumentException("Food must not be null");
         }
         List<FoodRecord> records = dao.loadRecordsByDate(date);
         for (FoodRecord record : records) {
             if (food.equals(record.food())) {
                 boolean removed = dao.deleteById(record.id());
                 if (removed) {
-                    log.info("已删除 {} 的一条食物记录", date);
+                    log.info("Deleted one food record for {}", date);
                 }
                 return removed;
             }
@@ -101,7 +101,7 @@ public class FoodRecordDAL implements IFoodRecordDAL {
     public boolean deleteFoodById(long id) {
         boolean removed = dao.deleteById(id);
         if (removed) {
-            log.info("已删除 id={} 的食物记录", id);
+            log.info("Deleted food record with id={}", id);
         }
         return removed;
     }
@@ -112,7 +112,7 @@ public class FoodRecordDAL implements IFoodRecordDAL {
 
     private static void requireDate(String date) {
         if (date == null || date.isBlank()) {
-            throw new IllegalArgumentException("日期不能为空");
+            throw new IllegalArgumentException("Date must not be blank");
         }
     }
 }

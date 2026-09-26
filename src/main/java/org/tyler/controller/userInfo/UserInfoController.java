@@ -9,10 +9,10 @@ import org.tyler.model.userInfo.UserInfo;
 import org.tyler.service.userInfo.IUserInfoService;
 
 /**
- * 用户信息相关的 REST 控制器（薄控制器）。
+ * REST controller for user profiles.
  *
- * <p>只负责 HTTP 层：路由映射 + 请求体绑定 + 委托给 {@link IUserInfoService}。
- * 读写文件、字段校验等业务逻辑全部在 service 层。
+ * <p>Maps routes, binds request bodies, and delegates to {@link IUserInfoService}.
+ * The service layer handles file access and field validation.
  */
 @RestController
 @RequestMapping("/api/userinfo")

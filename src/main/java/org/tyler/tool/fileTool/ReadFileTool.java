@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 让 LLM 读取工作区内的文件。路径限制在沙箱目录内。
+ * Lets the model read files within the sandbox workspace.
  */
 @Component
 public class ReadFileTool implements ITool {
@@ -46,11 +46,11 @@ public class ReadFileTool implements ITool {
         try {
             node = MAPPER.readTree(argumentsJson);
         } catch (JsonProcessingException e) {
-            throw new FileReadException("解析参数失败：" + e.getMessage(), e);
+            throw new FileReadException("Failed to parse arguments: " + e.getMessage(), e);
         }
         JsonNode pathNode = node.get("path");
         if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
-            throw new FileReadException("缺少参数 path");
+            throw new FileReadException("Missing argument: path");
         }
         return sandbox.read(pathNode.asText());
     }

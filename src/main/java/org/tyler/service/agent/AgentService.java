@@ -29,7 +29,7 @@ public class AgentService implements IAgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
 
-    /** 防止模型反复调用工具导致死循环的兜底上限。 */
+    /** Limits tool rounds to prevent an endless tool-call loop. */
     private static final int MAX_TOOL_ROUNDS = 5;
 
     private final IClientFactory clientFactory;
@@ -49,38 +49,38 @@ public class AgentService implements IAgentService {
 
     @Override
     public String ask(String message) {
-        // 通过工厂获取（复用或按需创建的）client；空 key、建 client 的细节都交给工厂。
+        // The factory reuses or creates the client and validates the API key.
         OpenAIClient client = clientFactory.getClient();
 
-        // 把「历史 + 当前消息」拼成完整 input，让模型记住前面的对话（跨轮记忆）。
+        // Combine recent history and the current message to preserve conversation context.
         List<ResponseInputItem> inputItems = buildHistoryInput(message);
 
-        log.debug("调用 OpenAI，用户消息：{}（携带历史 {} 条）", message, Math.max(0, inputItems.size() - 1));
+        log.debug("Calling OpenAI with message: {} ({} history entries)", message, Math.max(0, inputItems.size() - 1));
         long start = System.currentTimeMillis();
         try {
             Response response = client.responses().create(createParamsWithInput(inputItems));
-            log.info("OpenAI 首次调用完成，model={}，耗时 {} ms", model, System.currentTimeMillis() - start);
+            log.info("Initial OpenAI call completed: model={}, elapsed {} ms", model, System.currentTimeMillis() - start);
 
             int rounds = 0;
             while (hasFunctionCall(response) && rounds < MAX_TOOL_ROUNDS) {
                 long roundStart = System.currentTimeMillis();
                 response = client.responses().create(submitToolOutputsParams(response));
                 rounds++;
-                log.info("OpenAI 工具轮次 {} 完成，耗时 {} ms", rounds, System.currentTimeMillis() - roundStart);
+                log.info("OpenAI tool round {} completed in {} ms", rounds, System.currentTimeMillis() - roundStart);
             }
             String reply = extractText(response);
-            log.debug("OpenAI 最终回复：{}", reply);
+            log.debug("Final OpenAI reply: {}", reply);
 
-            // 拿到回复后再落盘：user + assistant 一次性写成完整一轮，
-            // 避免两次写入中间失败留下一条没有回答的 user 消息。
+            // Save the user message and assistant reply together after receiving the reply,
+            // avoiding an incomplete exchange if one of two separate writes were to fail.
             chatHistoryService.appendExchange(message, reply);
             return reply;
         } catch (UnauthorizedException | PermissionDeniedException e) {
-            throw new OpenAIKeyException("此 API Key 错误或不可用", e);
+            throw new OpenAIKeyException("This API key is invalid or unavailable", e);
         }
     }
 
-    /** 首次调用：把完整历史 + 当前消息作为 input 列表传入。 */
+    /** Sends the complete recent history and current message in the initial request. */
     private ResponseCreateParams createParamsWithInput(List<ResponseInputItem> input) {
         return ResponseCreateParams.builder()
                 .model(model)
@@ -89,7 +89,7 @@ public class AgentService implements IAgentService {
                 .build();
     }
 
-    /** 读取历史并转成 OpenAI 的 input item 列表，末尾追加当前用户消息。 */
+    /** Converts saved history to OpenAI input items and appends the current user message. */
     private List<ResponseInputItem> buildHistoryInput(String currentMessage) {
         List<ResponseInputItem> items = new ArrayList<>();
         for (ChatMessage msg : chatHistoryService.get()) {
@@ -110,7 +110,7 @@ public class AgentService implements IAgentService {
         return ResponseInputItem.ofEasyInputMessage(message);
     }
 
-    /** 工具轮次调用：用 previousResponseId 续写，携带本轮的 function call output。 */
+    /** Continues a response with previousResponseId and this round's function outputs. */
     private ResponseCreateParams createParams(String message,
                                               String previousResponseId,
                                               List<ResponseInputItem> input) {
@@ -127,7 +127,7 @@ public class AgentService implements IAgentService {
         return builder.build();
     }
 
-    /** 把本次响应里的所有工具调用执行完，拼成下一次请求的参数。 */
+    /** Executes all tool calls in a response and builds the next request. */
     private ResponseCreateParams submitToolOutputsParams(Response response) {
         List<ResponseInputItem> outputs = new ArrayList<>();
         for (ResponseOutputItem item : response.output()) {
@@ -147,16 +147,16 @@ public class AgentService implements IAgentService {
     private String execute(String name, String argumentsJson) {
         for (ITool tool : tools) {
             if (tool.name().equals(name)) {
-                log.debug("执行工具 {}，参数：{}", name, argumentsJson);
+                log.debug("Executing tool {} with arguments: {}", name, argumentsJson);
                 long start = System.currentTimeMillis();
                 String result = tool.execute(argumentsJson);
                 long elapsed = System.currentTimeMillis() - start;
-                log.info("工具 {} 执行完成，耗时 {} ms", name, elapsed);
-                log.debug("工具 {} 结果：{}", name, result);
+                log.info("Tool {} completed in {} ms", name, elapsed);
+                log.debug("Tool {} result: {}", name, result);
                 return result;
             }
         }
-        throw new IllegalStateException("未知的工具：" + name);
+        throw new IllegalStateException("Unknown tool: " + name);
     }
 
     private List<Tool> toOpenAiTools() {

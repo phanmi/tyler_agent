@@ -3,12 +3,12 @@ package org.tyler.model.workout;
 import java.math.BigDecimal;
 
 /**
- * 一次训练记录：训练项目、名称、组数与次数、重量、训练日期。
+ * One workout entry: name, sets and repetitions, weight, and date.
  *
- * @param workoutName        训练名称
- * @param rep         组数与每组次数，格式如 {@code 4X12}
- * @param weight      训练重量
- * @param workoutDate 训练日期，YYYY-MM-DD
+ * @param workoutName workout name
+ * @param rep         sets and repetitions per set, such as {@code 4X12}
+ * @param weight      training weight
+ * @param workoutDate workout date in YYYY-MM-DD format
  */
 public record Workout(
         String workoutName ,

@@ -1,5 +1,5 @@
-/* ===== Tyler 主题 · 聊天页 =====
-   聊天页头部、消息列表、气泡、输入区、工具条、hint。 */
+/* ===== Tyler theme: chat page =====
+   Chat header, message list, bubbles, composer, toolbar, and hints. */
 
 .chat-pane__header {
   display: flex;
@@ -20,7 +20,7 @@
   gap: var(--space-2);
 }
 
-/* 日历侧栏 toggle */
+/* Calendar sidebar toggle */
 .btn-calendar {
   align-self: auto;
   background: transparent;
@@ -43,7 +43,7 @@
   border-color: var(--accent);
 }
 
-/* 清空对话 */
+/* Clear conversation */
 .btn-clear {
   align-self: auto;
   background: transparent;
@@ -60,7 +60,7 @@
   border-color: var(--accent);
 }
 
-/* ===== 消息列表 ===== */
+/* ===== Message list ===== */
 .messages {
   flex: 1;
   overflow-y: auto;
@@ -77,7 +77,7 @@
   margin-top: var(--space-8);
 }
 
-/* ===== 气泡 ===== */
+/* ===== Message bubbles ===== */
 .bubble {
   display: flex;
 }
@@ -96,7 +96,7 @@
   border-radius: var(--radius-lg);
   line-height: 1.6;
   font-size: var(--font-base);
-  white-space: pre-wrap; /* 保留换行，让多行回复正常显示 */
+  white-space: pre-wrap; /* Preserve line breaks in multiline replies. */
   word-break: break-word;
 }
 
@@ -119,7 +119,7 @@
   padding: var(--space-1);
 }
 
-/* ===== 输入区 ===== */
+/* ===== Composer ===== */
 .input-form {
   display: flex;
   flex-direction: column;

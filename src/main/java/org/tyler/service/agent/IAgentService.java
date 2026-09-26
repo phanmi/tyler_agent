@@ -1,7 +1,7 @@
 package org.tyler.service.agent;
 
 /**
- * Agent 服务契约：接收用户消息，返回最终回复文本。
+ * Agent service contract: accepts a user message and returns the final reply.
  */
 public interface IAgentService {
 

@@ -5,19 +5,19 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 全局 CORS 配置。
+ * Global CORS configuration.
  *
- * <p>Tyler 前端有两种运行形态：
+ * <p>The frontend runs in two environments:
  * <ul>
- *   <li>开发态：Vite dev server（http://localhost:5173）通过 /api 代理访问后端，
- *       浏览器视角同源，天然没有 CORS 问题。</li>
- *   <li>生产态（Electron）：main 进程 loadFile 加载 dist/index.html，页面 origin 是
- *       file://，前端直接 fetch http://127.0.0.1:8080/api/**，属于跨源请求，
- *       必须由后端放行。</li>
+ *   <li>Development: Vite (http://localhost:5173) proxies /api requests,
+ *       keeping them same-origin from the browser's perspective.</li>
+ *   <li>Production (Electron): the main process loads dist/index.html through loadFile,
+ *       giving it a file:// origin. Calls to http://127.0.0.1:8080/api/** are cross-origin
+ *       and require backend CORS support.</li>
  * </ul>
  *
- * <p>本配置只对 /api/** 放开 CORS，且不携带凭据（allowCredentials=false）。
- * 后端面向本机内部服务，后续 Phase 10 会进一步收紧监听地址与来源白名单。
+ * <p>CORS applies only to /api/** and does not allow credentials.
+ * Future hardening can restrict the listening address and allowed origins.
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {

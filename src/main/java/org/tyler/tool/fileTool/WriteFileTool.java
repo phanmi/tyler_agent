@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 让 LLM 把文本写入工作区内的文件。路径限制在沙箱目录内。
+ * Lets the model write text files within the sandbox workspace.
  */
 @Component
 public class WriteFileTool implements ITool {
@@ -47,18 +47,18 @@ public class WriteFileTool implements ITool {
         try {
             node = MAPPER.readTree(argumentsJson);
         } catch (JsonProcessingException e) {
-            throw new FileWriteException("解析参数失败：" + e.getMessage(), e);
+            throw new FileWriteException("Failed to parse arguments: " + e.getMessage(), e);
         }
         JsonNode pathNode = node.get("path");
         JsonNode contentNode = node.get("content");
         if (pathNode == null || pathNode.isNull() || pathNode.asText().isBlank()) {
-            throw new FileWriteException("缺少参数 path");
+            throw new FileWriteException("Missing argument: path");
         }
         if (contentNode == null || contentNode.isNull()) {
-            throw new FileWriteException("缺少参数 content");
+            throw new FileWriteException("Missing argument: content");
         }
         sandbox.write(pathNode.asText(), contentNode.asText());
-        return "已写入 " + pathNode.asText();
+        return "Wrote " + pathNode.asText();
     }
 
     @Override

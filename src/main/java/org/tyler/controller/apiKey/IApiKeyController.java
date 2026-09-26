@@ -1,14 +1,14 @@
 package org.tyler.controller.apiKey;
 
 /**
- * OpenAI API Key 相关的 REST 契约。
+ * REST contract for OpenAI API key settings.
  */
 public interface IApiKeyController {
 
-    /** 查询 key 是否已配置（只返回布尔，不回传 key 本身）。 */
+    /** Returns whether a key is configured, without exposing its value. */
     StatusResponse status();
 
-    /** 保存 key，返回保存后的配置状态。 */
+    /** Saves the key and returns the resulting configuration status. */
     StatusResponse save(SaveRequest request);
 
     record StatusResponse(boolean configured) {}

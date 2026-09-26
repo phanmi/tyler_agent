@@ -10,25 +10,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 食物记录 DAO 的内存缓存装饰器，实现 {@link IFoodRecordDAO}（与 {@link FoodRecordDAO} 共用同一接口）。
+ * In-memory cache decorator implementing {@link IFoodRecordDAO}.
  *
- * <p>缓存内部按日期分桶为 {@code Map<String, List<Food>>}，因为多数读取都以日期为维度。
- * 读（{@code load}）：命中直接展平返回，不再重复读文件；未命中则走 {@link FoodRecordDAO}
- * 读文件、分桶回填后返回。
- * 写（{@code save}）：写穿——先落盘成功，再按传入列表重新分桶、整体替换缓存，避免落盘失败时缓存变脏。
+ * <p>Groups cached records by date in a {@code Map<String, List<Food>>}.
+ * Reads flatten the cached buckets when available; otherwise, the delegate
+ * loads the records and populates the cache.
+ * Writes update persistence first, then replace the cache only after success.
  *
- * <p>日期取值来自 {@code food.genericInfo().date()}；日期为空的记录归入 {@code null} 桶，
- * 用 {@link LinkedHashMap} 保序并允许 {@code null} key，确保不丢数据。
+ * <p>Dates come from {@code food.genericInfo().date()}; missing dates use a null bucket.
+ * {@link LinkedHashMap} preserves order and supports null keys.
  *
- * <p>单例 bean，{@code load}/{@code save} 用 {@code synchronized} 保证线程安全，
- * 对外返回防御性拷贝，避免外部改动污染缓存。
+ * <p>Synchronized reads and writes protect this singleton bean;
+ * defensive copies keep callers from modifying the cache.
  */
 @Component
 public class FoodRecordDAOCache implements IFoodRecordDAO {
 
     private final FoodRecordDAOSqlite delegate;
 
-    /** 按日期分桶的缓存；volatile 保证跨线程可见性。 */
+    /** Cache grouped by date; volatile provides visibility across threads. */
     private volatile Map<String, List<Food>> cached;
 
     public FoodRecordDAOCache(FoodRecordDAOSqlite delegate) {
@@ -47,7 +47,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
 
     @Override
     public synchronized void save(List<Food> foods) {
-        // 先落盘成功，再按传入列表重新分桶、整体替换缓存；失败时缓存保持旧值、异常照常上抛。
+        // Persist first, then replace the cache; keep the previous cache if writing fails.
         delegate.save(foods);
         cached = bucketByDate(foods);
     }
@@ -56,7 +56,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
         return food.genericInfo() == null ? null : food.genericInfo().date();
     }
 
-    /** 将列表按日期分桶；LinkedHashMap 保序并允许 null key。 */
+    /** Groups records by date; LinkedHashMap preserves order and allows null keys. */
     private static Map<String, List<Food>> bucketByDate(List<Food> foods) {
         Map<String, List<Food>> buckets = new LinkedHashMap<>();
         if (foods != null) {
@@ -67,7 +67,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
         return buckets;
     }
 
-    /** 将分桶后的缓存展平为列表（每次新建，天然防御性拷贝）。 */
+    /** Flattens the buckets into a fresh list as a defensive copy. */
     private static List<Food> flatten(Map<String, List<Food>> buckets) {
         List<Food> result = new ArrayList<>();
         for (List<Food> bucket : buckets.values()) {
@@ -79,7 +79,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
     @Override
     public synchronized List<Food> loadByDate(String date) {
         requireDate(date);
-        // 冷缓存：先整表回源、分桶回填；热缓存：直接按日期 Map 直取，不展平不扫描。
+        // Populate a cold cache once; otherwise, retrieve the date bucket directly.
         if (cached == null) {
             cached = bucketByDate(delegate.load());
         }
@@ -89,7 +89,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
 
     @Override
     public synchronized void saveByDate(String date, Food food) {
-        // 写穿：先落盘成功，再把 food 追加进对应日期桶；失败时缓存保持旧值、异常照常上抛。
+        // Persist first, then append to the date bucket; failed writes leave the cache intact.
         delegate.saveByDate(date, food);
         if (cached != null) {
             cached.computeIfAbsent(date, k -> new ArrayList<>()).add(food);
@@ -98,7 +98,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
 
     @Override
     public synchronized List<FoodRecord> loadRecordsByDate(String date) {
-        // 带主键的记录直接回源，不缓存（缓存按日期分桶存的是 Food，不含 id）。
+        // Read records with IDs from the delegate because cached Food values have no IDs.
         requireDate(date);
         return delegate.loadRecordsByDate(date);
     }
@@ -117,7 +117,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
     public synchronized boolean deleteById(long id) {
         boolean removed = delegate.deleteById(id);
         if (removed) {
-            // 缓存无法定位到具体 id，整体失效，下次访问回源。
+            // IDs cannot be located in the cache, so invalidate it for the next read.
             cached = null;
         }
         return removed;
@@ -125,7 +125,7 @@ public class FoodRecordDAOCache implements IFoodRecordDAO {
 
     private static void requireDate(String date) {
         if (date == null || date.isBlank()) {
-            throw new IllegalArgumentException("日期不能为空");
+            throw new IllegalArgumentException("Date must not be blank");
         }
     }
 }

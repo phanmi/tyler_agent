@@ -7,7 +7,7 @@ import org.tyler.model.workout.Workout;
 import java.util.Map;
 import java.util.Optional;
 
-/** 将训练记录操作委托给持久化接口，不依赖具体数据库实现。 */
+/** Delegates workout operations to the persistence interface. */
 @Component
 public class WorkoutDAL implements IWorkoutDAL {
 

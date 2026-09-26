@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
- * 处理文件异常之外的通用异常（参数校验、未预期错误、资源未找到等）。
+ * Handles validation failures, unexpected errors, and missing resources.
  */
 @RestControllerAdvice
 public class GenericExceptionHandler implements IExceptionHandler {
@@ -19,23 +19,23 @@ public class GenericExceptionHandler implements IExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException ex) {
-        log.warn("请求参数校验失败：{}", ex.getMessage());
+        log.warn("Request validation failed: {}", ex.getMessage());
         return ResponseEntity.badRequest().body(new ErrorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
-        // 请求体 JSON 无法解析（格式错误 / 字段类型不匹配，如 Age 传了小数）。
-        // 这是客户端输入问题，应返回 400，而非兜底的 500。
-        log.warn("请求体解析失败：{}", ex.getMessage());
-        return ResponseEntity.badRequest().body(new ErrorResponse("请求体格式错误或字段类型不匹配"));
+        // Invalid JSON or incompatible field types prevent request-body deserialization.
+        // Return HTTP 400 for invalid client input.
+        log.warn("Failed to parse request body: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(new ErrorResponse("Invalid request body format or field type"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleServerError(Exception ex) {
-        log.error("未预期的服务器错误", ex);
+        log.error("Unexpected server error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("服务器内部错误，请稍后重试"));
+                .body(new ErrorResponse("Internal server error. Please try again later"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

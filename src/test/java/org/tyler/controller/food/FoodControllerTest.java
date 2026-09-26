@@ -22,10 +22,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 对 {@link FoodController} 做 HTTP 层单元测试（MockMvc + mock DAL）。
+ * HTTP tests for {@link FoodController} with MockMvc and a mocked DAL.
  *
- * <p>只验证「路由 + 参数绑定 + 委托 + 响应序列化」，不触碰真实文件读写。
- * 日期缺失 / 空白的 400 依赖 DAL 抛 {@link IllegalArgumentException}，这里用 mock 模拟。
+ * <p>Verifies routes, parameter binding, delegation, and response serialization.
+ * The mocked DAL simulates {@link IllegalArgumentException} for missing or blank dates.
  */
 class FoodControllerTest {
 
@@ -60,11 +60,11 @@ class FoodControllerTest {
     @Test
     void missingDateReturnsBadRequest() throws Exception {
         when(foodRecordDAL.getFoodRecordsByDate(null))
-                .thenThrow(new IllegalArgumentException("日期不能为空"));
+                .thenThrow(new IllegalArgumentException("Date must not be blank"));
 
         mockMvc.perform(get("/api/food"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("日期不能为空"));
+                .andExpect(jsonPath("$.error").value("Date must not be blank"));
     }
 
     @Test

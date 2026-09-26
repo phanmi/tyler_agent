@@ -12,8 +12,8 @@ const POLL_INTERVAL_MS = 500
 
 let backendProcess = null
 
-// 定位 java 可执行文件：优先用 bundle 进来的 JRE（resources/runtime），
-// 找不到再回退到 JAVA_HOME → ~/.jdks 扫描 → PATH 上的 java。
+// Locate Java: prefer the bundled JRE under resources/runtime,
+// then try JAVA_HOME, scan ~/.jdks, and finally use java from PATH.
 function resolveJavaPath() {
     if (app.isPackaged) {
         const candidates = [
@@ -25,7 +25,7 @@ function resolveJavaPath() {
         }
     }
 
-    // 开发态：优先 bundle 进来的 JRE（Phase 6）
+    // Development: prefer the bundled JRE (Phase 6).
     const bundled = path.join(__dirname, '..', '..', 'resources', 'runtime', 'bin', 'java.exe')
     if (fs.existsSync(bundled)) return bundled
 
@@ -44,7 +44,7 @@ function resolveJavaPath() {
     return 'java'
 }
 
-// 定位 backend JAR：允许环境变量 BACKEND_JAR_PATH 覆盖，否则按源码目录结构找 target 下的产物。
+// Locate the backend JAR: use BACKEND_JAR_PATH or the build output under target.
 function resolveJarPath() {
     if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
     if (app.isPackaged) {
@@ -53,7 +53,7 @@ function resolveJarPath() {
     return path.join(__dirname, '..', '..', 'target', 'tyler-agent-0.1.0.jar')
 }
 
-// 探测后端是否就绪：GET /api/apikey/status 返回 200 即视为 ready。
+// The backend is ready when GET /api/apikey/status returns 200.
 function checkReady() {
     return new Promise((resolve) => {
         const req = http.get(READY_URL, (res) => {
@@ -68,7 +68,7 @@ function checkReady() {
     })
 }
 
-// 轮询直到后端 ready 或超时。
+// Poll until the backend is ready or the timeout expires.
 function waitForReady(timeoutMs) {
     const deadline = Date.now() + timeoutMs
     return new Promise((resolve, reject) => {
@@ -78,7 +78,7 @@ function waitForReady(timeoutMs) {
                 return
             }
             if (Date.now() > deadline) {
-                reject(new Error(`Backend 未在 ${timeoutMs / 1000} 秒内就绪`))
+                reject(new Error(`Backend did not become ready within ${timeoutMs / 1000} seconds`))
                 return
             }
             setTimeout(poll, POLL_INTERVAL_MS)
@@ -87,19 +87,19 @@ function waitForReady(timeoutMs) {
     })
 }
 
-// 启动 Spring Boot JAR，等它 ready 后 resolve。
+// Start the Spring Boot JAR and resolve once it is ready.
 function startBackend() {
     return new Promise((resolve, reject) => {
         const javaPath = resolveJavaPath()
         const jarPath = resolveJarPath()
 
         if (!fs.existsSync(jarPath)) {
-            reject(new Error(`找不到 backend JAR：${jarPath}\n请先执行 mvn clean package`))
+            reject(new Error(`Backend JAR not found: ${jarPath}\nRun mvn clean package first`))
             return
         }
 
-        console.log(`[backend] 使用 Java: ${javaPath}`)
-        console.log(`[backend] 启动 JAR: ${jarPath}`)
+        console.log(`[backend] Java executable: ${javaPath}`)
+        console.log(`[backend] Starting JAR: ${jarPath}`)
 
         backendProcess = spawn(javaPath, ['-jar', jarPath], {
             stdio: ['ignore', 'pipe', 'pipe'],
@@ -110,18 +110,18 @@ function startBackend() {
         backendProcess.stderr.on('data', (d) => process.stderr.write(`[backend] ${d}`))
 
         backendProcess.on('error', (err) => {
-            reject(new Error(`无法启动 Java（${javaPath}）：${err.message}`))
+            reject(new Error(`Cannot start Java (${javaPath}): ${err.message}`))
         })
 
         backendProcess.on('exit', (code, signal) => {
-            console.log(`[backend] 进程退出 code=${code} signal=${signal}`)
+            console.log(`[backend] Process exited: code=${code} signal=${signal}`)
         })
 
         waitForReady(READY_TIMEOUT_MS).then(resolve).catch(reject)
     })
 }
 
-// 停止 backend：终止 Java 子进程，防止 Electron 退出后残留。
+// Terminate the Java child process when Electron exits.
 function stopBackend() {
     if (!backendProcess) return
     const p = backendProcess
@@ -129,7 +129,7 @@ function stopBackend() {
     try {
         p.kill()
     } catch (e) {
-        // 已退出或 kill 失败时忽略，交给系统回收。
+        // Ignore failures if the process has already exited.
     }
 }
 
@@ -137,7 +137,7 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
-        // 自绘标题栏：去掉系统边框，由渲染进程的 TitleBar 组件替代。
+        // Use the renderer's TitleBar component in place of the system window frame.
         frame: false,
         webPreferences: {
             nodeIntegration: false,
@@ -146,7 +146,7 @@ function createWindow() {
         },
     })
 
-    // 把最大化状态变化推给渲染进程，前端据此切换「最大化/还原」图标。
+    // Notify the renderer when maximized state changes so it can update the icon.
     const emitMaximized = () => {
         win.webContents.send('window:maximized-changed', win.isMaximized())
     }
@@ -156,7 +156,7 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
 }
 
-// 窗口控制 IPC：renderer 通过 preload 暴露的 window.tylerWindow 触发。
+// Window-control IPC is exposed to the renderer through window.tylerWindow.
 function registerWindowControls() {
     ipcMain.on('window:minimize', (event) => {
         BrowserWindow.fromWebContents(event.sender)?.minimize()
@@ -175,14 +175,14 @@ function registerWindowControls() {
     })
 }
 
-// 启动链：先拉起 backend，ready 后再开窗，保证 UI 一打开就能聊天。
+// Start the backend before opening the window so the UI can connect immediately.
 async function main() {
     try {
         registerWindowControls()
         await startBackend()
         createWindow()
     } catch (err) {
-        dialog.showErrorBox('Tyler 启动失败', err && err.message ? err.message : String(err))
+        dialog.showErrorBox('Tyler failed to start', err && err.message ? err.message : String(err))
         app.quit()
     }
 }

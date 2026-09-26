@@ -1,7 +1,7 @@
 package org.tyler.exceptionHandler.exception;
 
 /**
- * 写入工作区文件失败时抛出。
+ * Thrown when a workspace file cannot be written.
  */
 public class FileWriteException extends RuntimeException {
 

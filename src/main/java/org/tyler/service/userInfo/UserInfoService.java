@@ -17,22 +17,22 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 /**
- * 用户信息读写服务的实现。
+ * Service for reading and saving user profiles.
  *
- * <p>把「JSON 序列化 / 字段校验」等业务逻辑收敛到这里，
- * 但所有文件 IO 都通过注入的 {@link IFileSandboxRead} / {@link IFileSandboxWrite} 完成，本类不直接触碰磁盘。
+ * <p>Handles JSON conversion and field validation.
+ * All file access is delegated to {@link IFileSandboxRead} and {@link IFileSandboxWrite}.
  */
 @Service
 public class UserInfoService implements IUserInfoService {
 
     private static final Logger log = LoggerFactory.getLogger(UserInfoService.class);
 
-    /** Gender 的合法取值：空串表示「未选择」。 */
-    private static final Set<String> VALID_GENDERS = Set.of("", "男", "女", "其他");
+    /** Accepted gender values; an empty string means unspecified. */
+    private static final Set<String> VALID_GENDERS = Set.of("", "Male", "Female", "Other");
 
-    // 直接 new 一个 ObjectMapper：Spring Boot 4 不再自动注册该 bean，
-    // 且 ObjectMapper 本身线程安全、可复用，手动创建最稳、零额外配置依赖。
-    // 注意：它只负责「JSON 字符串 <-> 对象」的序列化；真正的落盘/回读交给 FileSandbox。
+    // Create a reusable ObjectMapper directly because this service uses Jackson 2.
+    // The configured mapper is thread-safe and requires no injected mapper bean.
+    // It handles JSON conversion; FileSandbox handles storage.
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final IFileSandboxRead reader;
     private final IFileSandboxWrite writer;
@@ -44,24 +44,29 @@ public class UserInfoService implements IUserInfoService {
             @Value("${userinfo.file-path:userinfo.json}") String relativePath) {
         this.reader = reader;
         this.writer = writer;
-        // 这是「沙箱内的相对路径」，而不是绝对路径；实际位置由 FileSandbox 的根目录决定。
+        // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
     }
 
     @Override
     public UserInfo get() {
-        // 先判存在，避免 reader.read() 对「不存在」抛 FileReadException。
+        // Check existence before reading to avoid an error for a missing file.
         if (!reader.exists(relativePath)) {
-            log.info("用户信息文件不存在，返回空结构：{}", relativePath);
+            log.info("Profile file is missing; returning an empty profile: {}", relativePath);
             return empty();
         }
         try {
             UserInfo info = objectMapper.readValue(reader.read(relativePath), UserInfo.class);
-            log.debug("已读取用户信息：{}", relativePath);
+            log.debug("Loaded profile from {}", relativePath);
+            if (info != null && info.user() != null) {
+                User user = info.user();
+                return new UserInfo(new User(user.name(), normalizeGender(user.gender()),
+                        user.age(), user.jobType()), info.other());
+            }
             return info;
         } catch (Exception e) {
-            // 文件被手改坏 / JSON 不合法 / 读取失败时，不抛 500，返回空结构兜底。
-            log.warn("读取用户信息文件失败，返回空结构：{}", relativePath, e);
+            // Return an empty profile if the file is unreadable or contains invalid JSON.
+            log.warn("Failed to read profile; returning an empty profile: {}", relativePath, e);
             return empty();
         }
     }
@@ -71,40 +76,53 @@ public class UserInfoService implements IUserInfoService {
         User user = userInfo.user();
         Other other = userInfo.other();
         if (user == null || other == null) {
-            throw new IllegalArgumentException("User 与 Other 不能为空");
+            throw new IllegalArgumentException("User and Other must not be null");
         }
 
-        // gender 归一化：null 与空串等价，都视为「未选择」。
-        String gender = user.gender() == null ? "" : user.gender();
+        // Treat a null gender as unspecified.
+        String gender = normalizeGender(user.gender());
         if (!VALID_GENDERS.contains(gender)) {
-            throw new IllegalArgumentException("gender 只能是 男 / 女 / 其他（或留空）");
+            throw new IllegalArgumentException("Gender must be Male, Female, Other, or left blank");
         }
-        // age：BigDecimal 能精确区分「30」与「30.5」，不会被反序列化静默截断，
-        // 因此在这里可靠拦截小数，守住「Age 必须为整数」这条约束。
+        // BigDecimal distinguishes integer ages from fractional values
+        // so validation can reject fractions without silently truncating them.
         BigDecimal age = user.age();
         if (age != null && age.stripTrailingZeros().scale() > 0) {
-            throw new IllegalArgumentException("Age 必须为整数（或留空）");
+            throw new IllegalArgumentException("Age must be an integer or left blank");
         }
 
-        // 用归一化后的字段重建，避免把 null gender 写进文件。
+        // Rebuild the profile with normalized values before saving.
         UserInfo normalized = new UserInfo(
                 new User(user.name(), gender, user.age(), user.jobType()),
                 other);
 
         try {
-            // 先把对象序列化成字符串，再交给 FileSandbox 写盘，本类不直接触碰文件系统。
+            // Serialize to JSON, then delegate the write to FileSandbox.
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(normalized);
             writer.write(relativePath, json);
-            log.info("用户信息已保存到 {}", relativePath);
+            log.info("Saved profile to {}", relativePath);
             return normalized;
         } catch (IOException | FileWriteException e) {
-            log.error("写用户信息文件失败：{}", relativePath, e);
-            // 抛 IllegalStateException 走 GenericExceptionHandler 的兜底，返回 500。
-            throw new IllegalStateException("保存用户信息失败，请稍后重试", e);
+            log.error("Failed to write profile: {}", relativePath, e);
+            // GenericExceptionHandler maps IllegalStateException to HTTP 500.
+            throw new IllegalStateException("Failed to save profile. Please try again later", e);
         }
     }
 
-    /** 空结构：所有字段留空、Age 为 null。 */
+    /** Converts legacy profile values to the English values used by the UI. */
+    private static String normalizeGender(String gender) {
+        if (gender == null) {
+            return "";
+        }
+        return switch (gender) {
+            case "\u7537" -> "Male";
+            case "\u5973" -> "Female";
+            case "\u5176\u4ed6" -> "Other";
+            default -> gender;
+        };
+    }
+
+    /** Empty profile with blank strings and an unspecified age. */
     private static UserInfo empty() {
         return new UserInfo(new User("", "", null, ""), new Other("", ""));
     }

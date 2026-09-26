@@ -6,31 +6,31 @@ import org.tyler.model.food.FoodEntry;
 import java.util.List;
 
 /**
- * 食物记录「按日期」业务语义的契约。
+ * Contract for date-based food record operations.
  *
- * <p>数据持久化细节（JSON / 数据库）由 DAO 层负责，本层只表达
- * 「按日期读 / 按日期存 / 按日期删 / 全量读」的业务语义。
+ * <p>The DAO handles JSON or database persistence; this layer exposes
+ * reading, saving, and deleting records by date, plus reading all records.
  */
 public interface IFoodRecordDAL {
 
-    /** 返回指定日期（YYYY-MM-DD）下的所有食物记录；无记录返回空列表。 */
+    /** Returns food records for a YYYY-MM-DD date, or an empty list. */
     List<Food> getFoodByDate(String date);
 
-    /** 追加保存一条食物记录（按其携带的日期归组），返回保存后的这条记录。 */
+    /** Appends a food record using its date and returns the saved record. */
     Food saveFoodByDate(Food food);
 
-    /** 删除指定日期下的所有食物记录，返回是否真的删除了至少一条。 */
+    /** Deletes all records for a date and reports whether any were removed. */
     boolean deleteFoodByDate(String date);
 
-    /** 返回全部食物记录。 */
+    /** Returns all food records. */
     List<Food> getAllFoodRecords();
 
-    /** 删除指定日期下第一条与给定 food 结构相等（record equals）的记录，返回是否真的删除了。 */
+    /** Deletes the first structurally equal food record on the given date and reports success. */
     boolean deleteFoodFromDate(Food food, String date);
 
-    /** 返回指定日期（YYYY-MM-DD）下带主键 {@code id} 的记录投影；无记录返回空列表。 */
+    /** Returns records with IDs for a YYYY-MM-DD date, or an empty list. */
     List<FoodEntry> getFoodRecordsByDate(String date);
 
-    /** 按主键删除单条食物记录，返回是否真的删除了一条。 */
+    /** Deletes one record by ID and reports whether it was removed. */
     boolean deleteFoodById(long id);
 }

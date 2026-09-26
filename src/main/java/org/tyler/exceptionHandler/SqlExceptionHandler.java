@@ -11,11 +11,11 @@ import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 
 /**
- * 处理 SQL / 数据库访问相关异常。
+ * Handles SQL and database access errors.
  *
- * <p>捕获 {@link DataAccessException}——Spring 对 JDBC {@code SQLException} 的统一翻译根类型，
- * 覆盖语法错误、连接失败、约束违反等 SQL 异常；同时处理 DAO 的 SQL 资源读取
- * 与写入结果异常，统一映射为 500。
+ * <p>{@link DataAccessException} is Spring's translated JDBC exception base type
+ * for syntax, connection, and constraint failures. DAO resource-read and
+ * persistence exceptions are also mapped to HTTP 500.
  */
 @RestControllerAdvice
 public class SqlExceptionHandler implements IExceptionHandler {
@@ -24,22 +24,22 @@ public class SqlExceptionHandler implements IExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleDataAccess(DataAccessException ex) {
-        log.error("数据库访问异常", ex);
+        log.error("Database access failed", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("数据库操作失败，请稍后重试"));
+                .body(new ErrorResponse("Database operation failed. Please try again later"));
     }
 
     @ExceptionHandler(SQLPersistentException.class)
     public ResponseEntity<ErrorResponse> handleSqlPersistent(SQLPersistentException ex) {
-        log.error("数据库持久化操作失败", ex);
+        log.error("Database persistence failed", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("数据库操作失败，请稍后重试"));
+                .body(new ErrorResponse("Database operation failed. Please try again later"));
     }
 
     @ExceptionHandler(SQLReadException.class)
     public ResponseEntity<ErrorResponse> handleSqlRead(SQLReadException ex) {
-        log.error("数据库或 SQL 资源读取失败", ex);
+        log.error("Failed to read the database or a SQL resource", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("数据库操作失败，请稍后重试"));
+                .body(new ErrorResponse("Database operation failed. Please try again later"));
     }
 }

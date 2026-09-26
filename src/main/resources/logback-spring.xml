@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- 日志输出目录，默认项目运行目录下的 logs/，可通过 LOG_DIR 覆盖 -->
+    <!-- Log directory defaults to logs/ in the working directory; override with LOG_DIR. -->
     <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
 
-    <!-- 统一日志格式：时间 | 级别 | 线程 | logger | requestId | 消息 -->
+    <!-- Log format: time | level | thread | logger | requestId | message -->
     <property name="LOG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{40} [%X{requestId:-}] - %msg%n"/>
 
-    <!-- 控制台输出 -->
+    <!-- Console output -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
@@ -16,7 +16,7 @@
         </encoder>
     </appender>
 
-    <!-- 滚动文件输出：按大小 + 日期滚动，保留 14 天，单文件上限 10MB -->
+    <!-- Rotate by date and size; retain 14 days, with a 10MB limit per file. -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/tyler-agent.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
@@ -36,10 +36,10 @@
         <appender-ref ref="FILE"/>
     </root>
 
-    <!-- 业务日志默认 INFO，排查时切 DEBUG 才落正文 -->
+    <!-- Application logs default to INFO; enable DEBUG for message bodies. -->
     <logger name="org.tyler" level="INFO"/>
 
-    <!-- 抑制 OpenAI SDK 与框架噪声 -->
+    <!-- Reduce OpenAI SDK and framework log noise. -->
     <logger name="com.openai" level="WARN"/>
     <logger name="org.springframework" level="WARN"/>
 

@@ -25,7 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** SQLite 实现：重量以十进制字符串保存，避免浮点精度丢失。 */
+/** SQLite persistence using decimal strings to preserve weight precision. */
 @Repository
 public class WorkoutDAOSqlite implements IWorkoutDAO {
 
@@ -54,7 +54,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
             jdbcTemplate.execute(loadSql("create_table.sql"));
             jdbcTemplate.execute(loadSql("create_index.sql"));
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("初始化训练记录表失败", e);
+            throw new SQLPersistentException("Failed to initialize the workout schema", e);
         }
     }
 
@@ -63,14 +63,14 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         validate(workout);
         Long id;
         try {
-            // INSERT ... RETURNING id 仍是写入操作，失败按持久化异常处理。
+            // Inserting a record and returning its ID is a persistence operation.
             id = jdbcTemplate.queryForObject(sqlInsert, Long.class, workout.workoutName(), workout.rep(),
                     workout.weight().toPlainString(), workout.workoutDate());
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("保存训练记录失败", e);
+            throw new SQLPersistentException("Failed to save the workout", e);
         }
         if (id == null) {
-            throw new SQLPersistentException("训练记录插入后未返回主键");
+            throw new SQLPersistentException("Workout insertion did not return an ID");
         }
         return id;
     }
@@ -81,7 +81,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         try {
             return jdbcTemplate.query(sqlSelectById, WorkoutDAOSqlite::mapRow, id).stream().findFirst();
         } catch (DataAccessException e) {
-            throw new SQLReadException("按主键读取训练记录失败", e);
+            throw new SQLReadException("Failed to read the workout by ID", e);
         }
     }
 
@@ -92,7 +92,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
             jdbcTemplate.query(sqlSelectAll,
                     (RowCallbackHandler) rs -> records.put(rs.getLong("id"), mapRow(rs, 0)));
         } catch (DataAccessException e) {
-            throw new SQLReadException("读取全部训练记录失败", e);
+            throw new SQLReadException("Failed to read workouts", e);
         }
         return records;
     }
@@ -105,7 +105,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
             return jdbcTemplate.update(sqlUpdate, workout.workoutName(), workout.rep(), workout.weight().toPlainString(),
                     workout.workoutDate(), id) > 0;
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("更新训练记录失败", e);
+            throw new SQLPersistentException("Failed to update the workout", e);
         }
     }
 
@@ -115,7 +115,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         try {
             return jdbcTemplate.update(sqlDelete, id) > 0;
         } catch (DataAccessException e) {
-            throw new SQLPersistentException("删除训练记录失败", e);
+            throw new SQLPersistentException("Failed to delete the workout", e);
         }
     }
 
@@ -123,11 +123,11 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         String classpath = SQL_DIR + fileName;
         try (InputStream in = WorkoutDAOSqlite.class.getClassLoader().getResourceAsStream(classpath)) {
             if (in == null) {
-                throw new SQLReadException("SQL 资源缺失：" + classpath);
+                throw new SQLReadException("Missing SQL resource: " + classpath);
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new SQLReadException("读取 SQL 资源失败：" + classpath, e);
+            throw new SQLReadException("Failed to read SQL resource: " + classpath, e);
         }
     }
 
@@ -138,19 +138,19 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
 
     private static void requireId(long id) {
         if (id <= 0) {
-            throw new IllegalArgumentException("id 必须大于 0");
+            throw new IllegalArgumentException("id must be greater than 0");
         }
     }
 
     private static void validate(Workout workout) {
         if (workout == null) {
-            throw new SQLDataValidationException("Workout 不能为空");
+            throw new SQLDataValidationException("Workout must not be null");
         }
         if (workout.workoutName() == null || workout.workoutName().isBlank()) {
-            throw new SQLDataValidationException("训练名称不能为空");
+            throw new SQLDataValidationException("Workout name must not be blank");
         }
         if (workout.weight() == null || workout.weight().signum() < 0) {
-            throw new SQLDataValidationException("训练重量必须为非负数");
+            throw new SQLDataValidationException("Workout weight must be nonnegative");
         }
         try {
             if (workout.workoutDate() == null) {
@@ -158,7 +158,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
             }
             LocalDate.parse(workout.workoutDate());
         } catch (DateTimeParseException e) {
-            throw new SQLDataValidationException("训练日期必须为 YYYY-MM-DD 格式");
+            throw new SQLDataValidationException("Workout date must use the YYYY-MM-DD format");
         }
     }
 }

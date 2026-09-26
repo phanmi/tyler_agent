@@ -1,16 +1,16 @@
 package org.tyler.filesandbox;
 
 /**
- * 文件沙箱的「只读」能力契约。
+ * Read-only file sandbox contract.
  *
- * <p>只暴露 {@code exists} 与 {@code read}，从类型层面就不具备写能力。
- * 需要「只读」能力时注入本接口即可，无需依赖完整实现。
+ * <p>Exposes only {@code exists} and {@code read}.
+ * Inject this interface when a caller needs no write access.
  */
 public interface IFileSandboxRead {
 
-    /** 判断沙箱内的文件是否存在。相对路径越界或为空会抛异常。 */
+    /** Checks for a sandbox file; blank or out-of-bounds paths are rejected. */
     boolean exists(String relativePath);
 
-    /** 读取沙箱内的文件内容。相对路径越界或为空会抛异常。 */
+    /** Reads a sandbox file; blank or out-of-bounds paths are rejected. */
     String read(String relativePath);
 }

@@ -12,12 +12,12 @@ import org.tyler.model.food.FoodEntry;
 import java.util.List;
 
 /**
- * 食物记录相关的 REST 控制器（薄控制器）。
+ * REST controller for food records.
  *
- * <p>只负责 HTTP 层：路由映射 + 参数绑定 + 委托给 {@link IFoodRecordDAL}。
- * 日期校验不在本层做——{@code date} 用 {@code required = false} 接收，让缺失 / 空白
- * 都流入 DAL 的 {@code requireDate}，由其抛 {@link IllegalArgumentException}，
- * 再由 {@link org.tyler.exceptionHandler.GenericExceptionHandler} 统一映射为 400。
+ * <p>Maps routes, binds parameters, and delegates to {@link IFoodRecordDAL}.
+ * The optional {@code date} parameter allows missing or blank values to reach
+ * the DAL's validation, which throws {@link IllegalArgumentException}.
+ * {@link org.tyler.exceptionHandler.GenericExceptionHandler} maps that exception to HTTP 400.
  */
 @RestController
 @RequestMapping("/api/food")

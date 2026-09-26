@@ -8,8 +8,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 直接对 {@link GenericExceptionHandler} 的三个异常分支做单元测试：
- * 参数非法 → 400、未预期错误 → 500、资源未找到 → 404。
+ * Tests the three branches in {@link GenericExceptionHandler}:
+ * invalid arguments return 400, unexpected errors 500, and missing resources 404.
  */
 class GenericExceptionHandlerTest {
 
@@ -28,7 +28,7 @@ class GenericExceptionHandlerTest {
         var response = handler.handleServerError(new RuntimeException("boom"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("服务器内部错误，请稍后重试", response.getBody().error());
+        assertEquals("Internal server error. Please try again later", response.getBody().error());
     }
 
     @Test

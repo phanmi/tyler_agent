@@ -9,11 +9,11 @@ import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.service.apiKey.IApiKeyService;
 
 /**
- * {@link IClientFactory} 的实现：按需创建并缓存 {@link OpenAIClient}。
+ * Creates and caches {@link OpenAIClient} instances through {@link IClientFactory}.
  *
- * <p>缓存规则：只要当前保存的 API Key 没有变化，就复用同一个 client；
- * Key 一旦变化（或首次使用），就重建一个新 client。
- * 空 Key 时抛出 {@link OpenAIKeyException}，把「Spring 启动」与「OpenAI 可用」彻底解耦。
+ * <p>Reuses the client while the saved API key is unchanged;
+ * creates a new client on first use or after the key changes.
+ * A missing key raises {@link OpenAIKeyException} only when a client is requested.
  */
 @Service
 public class OpenAIClientFactory implements IClientFactory {
@@ -22,10 +22,10 @@ public class OpenAIClientFactory implements IClientFactory {
 
     private final IApiKeyService apiKeyService;
 
-    /** 当前缓存 client 所用的 Key，用于判断是否需要重建。 */
+    /** API key used by the cached client. */
     private String cachedKey;
 
-    /** 当前缓存的 client；为 null 表示尚未创建。 */
+    /** Cached client, or null before first use. */
     private OpenAIClient cachedClient;
 
     public OpenAIClientFactory(IApiKeyService apiKeyService) {
@@ -36,9 +36,9 @@ public class OpenAIClientFactory implements IClientFactory {
     public synchronized OpenAIClient getClient() {
         String key = apiKeyService.get();
         if (key == null || key.isBlank()) {
-            throw new OpenAIKeyException("OpenAI Key 是空的，chat 不可用");
+            throw new OpenAIKeyException("OpenAI API key is empty; chat is unavailable");
         }
-        // 命中缓存：Key 没变，直接复用，避免每次请求都重建 client。
+        // Reuse the client while its API key remains unchanged.
         if (cachedClient != null && key.equals(cachedKey)) {
             return cachedClient;
         }
@@ -47,7 +47,7 @@ public class OpenAIClientFactory implements IClientFactory {
                 .build();
         cachedKey = key;
         cachedClient = client;
-        log.debug("已创建新的 OpenAI client");
+        log.debug("Created a new OpenAI client");
         return client;
     }
 }

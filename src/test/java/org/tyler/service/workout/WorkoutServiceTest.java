@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 使用真实 SQLite 覆盖 service → DAL → DAO 的增删改查。 */
+/** Uses real SQLite to test CRUD through service, DAL, and DAO. */
 class WorkoutServiceTest {
 
     @TempDir
