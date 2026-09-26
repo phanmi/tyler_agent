@@ -20,7 +20,7 @@ import java.util.List;
  * 食物记录的最底层文件 IO 实现。
  *
  * <p>只负责「JSON 序列化 + 通过 {@link IFileSandboxRead}/{@link IFileSandboxWrite} 落盘/回读」，
- * 与 {@link org.tyler.service.UserInfoService} 同一套范式，本类不直接触碰磁盘。
+ * 与 {@link org.tyler.service.userInfo.UserInfoService} 同一套范式，本类不直接触碰磁盘。
  *
  * <p>TODO: 当前临时以 JSON 文件（{@code food-records.json}）承载；计划后续用
  * SQLite 数据库替换本实现，对外契约 {@link IFoodRecordDAO} 保持不变。

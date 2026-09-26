@@ -4,10 +4,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.sqlite.SQLiteDataSource;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
+import org.tyler.exceptionHandler.exception.SQLReadException;
+import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.filesandbox.IFileSandboxPath;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodRecord;
@@ -83,23 +86,32 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         String classpath = SQL_DIR + fileName;
         try (InputStream in = FoodRecordDAOSqlite.class.getClassLoader().getResourceAsStream(classpath)) {
             if (in == null) {
-                throw new IllegalStateException("SQL 资源缺失：" + classpath);
+                throw new SQLReadException("SQL 资源缺失：" + classpath);
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new IllegalStateException("读取 SQL 资源失败：" + classpath, e);
+            throw new SQLReadException("读取 SQL 资源失败：" + classpath, e);
         }
     }
 
     private void initSchema() {
-        jdbcTemplate.execute(ddlCreateTable);
-        jdbcTemplate.execute(ddlCreateIndex);
+        try {
+            // 建表与建索引属于写入操作，失败按持久化异常处理。
+            jdbcTemplate.execute(ddlCreateTable);
+            jdbcTemplate.execute(ddlCreateIndex);
+        } catch (DataAccessException e) {
+            throw new SQLPersistentException("初始化食物记录表失败", e);
+        }
         log.debug("SQLite food_record 表已就绪");
     }
 
     @Override
     public List<Food> load() {
-        return jdbcTemplate.query(sqlSelectAll, FoodRecordDAOSqlite::mapRow);
+        try {
+            return jdbcTemplate.query(sqlSelectAll, FoodRecordDAOSqlite::mapRow);
+        } catch (DataAccessException e) {
+            throw new SQLReadException("读取食物记录失败", e);
+        }
     }
 
     @Override
@@ -118,7 +130,11 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     @Override
     public List<Food> loadByDate(String date) {
         requireDate(date);
-        return jdbcTemplate.query(sqlSelectByDate, FoodRecordDAOSqlite::mapRow, date);
+        try {
+            return jdbcTemplate.query(sqlSelectByDate, FoodRecordDAOSqlite::mapRow, date);
+        } catch (DataAccessException e) {
+            throw new SQLReadException("按日期读取食物记录失败", e);
+        }
     }
 
     @Override
@@ -133,35 +149,51 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     @Override
     public List<FoodRecord> loadRecordsByDate(String date) {
         requireDate(date);
-        return jdbcTemplate.query(sqlSelectRecordsByDate, FoodRecordDAOSqlite::mapRecordRow, date);
+        try {
+            return jdbcTemplate.query(sqlSelectRecordsByDate, FoodRecordDAOSqlite::mapRecordRow, date);
+        } catch (DataAccessException e) {
+            throw new SQLReadException("按日期读取食物记录及主键失败", e);
+        }
     }
 
     @Override
     public boolean deleteByDate(String date) {
         requireDate(date);
-        return jdbcTemplate.update(sqlDeleteByDate, date) > 0;
+        try {
+            return jdbcTemplate.update(sqlDeleteByDate, date) > 0;
+        } catch (DataAccessException e) {
+            throw new SQLPersistentException("按日期删除食物记录失败", e);
+        }
     }
 
     @Override
     public boolean deleteById(long id) {
-        return jdbcTemplate.update(sqlDeleteById, id) > 0;
+        try {
+            return jdbcTemplate.update(sqlDeleteById, id) > 0;
+        } catch (DataAccessException e) {
+            throw new SQLPersistentException("按主键删除食物记录失败", e);
+        }
     }
 
     private void insert(String eatenDate, Food food) {
         validateForInsert(eatenDate, food);
         GenericInfo info = food.genericInfo();
         MacroNutrients macros = food.macroNutrients();
-        jdbcTemplate.update(sqlInsert,
-                info.foodName(),
-                info.amount().toPlainString(),
-                info.unit(),
-                info.calories().toPlainString(),
-                macros.protein().toPlainString(),
-                macros.carbs().toPlainString(),
-                macros.fat().toPlainString(),
-                macros.fiber().toPlainString(),
-                eatenDate,
-                LocalDateTime.now().toString());
+        try {
+            jdbcTemplate.update(sqlInsert,
+                    info.foodName(),
+                    info.amount().toPlainString(),
+                    info.unit(),
+                    info.calories().toPlainString(),
+                    macros.protein().toPlainString(),
+                    macros.carbs().toPlainString(),
+                    macros.fat().toPlainString(),
+                    macros.fiber().toPlainString(),
+                    eatenDate,
+                    LocalDateTime.now().toString());
+        } catch (DataAccessException e) {
+            throw new SQLPersistentException("保存食物记录失败", e);
+        }
     }
 
     private static void validateForInsert(String eatenDate, Food food) {

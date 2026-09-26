@@ -2,7 +2,10 @@ package org.tyler.dao.foodrecord;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataAccessException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
+import org.tyler.exceptionHandler.exception.SQLPersistentException;
+import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodRecord;
@@ -11,11 +14,13 @@ import org.tyler.model.food.MacroNutrients;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,6 +54,50 @@ class FoodRecordDAOSqliteTest {
                 new MacroNutrients(
                         new BigDecimal("10"), new BigDecimal("20"),
                         new BigDecimal("5"), new BigDecimal("1")));
+    }
+
+    private void makeDatabaseUnavailable() throws IOException {
+        Path dbPath = tempDir.resolve(DB_FILE);
+        Files.delete(dbPath);
+        Files.createDirectory(dbPath);
+    }
+
+    @Test
+    void databaseReadFailuresUseReadException() throws IOException {
+        FoodRecordDAOSqlite dao = newDao();
+        makeDatabaseUnavailable();
+
+        assertInstanceOf(DataAccessException.class, assertThrows(SQLReadException.class, dao::load).getCause());
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLReadException.class, () -> dao.loadByDate("2026-09-12")).getCause());
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLReadException.class, () -> dao.loadRecordsByDate("2026-09-12")).getCause());
+    }
+
+    @Test
+    void databaseWriteFailuresUsePersistentException() throws IOException {
+        FoodRecordDAOSqlite dao = newDao();
+        makeDatabaseUnavailable();
+        Food sample = food("apple", "2026-09-12");
+
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLPersistentException.class, () -> dao.save(List.of(sample))).getCause());
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLPersistentException.class, () -> dao.saveByDate("2026-09-12", sample)).getCause());
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLPersistentException.class, () -> dao.deleteByDate("2026-09-12")).getCause());
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLPersistentException.class, () -> dao.deleteById(1)).getCause());
+    }
+
+    @Test
+    void schemaFailureUsesPersistentException() throws IOException {
+        Files.createDirectory(tempDir.resolve(DB_FILE));
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+
+        assertInstanceOf(DataAccessException.class,
+                assertThrows(SQLPersistentException.class,
+                        () -> new FoodRecordDAOSqlite(sandbox, DB_FILE)).getCause());
     }
 
     @Test
