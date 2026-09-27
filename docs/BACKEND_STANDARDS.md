@@ -4,7 +4,7 @@
 
 This is an editable baseline for backend development in Tyler Agent. It records conventions grounded in the current code and gives guidance for new work. Existing exceptions are identified below; this document does not authorize a broad refactor.
 
-**Status:** Editable baseline. Sections 1–9 describe the standards for new and changed code. Section 10 provides space for project-specific additions.
+**Status:** Initial draft. Add or revise rules as the project evolves. Sections 1–9 describe the baseline for new and changed code. Section 10 contains proposals that need their own scoped issues.
 
 ## 1. Scope and change discipline
 
@@ -34,19 +34,7 @@ HTTP controller / agent tool -> service interface -> DAO interface -> storage
 | Exception handler              | Translate exceptions into consistent HTTP responses and log failures.                                                          |
 | Configuration / infrastructure | Wire dependencies and provide startup, file access, and request-tracing support.                                               |
 
-Controllers and tools must use the same feature service interface for shared application operations. They must not inject or instantiate DAO/DAL interfaces or implementations, or obtain them through a service locator. Services must not depend on controllers or tools. DAOs must not depend on services, HTTP types, or model-facing tool schemas.
-
-For food operations, the boundary is `FoodController` / `RecordFoodTool` -> `IFoodService` -> `IFoodRecordDAO`. `FoodService` owns the former food DAL behavior and calls the DAO directly. Do not add a forwarding DAL beneath it. The primary food cache remains the DAO implementation selected by Spring and delegates to SQLite.
-
-For workout CRUD and plan persistence, `WorkoutController` and `GenerateWorkoutPlanTool` use `IWorkoutService`, which delegates to `IWorkoutDAO`. Tools must use this service for persistence reads, writes, and failure cleanup as well as normal execution.
-
-An optional DAL beneath a service requires a documented responsibility involving complex data access. It must not duplicate the service API merely to forward calls. Shared application rules belong in the service; SQL and storage exception translation belong in the DAO.
-
-### Existing exceptions and refactor scope
-
-Both food callers use `IFoodService`, and both workout callers use `IWorkoutService` for persistence. `ServiceBoundaryTest` checks compiled production controller and tool classes for forbidden storage references, including method bodies and generic signatures, without adding a dependency.
-
-Workout plan generation, preview, and compensating cleanup remain in the tool, and the controller still uses the tool for previews. Extracting that logic and consolidating validation are separate issues. The food migration preserved the existing validation and behavior in `FoodService`, with tool and DAO validation kept in place. Do not tighten validation, change error behavior, or introduce new transaction semantics as part of a dependency-only refactor.
+Controllers and tools should share services when they perform the same business operation. Services must not depend on controllers or tools. DAOs must not depend on services, HTTP types, or model-facing tool schemas.
 
 Do not introduce a DAL that only forwards the same methods to a DAO. For example, the workout service already calls `IWorkoutDAO` directly. Keep a service boundary even when its initial implementation is simple if it defines the application use case shared by callers.
 
@@ -158,7 +146,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 - Preserve request correlation through the existing `RequestIdFilter` and MDC cleanup.
 - Prefer one diagnostic stack trace at the handling boundary; avoid logging and rethrowing the same error at every layer.
 - Never add logs containing API keys or credentials. Avoid raw chat, profile, or tool payloads; log safe metadata instead.
-- Existing DEBUG payload logging should be reviewed in a separate issue.
+- Existing DEBUG payload logging should be reviewed separately, as noted in section 10.
 
 ## 9. Testing and review
 
@@ -176,7 +164,6 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 - Mock external model calls; backend tests should not need a live API key or paid network requests.
 - Use focused tests during implementation. Run `mvn test` before submitting backend behavior changes; use `mvn clean test` after deleting or moving classes to remove stale compiled types.
 - When removing an abstraction, search production code, tests, and documentation for the removed types and package names.
-- Maintain an automated dependency check covering production controllers and tools: none may depend on types in `org.tyler.dao` or `org.tyler.dal`. Test fixtures may construct real DAOs for integration tests. Pair the check with service wiring and behavioral tests; interface names alone do not prove correct routing.
 - Report commands and results accurately. If a check cannot run, state the limitation.
 - Documentation-only changes need link/content checks, not new Java tests.
 
@@ -184,8 +171,6 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 
 - [ ] Scope and acceptance criteria are satisfied.
 - [ ] Dependencies follow the intended boundaries, or an existing exception is explained.
-- [ ] Controllers and tools share the feature service interface and have no DAO/DAL dependencies.
-- [ ] No forwarding DAL is retained beneath `FoodService`; food cache selection remains intact.
 - [ ] Public contracts and persisted data remain compatible.
 - [ ] SQL resources, exception mapping, cache behavior, and transaction semantics are correct where affected.
 - [ ] Relevant success, missing-record, invalid-input, and failure tests pass.

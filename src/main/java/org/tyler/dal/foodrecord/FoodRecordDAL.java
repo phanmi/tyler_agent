@@ -1,4 +1,4 @@
-package org.tyler.service.food;
+package org.tyler.dal.foodrecord;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,13 +18,13 @@ import java.util.List;
  * Dates come from {@code food.genericInfo().date()}.
  */
 @Service
-public class FoodService implements IFoodService {
+public class FoodRecordDAL implements IFoodRecordDAL {
 
-    private static final Logger log = LoggerFactory.getLogger(FoodService.class);
+    private static final Logger log = LoggerFactory.getLogger(FoodRecordDAL.class);
 
     private final IFoodRecordDAO dao;
 
-    public FoodService(IFoodRecordDAO dao) {
+    public FoodRecordDAL(IFoodRecordDAO dao) {
         this.dao = dao;
     }
 
