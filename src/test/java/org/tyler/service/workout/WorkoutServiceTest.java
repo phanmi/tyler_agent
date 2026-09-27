@@ -2,7 +2,6 @@ package org.tyler.service.workout;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.dal.workout.WorkoutDAL;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
@@ -18,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Uses real SQLite to test CRUD through service, DAL, and DAO. */
+/** Uses real SQLite to test CRUD through the service and DAO. */
 class WorkoutServiceTest {
 
     @TempDir
@@ -26,7 +25,7 @@ class WorkoutServiceTest {
 
     private WorkoutService newService() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        return new WorkoutService(new WorkoutDAL(new WorkoutDAOSqlite(sandbox, "workout-record.sqlite")));
+        return new WorkoutService(new WorkoutDAOSqlite(sandbox, "workout-record.sqlite"));
     }
 
     private static Workout workout(String name, String rep, String weight, String date) {
@@ -76,6 +75,25 @@ class WorkoutServiceTest {
         assertEquals(duplicate, service.getWorkoutById(secondId).orElseThrow());
         assertFalse(service.deleteWorkout(firstId));
         assertFalse(service.deleteWorkout(9999));
+    }
+
+    @Test
+    void invalidUpdatesPreserveTheSavedWorkout() throws IOException {
+        WorkoutService service = newService();
+        Workout original = workout("Squat", "4X12", "20", "2026-09-26");
+        long id = service.saveWorkout(original);
+
+        assertThrows(SQLDataValidationException.class, () -> service.updateWorkout(id, null));
+        assertThrows(SQLDataValidationException.class,
+                () -> service.updateWorkout(id, workout(" ", "4X12", "20", "2026-09-26")));
+        assertThrows(SQLDataValidationException.class,
+                () -> service.updateWorkout(id, new Workout("Squat", "4X12", null, "2026-09-26")));
+        assertThrows(SQLDataValidationException.class,
+                () -> service.updateWorkout(id, workout("Squat", "4X12", "-1", "2026-09-26")));
+        assertThrows(SQLDataValidationException.class,
+                () -> service.updateWorkout(id, workout("Squat", "4X12", "20", "2026-02-30")));
+
+        assertEquals(Map.of(id, original), service.getAllWorkouts());
     }
 
     @Test

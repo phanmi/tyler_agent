@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
-import org.tyler.dal.workout.IWorkoutDAL;
 import org.tyler.model.workout.Workout;
+import org.tyler.service.workout.IWorkoutService;
 import org.tyler.tool.ITool;
 
 import java.math.BigDecimal;
@@ -26,10 +26,10 @@ import java.util.Map;
 public class GenerateWorkoutPlanTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private final IWorkoutDAL dal;
+    private final IWorkoutService workoutService;
 
-    public GenerateWorkoutPlanTool(IWorkoutDAL dal) {
-        this.dal = dal;
+    public GenerateWorkoutPlanTool(IWorkoutService workoutService) {
+        this.workoutService = workoutService;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class GenerateWorkoutPlanTool implements ITool {
 
     private WorkoutPlan savePlan(WorkoutPlan plan) {
         Map<WorkoutKey, Workout> saved = new HashMap<>();
-        for (Workout workout : dal.getAllWorkouts().values()) {
+        for (Workout workout : workoutService.getAllWorkouts().values()) {
             saved.put(new WorkoutKey(workout.workoutDate(), workout.workoutName()), workout);
         }
 
@@ -90,7 +90,7 @@ public class GenerateWorkoutPlanTool implements ITool {
                     WorkoutKey key = new WorkoutKey(workout.workoutDate(), workout.workoutName());
                     Workout existing = saved.get(key);
                     if (existing == null) {
-                        insertedIds.add(dal.saveWorkout(workout));
+                        insertedIds.add(workoutService.saveWorkout(workout));
                         saved.put(key, workout);
                         workouts.add(workout);
                     } else {
@@ -103,7 +103,7 @@ public class GenerateWorkoutPlanTool implements ITool {
         } catch (RuntimeException failure) {
             for (int index = insertedIds.size() - 1; index >= 0; index--) {
                 try {
-                    dal.deleteWorkout(insertedIds.get(index));
+                    workoutService.deleteWorkout(insertedIds.get(index));
                 } catch (RuntimeException rollbackFailure) {
                     failure.addSuppressed(rollbackFailure);
                 }
