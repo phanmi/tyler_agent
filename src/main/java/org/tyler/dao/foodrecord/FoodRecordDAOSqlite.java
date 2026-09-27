@@ -3,7 +3,6 @@ package org.tyler.dao.foodrecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -28,7 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * SQLite food-record DAO and the {@code @Primary} implementation.
+ * SQLite food-record DAO used by the primary cache decorator.
  *
  * <p>Matches the {@code food_record} schema. Numeric values use {@link BigDecimal}
  * with {@code toPlainString()} on write and {@code getString} on read.
@@ -42,7 +41,6 @@ import java.util.List;
  * <p>{@code save} appends records. Use {@link #deleteByDate} or {@link #deleteById}
  * for deletion and {@link #loadRecordsByDate} to read records with IDs.
  */
-@Primary
 @Repository
 public class FoodRecordDAOSqlite implements IFoodRecordDAO {
 

@@ -1,5 +1,6 @@
 package org.tyler.dao.foodrecord;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodRecord;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * In-memory cache decorator implementing {@link IFoodRecordDAO}.
+ * Primary in-memory cache decorator implementing {@link IFoodRecordDAO}.
  *
  * <p>Groups cached records by date in a {@code Map<String, List<Food>>}.
  * Reads flatten the cached buckets when available; otherwise, the delegate
@@ -23,6 +24,7 @@ import java.util.Map;
  * <p>Synchronized reads and writes protect this singleton bean;
  * defensive copies keep callers from modifying the cache.
  */
+@Primary
 @Component
 public class FoodRecordDAOCache implements IFoodRecordDAO {
 

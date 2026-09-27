@@ -27,16 +27,17 @@ class FoodRecordSpringWiringTest {
     Path tempDir;
 
     @Test
-    void springSelectsSqliteAndFoodDalCanSaveReadAndDelete() {
+    void springSelectsCacheAndFoodDalCanSaveReadAndDelete() {
         new ApplicationContextRunner()
                 .withUserConfiguration(FileSandbox.class, FoodRecordDAOSqlite.class,
                         FoodRecordDAOCache.class, FoodRecordDAL.class)
                 .withPropertyValues("agent.workspace-dir=" + tempDir,
                         "food.database-path=food-record.sqlite")
                 .run(context -> {
-                    assertSame(context.getBean(FoodRecordDAOSqlite.class), context.getBean(IFoodRecordDAO.class));
+                    assertSame(context.getBean(FoodRecordDAOCache.class), context.getBean(IFoodRecordDAO.class));
 
                     FoodRecordDAL dal = context.getBean(FoodRecordDAL.class);
+                    assertTrue(dal.getAllFoodRecords().isEmpty());
                     String date = "2026-09-27";
                     Food food = new Food(
                             new GenericInfo("Apple", new BigDecimal("100"), "g",
@@ -45,10 +46,12 @@ class FoodRecordSpringWiringTest {
                                     new BigDecimal("0.2"), new BigDecimal("2.4")));
 
                     dal.saveFoodByDate(food);
+                    assertEquals(List.of(food), dal.getFoodByDate(date));
                     List<FoodEntry> records = dal.getFoodRecordsByDate(date);
                     assertEquals(1, records.size());
                     assertEquals(food, records.getFirst().food());
                     assertTrue(dal.deleteFoodById(records.getFirst().id()));
+                    assertTrue(dal.getFoodByDate(date).isEmpty());
                     assertTrue(dal.getFoodRecordsByDate(date).isEmpty());
                 });
     }

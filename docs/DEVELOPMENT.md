@@ -238,7 +238,7 @@ The workout database default is declared in its DAO constructor. `OPENAI_MODEL` 
 
 The API key is stored as a local text file. The key status API returns only whether a key is configured. Conversation requests go to OpenAI and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local.
 
-SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. The SQLite food DAO is the primary implementation; the food cache decorator delegates to it.
+SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. The food cache is the primary `IFoodRecordDAO` implementation and delegates persistence to SQLite.
 
 Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
 
