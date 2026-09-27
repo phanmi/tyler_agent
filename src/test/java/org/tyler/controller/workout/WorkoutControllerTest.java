@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
-import org.tyler.dal.workout.IWorkoutDAL;
 import org.tyler.model.workout.Workout;
 import org.tyler.service.workout.IWorkoutService;
 import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
@@ -36,7 +35,7 @@ class WorkoutControllerTest {
     void setUp() {
         workoutService = mock(IWorkoutService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new WorkoutController(workoutService, new GenerateWorkoutPlanTool(mock(IWorkoutDAL.class))))
+                        new WorkoutController(workoutService, new GenerateWorkoutPlanTool(workoutService)))
                 .setControllerAdvice(new GenericExceptionHandler())
                 .build();
     }

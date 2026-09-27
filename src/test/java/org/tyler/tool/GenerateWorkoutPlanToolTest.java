@@ -5,11 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.tyler.dal.workout.IWorkoutDAL;
-import org.tyler.dal.workout.WorkoutDAL;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.workout.Workout;
+import org.tyler.service.workout.IWorkoutService;
+import org.tyler.service.workout.WorkoutService;
 import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
 
 import java.math.BigDecimal;
@@ -35,21 +35,21 @@ import static org.mockito.Mockito.when;
 
 class GenerateWorkoutPlanToolTest {
 
-    private final IWorkoutDAL dal = mock(IWorkoutDAL.class);
-    private final GenerateWorkoutPlanTool tool = new GenerateWorkoutPlanTool(dal);
+    private final IWorkoutService workoutService = mock(IWorkoutService.class);
+    private final GenerateWorkoutPlanTool tool = new GenerateWorkoutPlanTool(workoutService);
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<Long, Workout> saved = new LinkedHashMap<>();
     private final AtomicLong nextId = new AtomicLong();
 
     @BeforeEach
     void setUp() {
-        when(dal.getAllWorkouts()).thenAnswer(invocation -> new LinkedHashMap<>(saved));
-        when(dal.saveWorkout(any())).thenAnswer(invocation -> {
+        when(workoutService.getAllWorkouts()).thenAnswer(invocation -> new LinkedHashMap<>(saved));
+        when(workoutService.saveWorkout(any())).thenAnswer(invocation -> {
             long id = nextId.incrementAndGet();
             saved.put(id, invocation.getArgument(0));
             return id;
         });
-        when(dal.deleteWorkout(anyLong())).thenAnswer(invocation ->
+        when(workoutService.deleteWorkout(anyLong())).thenAnswer(invocation ->
                 saved.remove(invocation.getArgument(0)) != null);
     }
 
@@ -87,7 +87,7 @@ class GenerateWorkoutPlanToolTest {
         assertEquals("Goblet squat", strength.days().getFirst().workouts().getFirst().workoutName());
         assertEquals("4X6", strength.days().getFirst().workouts().getFirst().rep());
         assertEquals("3X10", muscleGain.days().getFirst().workouts().getFirst().rep());
-        verifyNoInteractions(dal);
+        verifyNoInteractions(workoutService);
     }
 
     @Test
@@ -101,7 +101,7 @@ class GenerateWorkoutPlanToolTest {
         assertEquals(12, saved.size());
         assertEquals("4X8", first.get("days").get(0).get("workouts").get(1).get("rep").asText());
         assertEquals(15, second.get("days").get(0).get("workouts").get(1).get("weight").asInt());
-        verify(dal, times(11)).saveWorkout(any());
+        verify(workoutService, times(11)).saveWorkout(any());
     }
 
     @Test
@@ -111,33 +111,33 @@ class GenerateWorkoutPlanToolTest {
             long id = nextId.incrementAndGet();
             saved.put(id, invocation.getArgument(0));
             return id;
-        }).when(dal).saveWorkout(any());
+        }).when(workoutService).saveWorkout(any());
 
         assertThrows(IllegalStateException.class,
                 () -> tool.execute(arguments("2026-09-28", "general_fitness", "bodyweight")));
         assertTrue(saved.isEmpty());
-        verify(dal, times(2)).deleteWorkout(anyLong());
+        verify(workoutService, times(2)).deleteWorkout(anyLong());
     }
 
     @Test
     void savesPlanToSqliteAndKeepsManualEditsOnRegeneration(@TempDir Path tempDir) throws Exception {
-        IWorkoutDAL sqliteDal = new WorkoutDAL(
+        IWorkoutService sqliteService = new WorkoutService(
                 new WorkoutDAOSqlite(new FileSandbox(tempDir.toString()), "workouts.sqlite"));
-        GenerateWorkoutPlanTool persistentTool = new GenerateWorkoutPlanTool(sqliteDal);
+        GenerateWorkoutPlanTool persistentTool = new GenerateWorkoutPlanTool(sqliteService);
 
         persistentTool.execute(arguments("2026-09-28", "general_fitness", "bodyweight"));
-        assertEquals(12, sqliteDal.getAllWorkouts().size());
+        assertEquals(12, sqliteService.getAllWorkouts().size());
 
-        long pushUpId = sqliteDal.getAllWorkouts().entrySet().stream()
+        long pushUpId = sqliteService.getAllWorkouts().entrySet().stream()
                 .filter(entry -> entry.getValue().workoutName().equals("Push-up"))
                 .findFirst().orElseThrow().getKey();
-        sqliteDal.updateWorkout(pushUpId,
+        sqliteService.updateWorkout(pushUpId,
                 new Workout("Push-up", "4X8", new BigDecimal("15"), "2026-09-28"));
 
         persistentTool.execute(arguments("2026-09-28", "general_fitness", "bodyweight"));
-        assertEquals(12, sqliteDal.getAllWorkouts().size());
-        assertEquals("4X8", sqliteDal.getWorkoutById(pushUpId).orElseThrow().rep());
-        assertEquals(new BigDecimal("15"), sqliteDal.getWorkoutById(pushUpId).orElseThrow().weight());
+        assertEquals(12, sqliteService.getAllWorkouts().size());
+        assertEquals("4X8", sqliteService.getWorkoutById(pushUpId).orElseThrow().rep());
+        assertEquals(new BigDecimal("15"), sqliteService.getWorkoutById(pushUpId).orElseThrow().weight());
     }
 
     @Test

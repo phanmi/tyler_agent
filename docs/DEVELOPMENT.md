@@ -108,7 +108,8 @@ flowchart TB
     Agent <--> OpenAI
     Agent --> Tools
     Services --> Data
-    Tools --> Data
+    Tools -->|Food persistence| Data
+    Tools -->|Workout persistence| Services
     Data --> SQLite
     Tools --> Files
     Services --> Files
@@ -116,7 +117,7 @@ flowchart TB
 
 For a chat request, `AgentService` loads retained history, adds the new message, and calls OpenAI with the registered tool definitions. It executes any requested tools and sends their results back to the model, up to five tool rounds. It then saves the user message and final reply and returns the reply to the frontend.
 
-Controllers and services are grouped by feature. Services delegate database work through DAL and DAO interfaces. The food controller currently delegates directly to its DAL. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
+Controllers and services are grouped by feature. The workout service calls its DAO directly, and the workout plan tool uses the service for persistence. The food controller delegates to the food DAL. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
 ## Repository layout
 
@@ -129,7 +130,7 @@ tyler_agent/
 │  ├─ controller/                 # HTTP routes grouped by feature
 │  ├─ service/                    # Chat, history, settings, and workouts
 │  ├─ tool/                       # Agent tools
-│  ├─ dal/                        # Data access contracts and delegation
+│  ├─ dal/                        # Food data access contracts and delegation
 │  ├─ dao/                        # SQLite persistence and food cache decorator
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
@@ -173,7 +174,7 @@ Spring discovers components implementing [`ITool`](../src/main/java/org/tyler/to
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
 | `recordFood` | Validates food arguments and saves the record through the food DAL. |
-| `generateWorkoutPlan` | Generates seven dated days and saves the planned exercises through the workout DAL. |
+| `generateWorkoutPlan` | Generates seven dated days and saves the planned exercises through the workout service and DAO. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
 
