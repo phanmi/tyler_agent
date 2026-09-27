@@ -4,6 +4,8 @@
 
 This page covers building, running, and maintaining Tyler. For the everyday app workflow, start with the [README](../README.md).
 
+For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
+
 ## Contents
 
 - [Run from source](#run-from-source)
