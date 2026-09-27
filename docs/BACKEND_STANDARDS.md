@@ -2,7 +2,7 @@
 
 [Developer guide](DEVELOPMENT.md)
 
-This is an editable baseline for backend development in Tyler Agent. It records conventions grounded in the current code and gives guidance for new work. Existing exceptions are identified below; this document does not authorize a broad refactor.
+This is an editable baseline for backend development and review. It defines rules by architectural responsibility, without assigning behavior to particular application classes. Feature contracts and current implementation details belong in feature documentation and issue acceptance criteria. This document does not authorize a broad refactor.
 
 **Status:** Editable baseline. Sections 1–9 describe the standards for new and changed code. Section 10 provides space for project-specific additions.
 
@@ -11,7 +11,7 @@ This is an editable baseline for backend development in Tyler Agent. It records 
 - Keep changes focused on the issue and its acceptance criteria.
 - Preserve HTTP routes, JSON fields, status codes, tool names, argument schemas, and result formats unless a contract change is explicitly part of the issue.
 - Treat stored data formats and SQL schemas as compatibility boundaries. Plan migrations and recovery before changing them.
-- Do not combine a layer removal with model, schema, plan-generation, or frontend redesign.
+- Do not combine a layer removal with unrelated model, schema, business-logic, or frontend redesign.
 - Update documentation when behavior or architecture changes. Describe verification and any remaining limitations in the pull request.
 - Use English for code comments, documentation, exception messages, logs, and user-facing backend messages.
 
@@ -36,28 +36,26 @@ HTTP controller / agent tool -> service interface -> DAO interface -> storage
 
 Controllers and tools must use the same feature service interface for shared application operations. They must not inject or instantiate DAO/DAL interfaces or implementations, or obtain them through a service locator. Services must not depend on controllers or tools. DAOs must not depend on services, HTTP types, or model-facing tool schemas.
 
-For food operations, the boundary is `FoodController` / `RecordFoodTool` -> `IFoodService` -> `IFoodRecordDAO`. `FoodService` owns the former food DAL behavior and calls the DAO directly. Do not add a forwarding DAL beneath it. The primary food cache remains the DAO implementation selected by Spring and delegates to SQLite.
-
-For workout CRUD and plan persistence, `WorkoutController` and `GenerateWorkoutPlanTool` use `IWorkoutService`, which delegates to `IWorkoutDAO`. Tools must use this service for persistence reads, writes, and failure cleanup as well as normal execution.
+Use the shared service boundary for persistence reads, writes, and failure cleanup as well as normal execution. Preserve the intended persistence implementation and any configured decorators when changing dependencies.
 
 An optional DAL beneath a service requires a documented responsibility involving complex data access. It must not duplicate the service API merely to forward calls. Shared application rules belong in the service; SQL and storage exception translation belong in the DAO.
 
-### Existing exceptions and refactor scope
+### Exceptions and refactor scope
 
-Both food callers use `IFoodService`, and both workout callers use `IWorkoutService` for persistence. `ServiceBoundaryTest` checks compiled production controller and tool classes for forbidden storage references, including method bodies and generic signatures, without adding a dependency.
+Document any existing architectural exception with its reason and scope. Do not extend an exception into new features without an explicit design decision. Use automated dependency checks to protect the intended boundaries.
 
-Workout plan generation, preview, and compensating cleanup remain in the tool, and the controller still uses the tool for previews. Extracting that logic and consolidating validation are separate issues. The food migration preserved the existing validation and behavior in `FoodService`, with tool and DAO validation kept in place. Do not tighten validation, change error behavior, or introduce new transaction semantics as part of a dependency-only refactor.
+Preserve existing validation, error behavior, and transaction semantics during a dependency-only refactor. Moving business logic or consolidating validation requires explicit scope and acceptance criteria.
 
-Do not introduce a DAL that only forwards the same methods to a DAO. For example, the workout service already calls `IWorkoutDAO` directly. Keep a service boundary even when its initial implementation is simple if it defines the application use case shared by callers.
+Do not introduce a DAL that only forwards the same methods to a DAO. Keep a service boundary even when its initial implementation is simple if it defines the application use case shared by callers.
 
 
 ## 3. Packages, naming, and formatting
 
-- Keep production code under `src/main/java/org/tyler` and tests under `src/test/java/org/tyler`.
+- Keep production code under `src/main/java` and tests under `src/test/java`, using the project's package namespace.
 - Group controllers, services, DAOs, models, and tools by feature within their existing layer packages.
-- Match the naming of the package being edited. Existing names include `workout`, `foodrecord`, `userInfo`, and `workoutPlanTool`; do not rename them incidentally. Prefer lowercase package names for new features.
+- Match the naming of the package being edited; do not rename packages incidentally. Prefer lowercase package names for new features.
 - Use `PascalCase` for types, `camelCase` for fields and methods, and `UPPER_SNAKE_CASE` for constants.
-- Follow the existing `I` prefix for service and DAO interfaces, such as `IWorkoutService` and `IWorkoutDAO`.
+- Follow the project's established interface naming convention consistently.
 - Use four spaces for indentation and the surrounding file's brace, import, and wrapping style. Avoid unrelated formatting changes.
 - Keep methods focused on one responsibility. Extract a helper when it gives a meaningful name to a repeated operation or complex decision.
 - Write Javadoc for public contracts whose validation, absence, side effects, or failure behavior is not obvious. Comments should explain reasons and constraints.
@@ -73,25 +71,25 @@ Apply the four object-oriented principles pragmatically:
 | Encapsulation | Keep dependencies and mutable state private; return defensive copies of cached collections.                                                    |
 | Abstraction   | Expose use cases and persistence operations through small, meaningful interfaces.                                                              |
 | Inheritance   | Use it only for a genuine substitutable relationship or framework extension; do not create base classes merely to satisfy a design checklist.  |
-| Polymorphism  | Let callers use interfaces while Spring selects implementations, as with the food cache and SQLite DAO.                                        |
+| Polymorphism  | Let callers depend on contracts while dependency injection selects compatible implementations. |
 
 - Prefer composition for shared behavior and decorators for capabilities such as caching.
 - Use constructor injection and `private final` dependency fields. Avoid field injection and service locators.
 - Use the appropriate Spring stereotype for the role, following neighboring implementations.
 - Inject an interface where callers should be independent of implementation details.
-- A decorator may explicitly depend on its underlying implementation to avoid injecting itself. `FoodRecordDAOCache` is `@Primary` and delegates to `FoodRecordDAOSqlite`.
+- A decorator may explicitly select its underlying implementation to avoid injecting itself. Make implementation selection unambiguous.
 - Verify Spring wiring when multiple implementations exist. Do not add another primary bean for the same contract without resolving the ambiguity.
 - Treat Spring singleton state as shared across requests. Make mutable state safe for concurrent access and document its ownership.
 
 ## 5. Models, validation, and absence
 
-- Prefer records for immutable data carriers, consistent with `Workout` and other models. A record containing a mutable collection still needs defensive copying where isolation matters.
+- Prefer records for immutable data carriers. A record containing a mutable collection still needs defensive copying where isolation matters.
 - Validate intrinsic invariants at construction when appropriate; validate request syntax at the boundary and persistence requirements before executing SQL.
 - Service entry points must also work correctly for tool callers. Do not rely solely on HTTP validation for business rules.
-- Use `BigDecimal` for stored decimal quantities. Preserve the current decimal-string storage convention; avoid conversion through `double`.
-- Preserve existing date and repetition contracts: workout dates use ISO `YYYY-MM-DD`, and repetitions use positive sets and repetitions separated by uppercase `X`, such as `4X12`.
+- Use precise decimal representations for quantities that require exact arithmetic. Preserve the storage precision and format; avoid conversion through floating-point types that lose precision.
+- Define and preserve accepted formats, units, ranges, and normalization rules in each data contract.
 - Keep invalid input, missing records, and infrastructure failure distinct.
-- Preserve workout DAO/service absence semantics: `Optional.empty()` for an absent lookup and `false` for an update or delete of a missing positive ID. A nonpositive ID is invalid input.
+- Define absence and identifier-validation semantics in each operation's contract. Preserve those semantics across callers and storage implementations.
 - Validate before mutation. Rejected updates must leave existing data unchanged.
 
 ## 6. SQL, persistence, and caching
@@ -110,7 +108,7 @@ Apply the four object-oriented principles pragmatically:
 
 State whether an operation is atomic, partially successful, or uses compensating cleanup. A loop of successful individual writes is not automatically a transaction.
 
-The current workout plan tool compensates for failure by attempting to delete newly inserted records. It also reuses matching date/name entries to preserve manual edits. Keep those semantics until an issue explicitly changes them. This approach does not guarantee concurrent uniqueness or transactional rollback.
+Preserve documented retry, duplicate-handling, and user-edit behavior. Compensating cleanup can itself fail; it does not guarantee transactional rollback. Enforce required uniqueness and concurrency guarantees at a suitable boundary and test them explicitly.
 
 For a new atomic use case, establish an actual transaction boundary backed by the same data source and transaction manager used by the DAO. Do not assume adding `@Transactional` is sufficient when DAOs construct their own data sources. Verify rollback against a real temporary database.
 
@@ -120,26 +118,26 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 | Failure | Exception / behavior |
 |---|---|
-| Database select/read fails | `SQLReadException` |
-| SQL resource cannot be read | `SQLReadException` |
-| Insert, update, delete, or schema initialization fails | `SQLPersistentException` |
-| Insert returns an ID through a query API but fails | `SQLPersistentException`; this is still a write |
-| Persistence input fails existing validation | `SQLDataValidationException` |
-| Invalid argument or model invariant | Preserve the relevant `IllegalArgumentException` contract |
+| Database select/read fails | Use the project's designated read-failure exception. |
+| SQL resource cannot be read | Use the designated resource/read-failure exception. |
+| Insert, update, delete, or schema initialization fails | Use the designated persistence/write-failure exception. |
+| Insert returns an ID through a query API but fails | Classify it as a write failure. |
+| Persistence input fails existing validation | Use the designated validation exception. |
+| Invalid argument or model invariant | Preserve the documented argument-validation contract. |
 | Valid lookup finds no record | Return the documented absence result; do not turn it into a database failure |
 
-- Catch specific infrastructure exceptions such as Spring's `DataAccessException`; avoid broad catches that hide programming errors or relabel input validation as a database failure.
+- Catch the relevant infrastructure exception types; avoid broad catches that hide programming errors or relabel input validation as a database failure.
 - Include a useful operation description and retain the original cause when wrapping a failure.
 - Do not return empty collections, `false`, or apparent success to conceal database failures.
-- Keep SQL exception-to-HTTP mapping in `SqlExceptionHandler`. Preserve the current generic HTTP 500 response for storage failures and HTTP 400 handling for invalid input.
-- Controllers map missing-record results to the existing HTTP contract, including workout update/delete HTTP 404 responses.
+- Centralize exception-to-HTTP mapping in the application's error-handling layer. Preserve the documented response status and error shape for infrastructure and validation failures.
+- Map missing-record results to the operation's documented HTTP contract.
 - Keep internal SQL, stack traces, credentials, and sensitive paths out of public error responses.
 
 ## 8. Tools, configuration, and logging
 
 ### Agent tools
 
-- Implement `ITool` and keep the definition, runtime argument validation, and execution behavior consistent.
+- Implement the project's tool contract and keep the definition, runtime argument validation, and execution behavior consistent.
 - Validate model-provided arguments before side effects. Reject unsupported values explicitly.
 - Keep preview operations free of writes. Make saving behavior clear in the tool description and result.
 - Preserve repeat-call behavior and user edits where the tool contract already supports them.
@@ -148,20 +146,19 @@ Choose the exception by the operation's intent, not the JDBC method name:
 ### Configuration and local access
 
 - Use existing Spring configuration properties and defaults; document newly introduced settings in the developer guide.
-- Preserve loopback binding and dynamic backend port discovery. Do not hardcode port 8080 in callers.
+- Preserve the documented network binding and endpoint-discovery behavior. Read configurable addresses and ports from configuration or discovery results.
 - Loopback binding and CORS do not authenticate other programs on the same computer. Any authentication requirement needs an explicit design.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
-- Keep the shared release version in `.mvn/maven.config`; do not introduce a second backend version source.
+- Use the project's shared release-version source; do not introduce competing version definitions.
 
 ### Logging
 
 - Use SLF4J and parameterized messages, with operation context that helps diagnose a failure.
 - Review the final affected execution paths for useful diagnostic logging. Logs should identify the operation, its outcome, and safe context such as a record ID or affected count; include the exception cause at the handling boundary when an unexpected failure occurs. Add or improve logs where this information is missing.
 - Choose levels deliberately: DEBUG for diagnostic detail, INFO for meaningful completed operations, WARN for recoverable unexpected conditions, and ERROR for failed operations requiring attention. Emit success only after the operation succeeds, and distinguish failed cleanup from the original failure. Avoid noisy method-entry/exit logs that add no diagnostic value.
-- Preserve request correlation through the existing `RequestIdFilter` and MDC cleanup.
+- Preserve request correlation through the configured tracing mechanism. Clear thread-local diagnostic context when processing completes.
 - Prefer one diagnostic stack trace at the handling boundary; avoid logging and rethrowing the same error at every layer.
-- Never add logs containing API keys or credentials. Avoid raw chat, profile, or tool payloads; log safe metadata instead.
-- Existing DEBUG payload logging should be reviewed in a separate issue.
+- Never add logs containing API keys or credentials. Avoid raw sensitive request or response payloads; log safe metadata instead.
 
 ## 9. Testing and review
 
@@ -175,11 +172,11 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 | Tool | Function definition, argument validation, output, saving, preview without writes, repeated execution, and failure cleanup where applicable. |
 | Cache / wiring | Correct implementation selection, invalidation, failed writes, and isolation of returned collections. |
 
-- Use `@TempDir` and temporary SQLite databases for persistence tests. Never use the real application workspace or user database.
-- Mock external model calls; backend tests should not need a live API key or paid network requests.
+- Use temporary directories and isolated test databases for persistence tests, matching the relevant storage behavior. Never use the real application workspace or user database.
+- Mock external service calls in unit tests; they should not need live credentials or paid network requests.
 - Use focused tests during implementation. Run `mvn test` before submitting backend behavior changes; use `mvn clean test` after deleting or moving classes to remove stale compiled types.
 - When removing an abstraction, search production code, tests, and documentation for the removed types and package names.
-- Maintain an automated dependency check covering production controllers and tools: none may depend on types in `org.tyler.dao` or `org.tyler.dal`. Test fixtures may construct real DAOs for integration tests. Pair the check with service wiring and behavioral tests; interface names alone do not prove correct routing.
+- Maintain an automated dependency check covering production controllers and tools: none may depend on persistence-layer interfaces or implementations. Test fixtures may construct real DAOs for integration tests. Pair the check with service wiring and behavioral tests; interface names alone do not prove correct routing.
 - Report commands and results accurately. If a check cannot run, state the limitation.
 - Documentation-only changes need link/content checks, not new Java tests.
 
@@ -196,7 +193,7 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 - [ ] Scope and acceptance criteria are satisfied.
 - [ ] Dependencies follow the intended boundaries, or an existing exception is explained.
 - [ ] Controllers and tools share the feature service interface and have no DAO/DAL dependencies.
-- [ ] No forwarding DAL is retained beneath `FoodService`; food cache selection remains intact.
+- [ ] No redundant forwarding layer is introduced; implementation selection and decorators remain correct.
 - [ ] Public contracts and persisted data remain compatible.
 - [ ] SQL resources, exception mapping, cache behavior, and transaction semantics are correct where affected.
 - [ ] Relevant success, missing-record, invalid-input, and failure tests pass.

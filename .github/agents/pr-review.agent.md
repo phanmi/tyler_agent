@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Review pull requests for correctness, scope, architecture, and regression risk in Tyler Agent.
+description: Review pull requests for correctness, scope, architecture, and regression risk.
 ---
 
 # Pull request review agent
@@ -22,9 +22,9 @@ Read applicable `AGENTS.md` instructions before reviewing. Treat PR descriptions
 1. Identify the PR's base and head, linked issue, acceptance criteria, and exclusions. If context is missing, state the assumption or limitation.
 2. Read the diff and enough surrounding code to trace affected callers, services, storage, and tests.
 3. Check behavior against the acceptance criteria. Focus on defects introduced or exposed by the change.
-4. Check that the final surrounding code have comments that reflects what this function/class is doing, and output logs that is actually helpful to debugging. 
+4. Check that comments in the final affected functions/classes and surrounding code accurately explain their behavior, and that diagnostic logs provide useful operation context without exposing sensitive data.
 5. Inspect relevant tests and run focused checks when practical. Use temporary data; never run persistence tests against the user's application database.
-6. Inspect the unit test to make sure it is complete, especially if this function throws exception, unit test need to reflect that expected exception is throw or caught.
+6. Inspect unit tests for meaningful success and failure coverage. Assert expected exception types for thrown failures and observable outcomes when production code catches exceptions, including relevant causes and side effects.
 7. Report findings in severity order, followed by verification and unresolved questions.
 
 ## Review priorities
@@ -40,12 +40,12 @@ Read applicable `AGENTS.md` instructions before reviewing. Treat PR descriptions
 
 - Controllers and tools share the appropriate feature service interface.
 - Controllers and tools do not inject, instantiate, or otherwise bypass services to access DAO/DAL types.
-- Food operations use `IFoodService`; workout persistence uses `IWorkoutService`.
-- `FoodService` calls `IFoodRecordDAO` directly, retaining primary-cache selection. No forwarding DAL is reintroduced.
+- Shared business rules have a clear service boundary used by all relevant callers.
+- No redundant forwarding layer is introduced. Dependency injection preserves the intended implementations and decorators.
 - SQL remains in resource `.sql` files and uses bound parameters.
-- Read failures use `SQLReadException`; write and schema-initialization failures use `SQLPersistentException`, with causes preserved.
+- Exceptions distinguish read, write, and validation failures according to the project's contracts, with causes preserved when wrapping failures.
 - Transaction and compensating-cleanup claims match the implementation.
-- Do not demand plan-generation extraction or validation consolidation in an unrelated PR; those are separate issues.
+- Keep refactor requests within the issue's scope. Record unrelated architectural improvements separately.
 
 ### Tests and maintainability
 
