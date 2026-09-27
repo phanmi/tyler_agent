@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { saveApiKey } from '../api'
+import { saveApiKey } from '../../api'
 
 // Save state controls button labels and status messages.
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'

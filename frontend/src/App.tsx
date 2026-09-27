@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clearChatHistory, loadApiKeyStatus, loadChatHistory, sendMessage } from './api'
 import type { Message } from './types'
-import FoodCalendar from './components/FoodCalendar'
-import MessageBubble from './components/MessageBubble'
-import MessageInput from './components/MessageInput'
-import SettingsPage from './components/SettingsPage'
-import Sidebar from './components/Sidebar'
-import type { View } from './components/Sidebar'
-import TitleBar from './components/TitleBar'
-import WorkoutPage from './components/WorkoutPage'
+import FoodCalendar from './components/food/FoodCalendar'
+import MessageBubble from './components/chat/MessageBubble'
+import MessageInput from './components/chat/MessageInput'
+import SettingsPage from './components/settings/SettingsPage'
+import Sidebar from './components/layout/Sidebar'
+import type { View } from './components/layout/Sidebar'
+import TitleBar from './components/layout/TitleBar'
+import WorkoutPage from './components/workout/WorkoutPage'
 
 // App is the component-tree root and the single source of truth for message state.
 // Message state is shared by the list and the composer:

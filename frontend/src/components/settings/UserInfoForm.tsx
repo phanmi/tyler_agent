@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { loadUserInfo, saveUserInfo } from '../api'
-import type { Gender, UserInfo } from '../types'
+import { loadUserInfo, saveUserInfo } from '../../api'
+import type { Gender, UserInfo } from '../../types'
 
 // Type aliases for updating each profile group with Partial.
 type UserPart = UserInfo['User']

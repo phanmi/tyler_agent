@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { deleteFood, deleteFoodByDate, loadFoodByDate } from '../api'
-import type { FoodEntry } from '../types'
-import ConfirmDialog from './ConfirmDialog'
+import { deleteFood, deleteFoodByDate, loadFoodByDate } from '../../api'
+import type { FoodEntry } from '../../types'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 // Format a local Date as YYYY-MM-DD, matching the backend's date convention.
 function toDateString(date: Date): string {

@@ -143,7 +143,13 @@ tyler_agent/
 ├─ frontend/
 │  ├─ electron/                   # Main process, preload bridge, startup tests
 │  ├─ scripts/                    # Development and version synchronization
-│  ├─ src/components/             # Pages, forms, navigation, and calendars
+│  ├─ src/components/
+│  │  ├─ chat/                   # MessageBubble and MessageInput
+│  │  ├─ food/                   # FoodCalendar
+│  │  ├─ workout/                # WorkoutPage
+│  │  ├─ settings/               # SettingsPage, ApiKeyForm, and UserInfoForm
+│  │  ├─ layout/                 # Sidebar and TitleBar
+│  │  └─ common/                 # Shared ConfirmDialog
 │  ├─ src/styles/                 # Shared theme and page styles
 │  ├─ src/api.ts                  # HTTP client
 │  ├─ src/types.ts                # Frontend data contracts

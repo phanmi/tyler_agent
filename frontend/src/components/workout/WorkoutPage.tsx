@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { createWorkout, deleteWorkout, loadWorkoutPlan, loadWorkoutsByDate, updateWorkout } from '../api'
-import type { Workout, WorkoutEntry, WorkoutPlan } from '../types'
-import ConfirmDialog from './ConfirmDialog'
+import { createWorkout, deleteWorkout, loadWorkoutPlan, loadWorkoutsByDate, updateWorkout } from '../../api'
+import type { Workout, WorkoutEntry, WorkoutPlan } from '../../types'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 function toDateString(date: Date): string {
   const year = date.getFullYear()

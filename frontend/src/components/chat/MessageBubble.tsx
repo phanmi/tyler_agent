@@ -1,4 +1,4 @@
-import type { Message } from '../types'
+import type { Message } from '../../types'
 
 // Render one message with alignment and colors determined by its role.
 // This reusable leaf component handles both user messages and Tyler replies.
