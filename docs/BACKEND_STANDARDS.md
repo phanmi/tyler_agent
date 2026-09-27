@@ -61,6 +61,7 @@ Do not introduce a DAL that only forwards the same methods to a DAO. For example
 - Use four spaces for indentation and the surrounding file's brace, import, and wrapping style. Avoid unrelated formatting changes.
 - Keep methods focused on one responsibility. Extract a helper when it gives a meaningful name to a repeated operation or complex decision.
 - Write Javadoc for public contracts whose validation, absence, side effects, or failure behavior is not obvious. Comments should explain reasons and constraints.
+- Before completing a change, read the final affected methods/classes and their surrounding code. Ensure their comments accurately describe their purpose, behavior, side effects, and relevant failure contracts. Add missing explanations and update or remove stale comments, including those outside the changed lines when their meaning is affected. Avoid comments that merely repeat the code.
 - All SQL query to be written and saved inside the resource folder through a .sql file, no sql query should exists inside DAO itself.
 
 ## 4. Object-oriented design and Spring wiring
@@ -155,6 +156,8 @@ Choose the exception by the operation's intent, not the JDBC method name:
 ### Logging
 
 - Use SLF4J and parameterized messages, with operation context that helps diagnose a failure.
+- Review the final affected execution paths for useful diagnostic logging. Logs should identify the operation, its outcome, and safe context such as a record ID or affected count; include the exception cause at the handling boundary when an unexpected failure occurs. Add or improve logs where this information is missing.
+- Choose levels deliberately: DEBUG for diagnostic detail, INFO for meaningful completed operations, WARN for recoverable unexpected conditions, and ERROR for failed operations requiring attention. Emit success only after the operation succeeds, and distinguish failed cleanup from the original failure. Avoid noisy method-entry/exit logs that add no diagnostic value.
 - Preserve request correlation through the existing `RequestIdFilter` and MDC cleanup.
 - Prefer one diagnostic stack trace at the handling boundary; avoid logging and rethrowing the same error at every layer.
 - Never add logs containing API keys or credentials. Avoid raw chat, profile, or tool payloads; log safe metadata instead.
@@ -180,6 +183,14 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 - Report commands and results accurately. If a check cannot run, state the limitation.
 - Documentation-only changes need link/content checks, not new Java tests.
 
+### Required final review workflow
+
+1. Read the final affected functions/classes in context, including surrounding comments and logging. Confirm that comments match the implemented behavior and that logs would help diagnose relevant failures without exposing sensitive data or duplicating stack traces across layers.
+2. Inspect the corresponding unit tests against each meaningful behavior and failure path. Cover success, invalid input, missing records, and dependency failures where applicable. Passing tests alone do not establish complete coverage.
+3. For each expected exception path, trigger the real method under test and assert the specific exception type with `assertThrows` or `assertThrowsExactly` when the exact type is part of the contract. Do not use a broad `Exception` assertion or catch an exception in the test without an assertion. Verify retained causes when wrapping exceptions and messages when they are part of the public contract.
+4. When production code catches an exception, trigger that failure and assert the resulting behavior: translated exception, HTTP status/body, documented fallback, or cleanup. A check that nothing was thrown is insufficient. Verify relevant side effects, including unchanged records/cache after rejected writes and attempted compensation after partial failure.
+5. Update tests whenever thrown or caught exception behavior changes, run the affected checks, and report any remaining coverage or verification gaps. Keep coverage focused on the affected contract; do not add catch blocks solely to make tests pass.
+
 ### Pull request checklist
 
 - [ ] Scope and acceptance criteria are satisfied.
@@ -189,6 +200,9 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities. Foll
 - [ ] Public contracts and persisted data remain compatible.
 - [ ] SQL resources, exception mapping, cache behavior, and transaction semantics are correct where affected.
 - [ ] Relevant success, missing-record, invalid-input, and failure tests pass.
+- [ ] Final affected classes/functions and surrounding comments accurately describe the implemented behavior.
+- [ ] Diagnostic logs identify relevant operations, outcomes, and safe context at appropriate levels.
+- [ ] Unit tests cover expected thrown exceptions and the observable behavior of caught exceptions, including relevant causes and side effects.
 - [ ] Removed types have no remaining references, where applicable.
 - [ ] Documentation and verification results are updated.
 

@@ -8,6 +8,7 @@ For backend implementation and review conventions, see the [backend coding and d
 
 ## Contents
 
+- [Install prerequisites (Windows)](#install-prerequisites-windows)
 - [Run from source](#run-from-source)
 - [Architecture](#architecture)
 - [Repository layout](#repository-layout)
@@ -18,6 +19,10 @@ For backend implementation and review conventions, see the [backend coding and d
 - [Testing](#testing)
 - [Release version and packaging](#release-version-and-packaging)
 - [Troubleshooting](#troubleshooting)
+
+## Install prerequisites (Windows)
+
+New to the project? Follow the [prerequisite installation guide](SETUP.md) for Java, Maven, Node.js, and IntelliJ IDEA setup, version checks, and troubleshooting.
 
 ## Run from source
 
