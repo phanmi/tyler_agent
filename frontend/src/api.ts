@@ -1,4 +1,4 @@
-import type { FoodEntry, Message, UserInfo } from './types'
+import type { FoodEntry, Message, UserInfo, Workout, WorkoutEntry, WorkoutPlan } from './types'
 
 // In production, Electron loads dist with loadFile and the page uses a file:// origin.
 // Relative /api paths would resolve to file:///api and miss the backend.
@@ -214,4 +214,55 @@ export async function deleteFoodByDate(date: string): Promise<boolean> {
     throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
   }
   return (await res.json()) as boolean
+}
+
+// ===== Workouts =====
+
+async function workoutResponseError(res: Response, fallback: string): Promise<Error> {
+  let detail = ''
+  try {
+    const body = (await res.json()) as { error?: string; message?: string }
+    detail = body.error ?? body.message ?? ''
+  } catch {
+    // Use the fallback for empty or non-JSON responses.
+  }
+  return new Error(detail || `${fallback} (HTTP ${res.status})`)
+}
+
+export async function loadWorkoutsByDate(date: string): Promise<WorkoutEntry[]> {
+  const res = await fetch(`${apiBase}/api/workouts?date=${encodeURIComponent(date)}`)
+  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workouts')
+  return (await res.json()) as WorkoutEntry[]
+}
+
+export async function loadWorkoutPlan(startDate: string, goal: string, equipment: string): Promise<WorkoutPlan> {
+  const params = new URLSearchParams({ startDate, goal, equipment })
+  const res = await fetch(`${apiBase}/api/workouts/plan?${params}`)
+  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workout plan')
+  return (await res.json()) as WorkoutPlan
+}
+
+export async function createWorkout(workout: Workout): Promise<WorkoutEntry> {
+  const res = await fetch(`${apiBase}/api/workouts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workout),
+  })
+  if (!res.ok) throw await workoutResponseError(res, 'Failed to save workout')
+  return (await res.json()) as WorkoutEntry
+}
+
+export async function updateWorkout(id: number, workout: Workout): Promise<WorkoutEntry> {
+  const res = await fetch(`${apiBase}/api/workouts/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workout),
+  })
+  if (!res.ok) throw await workoutResponseError(res, 'Failed to update workout')
+  return (await res.json()) as WorkoutEntry
+}
+
+export async function deleteWorkout(id: number): Promise<void> {
+  const res = await fetch(`${apiBase}/api/workouts/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await workoutResponseError(res, 'Failed to delete workout')
 }

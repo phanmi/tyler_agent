@@ -6,23 +6,31 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
+import org.tyler.dal.workout.IWorkoutDAL;
 import org.tyler.model.workout.Workout;
 import org.tyler.tool.ITool;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Generates a seven-day workout plan without saving it to the workout database.
+ * Generates a seven-day workout plan and saves its exercises to the workout database.
  */
 @Component
 public class GenerateWorkoutPlanTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final IWorkoutDAL dal;
+
+    public GenerateWorkoutPlanTool(IWorkoutDAL dal) {
+        this.dal = dal;
+    }
 
     @Override
     public String name() {
@@ -31,11 +39,12 @@ public class GenerateWorkoutPlanTool implements ITool {
 
     @Override
     public String description() {
-        return "Generate a seven-day workout plan starting on a given date. "
+        return "Generate and save a seven-day workout plan when the user asks to schedule workouts. "
                 + "Use general_fitness as the goal and bodyweight as the equipment when the user has no preference. "
                 + "Use getCurrentTime to determine today's date when needed. "
-                + "The plan includes strength, cardio, and recovery days and does not save workout records. "
-                + "Weights are left unset for the user to choose.";
+                + "The plan includes strength, cardio, and recovery days. "
+                + "Save its exercises to the workout database without overwriting existing workouts. "
+                + "Weight 0 is a placeholder until the user chooses a training load.";
     }
 
     @Override
@@ -50,16 +59,62 @@ public class GenerateWorkoutPlanTool implements ITool {
             throw new IllegalArgumentException("Workout plan arguments must be a JSON object");
         }
 
-        LocalDate startDate = parseStartDate(requiredText(arguments, "startDate"));
-        Goal goal = parseGoal(requiredText(arguments, "goal"));
-        Equipment equipment = parseEquipment(requiredText(arguments, "equipment"));
-        WorkoutPlan plan = generate(startDate, goal, equipment);
+        WorkoutPlan plan = previewPlan(requiredText(arguments, "startDate"),
+                requiredText(arguments, "goal"), requiredText(arguments, "equipment"));
+        WorkoutPlan savedPlan = savePlan(plan);
 
         try {
-            return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(plan);
+            return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(savedPlan);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize workout plan", e);
         }
+    }
+
+    /** Builds a read-only preview for the calendar. The agent tool's execute method saves it. */
+    public WorkoutPlan previewPlan(String startDate, String goal, String equipment) {
+        return generate(parseStartDate(startDate), parseGoal(goal), parseEquipment(equipment));
+    }
+
+    private WorkoutPlan savePlan(WorkoutPlan plan) {
+        Map<WorkoutKey, Workout> saved = new HashMap<>();
+        for (Workout workout : dal.getAllWorkouts().values()) {
+            saved.put(new WorkoutKey(workout.workoutDate(), workout.workoutName()), workout);
+        }
+
+        List<Long> insertedIds = new ArrayList<>();
+        List<WorkoutPlanDay> days = new ArrayList<>(plan.days().size());
+        try {
+            for (WorkoutPlanDay day : plan.days()) {
+                List<Workout> workouts = new ArrayList<>(day.workouts().size());
+                for (Workout workout : day.workouts()) {
+                    WorkoutKey key = new WorkoutKey(workout.workoutDate(), workout.workoutName());
+                    Workout existing = saved.get(key);
+                    if (existing == null) {
+                        insertedIds.add(dal.saveWorkout(workout));
+                        saved.put(key, workout);
+                        workouts.add(workout);
+                    } else {
+                        workouts.add(existing);
+                    }
+                }
+                days.add(new WorkoutPlanDay(day.date(), day.focus(), List.copyOf(workouts),
+                        day.activity(), day.durationMinutes()));
+            }
+        } catch (RuntimeException failure) {
+            for (int index = insertedIds.size() - 1; index >= 0; index--) {
+                try {
+                    dal.deleteWorkout(insertedIds.get(index));
+                } catch (RuntimeException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+            }
+            throw failure;
+        }
+        return new WorkoutPlan(plan.startDate(), plan.goal(), plan.equipment(),
+                plan.weightGuidance(), List.copyOf(days));
+    }
+
+    private record WorkoutKey(String date, String name) {
     }
 
     private static String requiredText(JsonNode arguments, String field) {
@@ -105,7 +160,7 @@ public class GenerateWorkoutPlanTool implements ITool {
         days.add(activityDay(startDate, 5, "Cardio", "Brisk walk or cycle", 30));
         days.add(activityDay(startDate, 6, "Rest", "Rest", 0));
         return new WorkoutPlan(startDate.toString(), goal.value, equipment.value,
-                "Weights are unspecified; choose a suitable load for each exercise.", List.copyOf(days));
+                "Weight 0 is a placeholder; choose a suitable load for each exercise.", List.copyOf(days));
     }
 
     private static WorkoutPlanDay strengthDay(LocalDate startDate, int offset, String focus,
@@ -114,15 +169,18 @@ public class GenerateWorkoutPlanTool implements ITool {
         String[] names = exerciseNames(offset, equipment);
         List<Workout> workouts = new ArrayList<>(names.length);
         for (String exerciseName : names) {
-            workouts.add(new Workout(exerciseName, goal.rep, null, date));
+            workouts.add(new Workout(exerciseName, goal.rep, BigDecimal.ZERO, date));
         }
         return new WorkoutPlanDay(date, focus, List.copyOf(workouts), null, 0);
     }
 
     private static WorkoutPlanDay activityDay(LocalDate startDate, int offset, String focus,
                                               String activity, int durationMinutes) {
-        return new WorkoutPlanDay(startDate.plusDays(offset).toString(), focus,
-                List.of(), activity, durationMinutes);
+        String date = startDate.plusDays(offset).toString();
+        List<Workout> workouts = durationMinutes == 0 ? List.of()
+                : List.of(new Workout(activity + " (" + durationMinutes + " minutes)",
+                        "1X1", BigDecimal.ZERO, date));
+        return new WorkoutPlanDay(date, focus, workouts, activity, durationMinutes);
     }
 
     private static String[] exerciseNames(int offset, Equipment equipment) {

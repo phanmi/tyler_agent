@@ -6,6 +6,7 @@ import './styles/tokens.css'
 import './styles/theme.css'
 import './styles/layout.css'
 import './styles/chat.css'
+import './styles/workout.css'
 
 // Mount the React component tree in index.html at <div id="root">.
 // StrictMode repeats some calls in development to expose side-effect bugs.

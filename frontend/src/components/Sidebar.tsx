@@ -1,5 +1,5 @@
-// Switch between chat and settings using React state.
-export type View = 'chat' | 'settings'
+// Switch between the main pages using React state.
+export type View = 'chat' | 'workout' | 'settings'
 
 interface SidebarProps {
   current: View
@@ -14,6 +14,7 @@ interface NavItemDef {
 
 const NAV_ITEMS: NavItemDef[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
+  { id: 'workout', label: 'Workouts', icon: '🏋️' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
 

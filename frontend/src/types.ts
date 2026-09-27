@@ -61,3 +61,32 @@ export interface FoodEntry {
   id: number
   food: Food
 }
+
+// Saved workout entries use the backend Workout record and database ID.
+export interface Workout {
+  workoutName: string
+  rep: string
+  weight: number
+  workoutDate: string
+}
+
+export interface WorkoutEntry {
+  id: number
+  workout: Workout
+}
+
+export interface WorkoutPlanDay {
+  date: string
+  focus: string
+  workouts: (Omit<Workout, 'weight'> & { weight: number | null })[]
+  activity: string | null
+  durationMinutes: number
+}
+
+export interface WorkoutPlan {
+  startDate: string
+  goal: string
+  equipment: string
+  weightGuidance: string
+  days: WorkoutPlanDay[]
+}

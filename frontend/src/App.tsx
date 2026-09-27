@@ -8,6 +8,7 @@ import SettingsPage from './components/SettingsPage'
 import Sidebar from './components/Sidebar'
 import type { View } from './components/Sidebar'
 import TitleBar from './components/TitleBar'
+import WorkoutPage from './components/WorkoutPage'
 
 // App is the component-tree root and the single source of truth for message state.
 // Message state is shared by the list and the composer:
@@ -140,7 +141,7 @@ export default function App() {
       <TitleBar />
 
       <div className="app-body">
-        {/* Sidebar navigation: chat and settings. */}
+        {/* Sidebar navigation: chat, workouts, and settings. */}
         <Sidebar current={view} onNavigate={setView} />
 
         <main className="app-main">
@@ -195,6 +196,8 @@ export default function App() {
                 </aside>
               )}
             </div>
+          ) : view === 'workout' ? (
+            <WorkoutPage />
           ) : (
             <SettingsPage
               apiKeyConfigured={apiKeyConfigured}
