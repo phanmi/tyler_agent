@@ -4,7 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.tyler.dal.foodrecord.IFoodRecordDAL;
+import org.tyler.service.food.IFoodService;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
@@ -22,20 +22,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * HTTP tests for {@link FoodController} with MockMvc and a mocked DAL.
+ * HTTP tests for {@link FoodController} with MockMvc and a mocked service.
  *
  * <p>Verifies routes, parameter binding, delegation, and response serialization.
- * The mocked DAL simulates {@link IllegalArgumentException} for missing or blank dates.
+ * The mocked service simulates {@link IllegalArgumentException} for missing or blank dates.
  */
 class FoodControllerTest {
 
     private MockMvc mockMvc;
-    private IFoodRecordDAL foodRecordDAL;
+    private IFoodService foodService;
 
     @BeforeEach
     void setUp() {
-        foodRecordDAL = mock(IFoodRecordDAL.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new FoodController(foodRecordDAL))
+        foodService = mock(IFoodService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new FoodController(foodService))
                 .setControllerAdvice(new GenericExceptionHandler())
                 .build();
     }
@@ -47,7 +47,7 @@ class FoodControllerTest {
                 new MacroNutrients(
                         new BigDecimal("10"), new BigDecimal("20"),
                         new BigDecimal("5"), new BigDecimal("1")));
-        when(foodRecordDAL.getFoodRecordsByDate("2026-09-12")).thenReturn(List.of(new FoodEntry(7L, food)));
+        when(foodService.getFoodRecordsByDate("2026-09-12")).thenReturn(List.of(new FoodEntry(7L, food)));
 
         mockMvc.perform(get("/api/food").param("date", "2026-09-12"))
                 .andExpect(status().isOk())
@@ -59,7 +59,7 @@ class FoodControllerTest {
 
     @Test
     void missingDateReturnsBadRequest() throws Exception {
-        when(foodRecordDAL.getFoodRecordsByDate(null))
+        when(foodService.getFoodRecordsByDate(null))
                 .thenThrow(new IllegalArgumentException("Date must not be blank"));
 
         mockMvc.perform(get("/api/food"))
@@ -68,8 +68,8 @@ class FoodControllerTest {
     }
 
     @Test
-    void deleteFoodDelegatesToDal() throws Exception {
-        when(foodRecordDAL.deleteFoodById(7L)).thenReturn(true);
+    void deleteFoodDelegatesToService() throws Exception {
+        when(foodService.deleteFoodById(7L)).thenReturn(true);
 
         mockMvc.perform(delete("/api/food/7"))
                 .andExpect(status().isOk())
@@ -77,8 +77,8 @@ class FoodControllerTest {
     }
 
     @Test
-    void deleteFoodByDateDelegatesToDal() throws Exception {
-        when(foodRecordDAL.deleteFoodByDate("2026-09-12")).thenReturn(true);
+    void deleteFoodByDateDelegatesToService() throws Exception {
+        when(foodService.deleteFoodByDate("2026-09-12")).thenReturn(true);
 
         mockMvc.perform(delete("/api/food/date/2026-09-12"))
                 .andExpect(status().isOk())

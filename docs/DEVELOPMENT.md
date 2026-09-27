@@ -95,7 +95,7 @@ flowchart TB
     Services["Application services"]
     Agent["AgentService"]
     Tools["ITool components"]
-    Data["DAL and DAO interfaces"]
+    Data["DAO interfaces and implementations"]
     SQLite[("Food and workout SQLite databases")]
     Files["Workspace files"]
     OpenAI["OpenAI API"]
@@ -104,14 +104,12 @@ flowchart TB
     UI -->|Window controls and backend address| Desktop
     Desktop -->|Starts backend process| Controllers
     Controllers --> Services
-    Controllers -->|Food records| Data
     Controllers -->|Workout preview| Tools
     Services --> Agent
     Agent <--> OpenAI
     Agent --> Tools
     Services --> Data
-    Tools -->|Food persistence| Data
-    Tools -->|Workout persistence| Services
+    Tools -->|Food and workout persistence| Services
     Data --> SQLite
     Tools --> Files
     Services --> Files
@@ -119,7 +117,7 @@ flowchart TB
 
 For a chat request, `AgentService` loads retained history, adds the new message, and calls OpenAI with the registered tool definitions. It executes any requested tools and sends their results back to the model, up to five tool rounds. It then saves the user message and final reply and returns the reply to the frontend.
 
-Controllers and services are grouped by feature. The workout service calls its DAO directly, and the workout plan tool uses the service for persistence. The food controller delegates to the food DAL. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
+Controllers and services are grouped by feature. The food controller and recording tool share `IFoodService`; the workout CRUD controller and plan tool share `IWorkoutService` for persistence. Both services call their DAO interfaces directly. The primary food DAO is the cache decorator backed by SQLite. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
 ## Repository layout
 
@@ -130,9 +128,8 @@ tyler_agent/
 ├─ src/main/java/org/tyler/
 │  ├─ config/                     # Startup and CORS configuration
 │  ├─ controller/                 # HTTP routes grouped by feature
-│  ├─ service/                    # Chat, history, settings, and workouts
+│  ├─ service/                    # Chat, history, settings, food, and workouts
 │  ├─ tool/                       # Agent tools
-│  ├─ dal/                        # Food data access contracts and delegation
 │  ├─ dao/                        # SQLite persistence and food cache decorator
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
@@ -175,7 +172,7 @@ Spring discovers components implementing [`ITool`](../src/main/java/org/tyler/to
 | `GetUserInfo` | Reads the saved profile. |
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
-| `recordFood` | Validates food arguments and saves the record through the food DAL. |
+| `recordFood` | Validates food arguments and saves the record through the food service. |
 | `generateWorkoutPlan` | Generates seven dated days and saves the planned exercises through the workout service and DAO. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
