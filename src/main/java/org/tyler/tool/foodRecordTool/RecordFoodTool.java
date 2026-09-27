@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
-import org.tyler.dal.foodrecord.IFoodRecordDAL;
+import org.tyler.service.food.IFoodService;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;
@@ -20,7 +20,7 @@ import java.util.Map;
  * Converts a user's food description into a structured {@link Food} record.
  *
  * <p>Deserializes the model's JSON arguments, validates the resulting
- * {@link Food}, saves it through {@link IFoodRecordDAL},
+ * {@link Food}, saves it through {@link IFoodService},
  * and returns the saved record to the model.
  */
 @Component
@@ -28,10 +28,10 @@ public class RecordFoodTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final IFoodRecordDAL dal;
+    private final IFoodService foodService;
 
-    public RecordFoodTool(IFoodRecordDAL dal) {
-        this.dal = dal;
+    public RecordFoodTool(IFoodService foodService) {
+        this.foodService = foodService;
     }
 
     @Override
@@ -57,7 +57,7 @@ public class RecordFoodTool implements ITool {
         }
         validate(food);
         // Save first, then serialize the value returned by saveFoodByDate.
-        Food saved = dal.saveFoodByDate(food);
+        Food saved = foodService.saveFoodByDate(food);
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(saved);
         } catch (JsonProcessingException e) {

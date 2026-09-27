@@ -1,4 +1,4 @@
-package org.tyler.dal.foodrecord;
+package org.tyler.service.food;
 
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
@@ -8,10 +8,10 @@ import java.util.List;
 /**
  * Contract for date-based food record operations.
  *
- * <p>The DAO handles JSON or database persistence; this layer exposes
+ * <p>The DAO handles persistence; this service exposes
  * reading, saving, and deleting records by date, plus reading all records.
  */
-public interface IFoodRecordDAL {
+public interface IFoodService {
 
     /** Returns food records for a YYYY-MM-DD date, or an empty list. */
     List<Food> getFoodByDate(String date);

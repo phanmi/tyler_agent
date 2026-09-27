@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tyler.dal.foodrecord.IFoodRecordDAL;
+import org.tyler.service.food.IFoodService;
 import org.tyler.tool.foodRecordTool.RecordFoodTool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,14 +22,14 @@ import static org.mockito.Mockito.when;
 class RecordFoodToolTest {
 
     @Mock
-    private IFoodRecordDAL dal;
+    private IFoodService foodService;
 
     private RecordFoodTool tool;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        tool = new RecordFoodTool(dal);
+        tool = new RecordFoodTool(foodService);
     }
 
     private static final String VALID_ARGS = """
@@ -52,7 +52,7 @@ class RecordFoodToolTest {
 
     @Test
     void parsesValidFood() throws Exception {
-        when(dal.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(foodService.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
         JsonNode node = mapper.readTree(tool.execute(VALID_ARGS));
         JsonNode info = node.get("genericInfo");
         JsonNode macros = node.get("macroNutrients");
@@ -64,17 +64,17 @@ class RecordFoodToolTest {
 
     @Test
     void savesFoodOnceAndReturnsFoodJson() throws Exception {
-        when(dal.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(foodService.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
         String result = tool.execute(VALID_ARGS);
-        verify(dal, times(1)).saveFoodByDate(any());
+        verify(foodService, times(1)).saveFoodByDate(any());
         JsonNode node = mapper.readTree(result);
         assertNotNull(node.get("genericInfo"));
         assertNotNull(node.get("macroNutrients"));
     }
 
     @Test
-    void propagatesDalException() {
-        when(dal.saveFoodByDate(any())).thenThrow(new IllegalStateException("boom"));
+    void propagatesServiceException() {
+        when(foodService.saveFoodByDate(any())).thenThrow(new IllegalStateException("boom"));
         assertThrows(IllegalStateException.class, () -> tool.execute(VALID_ARGS));
     }
 
