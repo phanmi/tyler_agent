@@ -29,5 +29,3 @@ chat:
 food:
   # Sandbox-relative food SQLite path; override with FOOD_DATABASE_PATH.
   database-path: ${FOOD_DATABASE_PATH:food-record.sqlite}
-  # Legacy food JSON path within the sandbox; override with FOOD_FILE_PATH.
-  file-path: ${FOOD_FILE_PATH:food-records.json}

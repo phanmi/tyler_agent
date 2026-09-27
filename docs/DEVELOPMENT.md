@@ -130,7 +130,7 @@ tyler_agent/
 │  ├─ service/                    # Chat, history, settings, and workouts
 │  ├─ tool/                       # Agent tools
 │  ├─ dal/                        # Data access contracts and delegation
-│  ├─ dao/                        # SQLite and legacy food storage implementations
+│  ├─ dao/                        # SQLite persistence and food cache decorator
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
 │  ├─ filter/                     # Request tracing
@@ -232,14 +232,13 @@ Defaults are in [application.yml](../src/main/resources/application.yml). The wo
 | `chat.history-file-path` | `CHAT_HISTORY_FILE_PATH` | `chat-history.json` |
 | `chat.max-messages` | `CHAT_MAX_MESSAGES` | `20` |
 | `food.database-path` | `FOOD_DATABASE_PATH` | `food-record.sqlite` |
-| `food.file-path` | `FOOD_FILE_PATH` | `food-records.json` (legacy storage) |
 | `workout.database-path` | `WORKOUT_DATABASE_PATH` | `workout-record.sqlite` |
 
 The workout database default is declared in its DAO constructor. `OPENAI_MODEL` and `WORKOUT_DATABASE_PATH` use Spring's environment property binding. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
 
 The API key is stored as a local text file. The key status API returns only whether a key is configured. Conversation requests go to OpenAI and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local.
 
-SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food storage also includes legacy JSON and cache implementations; the SQLite food DAO is the primary implementation.
+SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. The SQLite food DAO is the primary implementation; the food cache decorator delegates to it.
 
 Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
 

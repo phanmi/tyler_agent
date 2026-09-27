@@ -15,10 +15,10 @@ import java.util.List;
  */
 public interface IFoodRecordDAO {
 
-    /** Reads all records; the JSON implementation returns an empty list for missing or invalid files. */
+    /** Reads all records, or an empty list when none exist. */
     List<Food> load();
 
-    /** Saves the list; JSON replaces its file, while SQLite appends the supplied records. */
+    /** Appends the supplied records. */
     void save(List<Food> foods);
 
     /** Reads records for a YYYY-MM-DD date; missing dates throw {@link IllegalArgumentException}. */
