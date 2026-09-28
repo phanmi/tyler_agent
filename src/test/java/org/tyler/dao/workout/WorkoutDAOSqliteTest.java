@@ -12,11 +12,15 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** Uses an unavailable temporary SQLite path to verify DAO exception conversion. */
+/** Verifies date-scoped reads and exception conversion against temporary SQLite storage. */
 class WorkoutDAOSqliteTest {
 
     private static final String DB_FILE = "workout-record.sqlite";
@@ -43,6 +47,36 @@ class WorkoutDAOSqliteTest {
                 assertThrows(SQLReadException.class, () -> dao.selectById(1)).getCause());
         assertInstanceOf(DataAccessException.class,
                 assertThrows(SQLReadException.class, dao::selectAll).getCause());
+        SQLReadException failure = assertThrows(SQLReadException.class,
+                () -> dao.selectByDate(LocalDate.of(2026, 9, 26)));
+        assertInstanceOf(DataAccessException.class, failure.getCause());
+        assertTrue(failure.getMessage().contains("2026-09-26"));
+    }
+
+    @Test
+    void selectByDatePreservesMatchingRecordsIdsAndOrder() throws IOException {
+        WorkoutDAOSqlite dao = newDao();
+        LocalDate date = LocalDate.of(2026, 9, 26);
+        Workout first = new Workout("Squat", "4X12", new BigDecimal("20.50"), date.toString());
+        Workout other = new Workout("Run", "1X1", BigDecimal.ZERO, "2026-09-27");
+        Workout last = new Workout("Press", "3X8", new BigDecimal("12.25"), date.toString());
+        long firstId = dao.insert(first);
+        long otherId = dao.insert(other);
+        long lastId = dao.insert(last);
+
+        var records = dao.selectByDate(date);
+        assertEquals(List.of(firstId, lastId), List.copyOf(records.keySet()));
+        assertEquals(List.of(first, last), List.copyOf(records.values()));
+        assertEquals(List.of(otherId), List.copyOf(dao.selectByDate(date.plusDays(1)).keySet()));
+        assertTrue(dao.selectByDate(date.minusDays(1)).isEmpty());
+    }
+
+    @Test
+    void selectByDateRejectsNullBeforeDatabaseAccess() throws IOException {
+        WorkoutDAOSqlite dao = newDao();
+        makeDatabaseUnavailable();
+        assertEquals("date must not be null",
+                assertThrows(IllegalArgumentException.class, () -> dao.selectByDate(null)).getMessage());
     }
 
     @Test

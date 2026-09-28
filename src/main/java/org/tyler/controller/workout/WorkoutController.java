@@ -20,7 +20,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
-/** Exposes saved workouts to the calendar and delegates writes to the workout service. */
+/** Parses calendar request dates, maps HTTP responses, and delegates persistence to the service. */
 @RestController
 @RequestMapping("/api/workouts")
 public class WorkoutController implements IWorkoutController {
@@ -49,8 +49,7 @@ public class WorkoutController implements IWorkoutController {
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("date must use the format YYYY-MM-DD", e);
         }
-        return workoutService.getAllWorkouts().entrySet().stream()
-                .filter(entry -> entry.getValue().workoutDate().equals(parsedDate.toString()))
+        return workoutService.getWorkoutsByDate(parsedDate).entrySet().stream()
                 .map(entry -> new WorkoutEntry(entry.getKey(), entry.getValue()))
                 .toList();
     }

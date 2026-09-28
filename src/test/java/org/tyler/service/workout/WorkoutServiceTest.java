@@ -3,6 +3,8 @@ package org.tyler.service.workout;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
+import org.tyler.dao.workout.IWorkoutDAO;
+import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.workout.Workout;
@@ -10,12 +12,21 @@ import org.tyler.model.workout.Workout;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 /** Uses real SQLite to test CRUD through the service and DAO. */
 class WorkoutServiceTest {
@@ -30,6 +41,43 @@ class WorkoutServiceTest {
 
     private static Workout workout(String name, String rep, String weight, String date) {
         return new Workout(name, rep, new BigDecimal(weight), date);
+    }
+
+    @Test
+    void dateScopedReadUsesOnlyTheDateQueryAndPreservesItsResult() {
+        IWorkoutDAO dao = mock(IWorkoutDAO.class);
+        WorkoutService service = new WorkoutService(dao);
+        LocalDate date = LocalDate.of(2026, 9, 26);
+        Map<Long, Workout> records = new LinkedHashMap<>();
+        records.put(7L, workout("Squat", "4X12", "20", date.toString()));
+        when(dao.selectByDate(date)).thenReturn(records);
+
+        assertSame(records, service.getWorkoutsByDate(date));
+        verify(dao).selectByDate(date);
+        verifyNoMoreInteractions(dao);
+    }
+
+    @Test
+    void dateScopedReadPreservesEmptyResultsAndReadFailures() {
+        IWorkoutDAO dao = mock(IWorkoutDAO.class);
+        WorkoutService service = new WorkoutService(dao);
+        LocalDate date = LocalDate.of(2026, 9, 26);
+        SQLReadException failure = new SQLReadException("Read failed");
+        when(dao.selectByDate(date)).thenReturn(Map.of()).thenThrow(failure);
+
+        assertTrue(service.getWorkoutsByDate(date).isEmpty());
+        assertSame(failure, assertThrows(SQLReadException.class, () -> service.getWorkoutsByDate(date)));
+        verify(dao, times(2)).selectByDate(date);
+        verifyNoMoreInteractions(dao);
+    }
+
+    @Test
+    void dateScopedReadRejectsNullBeforeCallingDao() {
+        IWorkoutDAO dao = mock(IWorkoutDAO.class);
+        WorkoutService service = new WorkoutService(dao);
+        assertEquals("date must not be null",
+                assertThrows(IllegalArgumentException.class, () -> service.getWorkoutsByDate(null)).getMessage());
+        verifyNoInteractions(dao);
     }
 
     @Test
