@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.tyler.dao.workout.IWorkoutDAO;
 import org.tyler.model.workout.Workout;
 
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,6 +31,14 @@ public class WorkoutService implements IWorkoutService {
     @Override
     public Map<Long, Workout> getAllWorkouts() {
         return dao.selectAll();
+    }
+
+    @Override
+    public Map<Long, Workout> getWorkoutsByDate(LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("date must not be null");
+        }
+        return dao.selectByDate(date);
     }
 
     @Override

@@ -1,5 +1,7 @@
 package org.tyler.dao.workout;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,12 +31,14 @@ import java.util.Optional;
 @Repository
 public class WorkoutDAOSqlite implements IWorkoutDAO {
 
+    private static final Logger log = LoggerFactory.getLogger(WorkoutDAOSqlite.class);
     private static final String SQL_DIR = "db/workout_record/";
 
     private final JdbcTemplate jdbcTemplate;
     private final String sqlInsert;
     private final String sqlSelectById;
     private final String sqlSelectAll;
+    private final String sqlSelectByDate;
     private final String sqlUpdate;
     private final String sqlDelete;
 
@@ -48,6 +52,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         this.sqlInsert = loadSql("insert.sql");
         this.sqlSelectById = loadSql("select_by_id.sql");
         this.sqlSelectAll = loadSql("select_all.sql");
+        this.sqlSelectByDate = loadSql("select_by_date.sql");
         this.sqlUpdate = loadSql("update.sql");
         this.sqlDelete = loadSql("delete.sql");
         try {
@@ -107,6 +112,23 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         } catch (DataAccessException e) {
             throw new SQLPersistentException("Failed to update the workout", e);
         }
+    }
+
+    @Override
+    public Map<Long, Workout> selectByDate(LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("date must not be null");
+        }
+        // Keep SQL ordering and persistent IDs when mapping the date-scoped result.
+        Map<Long, Workout> records = new LinkedHashMap<>();
+        try {
+            jdbcTemplate.query(sqlSelectByDate,
+                    (RowCallbackHandler) rs -> records.put(rs.getLong("id"), mapRow(rs, 0)), date.toString());
+        } catch (DataAccessException e) {
+            throw new SQLReadException("Failed to read workouts for date " + date, e);
+        }
+        log.debug("Read {} workout records for date {}", records.size(), date);
+        return records;
     }
 
     @Override
