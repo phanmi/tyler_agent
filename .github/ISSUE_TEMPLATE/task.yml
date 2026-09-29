@@ -1,0 +1,46 @@
+name: Development task
+description: Propose a feature, refactor, or improvement.
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are we solving, and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What should change? What is out of scope?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions for completion.
+      placeholder: |
+        - [ ] Expected behavior is implemented.
+        - [ ] Existing behavior remains compatible.
+        - [ ] Relevant tests pass.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: backend_standards
+    attributes:
+      label: Backend standards
+      description: Backend changes must comply with docs/BACKEND_STANDARDS.md, including architecture, comments, diagnostic logging, and exception test coverage.
+      options:
+        - label: I understand that all backend implementation for this task must comply with the backend coding and design standards.
+          required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Related files, issues, or implementation suggestions.
