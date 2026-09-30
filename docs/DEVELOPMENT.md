@@ -109,7 +109,6 @@ flowchart TB
     UI -->|Window controls and backend address| Desktop
     Desktop -->|Starts backend process| Controllers
     Controllers --> Services
-    Controllers -->|Workout preview| Tools
     Services --> Agent
     Agent <--> OpenAI
     Agent --> Tools
@@ -184,9 +183,9 @@ The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fi
 
 Executing the tool saves nine strength exercises and three timed activity entries for a new week. Timed activities include their duration in the exercise name and use `1X1` for one session. Rest days have no workout entry. New records use weight `0` as a placeholder. Existing records with the same date and exercise name are reused, preserving their saved reps and weights.
 
-If a write fails, the tool attempts to delete the records inserted during that execution and propagates the failure. This is compensating cleanup across individual writes, not a database transaction; matching by date and name also does not enforce uniqueness across concurrent calls.
+The controller and tool share a dedicated plan service and model-layer plan DTOs. The tool handles its schema, JSON parsing, and serialization; the service owns templates, preview, duplicate matching, and saving. Plan persistence uses a real transaction: the workout DAO's `JdbcTemplate` and its transaction manager share the same configured workout data source. A failed write rolls back all inserts from that request and preserves pre-existing records, without compensating deletes. Sequential repeats reuse date/name matches; concurrent deduplication is not guaranteed. If multiple matching records already exist, the last in ascending ID order is used in the returned plan without modifying any of them.
 
-The calendar uses the tool's separate `previewPlan` method through `GET /api/workouts/plan`. A preview performs no database writes. **Add to calendar** creates an entry, while **Save exercise** creates or updates a saved entry. The preview week begins on Monday; an agent-generated plan begins on its supplied start date.
+The calendar calls the plan service's `previewPlan` method through `GET /api/workouts/plan`. A preview does not access storage. **Add to calendar** creates an entry, while **Save exercise** creates or updates a saved entry. The preview week begins on Monday; an agent-generated plan begins on its supplied start date.
 
 ## HTTP API
 
@@ -241,7 +240,7 @@ Defaults are in [application.yml](../src/main/resources/application.yml). The wo
 | `food.database-path` | `FOOD_DATABASE_PATH` | `food-record.sqlite` |
 | `workout.database-path` | `WORKOUT_DATABASE_PATH` | `workout-record.sqlite` |
 
-The workout database default is declared in its DAO constructor. `OPENAI_MODEL` and `WORKOUT_DATABASE_PATH` use Spring's environment property binding. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
+The workout database default is declared in its database configuration. `OPENAI_MODEL` and `WORKOUT_DATABASE_PATH` use Spring's environment property binding. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
 
 The API key is stored as a local text file. The key status API returns only whether a key is configured. Conversation requests go to OpenAI and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local.
 
