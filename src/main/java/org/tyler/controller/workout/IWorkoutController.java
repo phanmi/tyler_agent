@@ -2,7 +2,7 @@ package org.tyler.controller.workout;
 
 import org.springframework.http.ResponseEntity;
 import org.tyler.model.workout.Workout;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool.WorkoutPlan;
+import org.tyler.model.workout.WorkoutPlan;
 
 import java.util.List;
 

@@ -8,7 +8,9 @@ import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.model.workout.Workout;
 import org.tyler.service.workout.IWorkoutService;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
+import org.tyler.service.workout.IWorkoutPlanService;
+import org.tyler.service.workout.WorkoutPlanService;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +33,7 @@ class WorkoutControllerTest {
 
     private MockMvc mockMvc;
     private IWorkoutService workoutService;
+    private IWorkoutPlanService planService;
 
     private static final String WORKOUT_JSON = """
             {"workoutName":"Squat","rep":"4X12","weight":20,"workoutDate":"2026-09-28"}
@@ -39,8 +42,9 @@ class WorkoutControllerTest {
     @BeforeEach
     void setUp() {
         workoutService = mock(IWorkoutService.class);
+        planService = mock(IWorkoutPlanService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new WorkoutController(workoutService, new GenerateWorkoutPlanTool(workoutService)))
+                        new WorkoutController(workoutService, planService))
                 .setControllerAdvice(new GenericExceptionHandler())
                 .build();
     }
@@ -135,6 +139,9 @@ class WorkoutControllerTest {
 
     @Test
     void returnsSevenDayPlan() throws Exception {
+        when(planService.previewPlan("2026-09-28", "general_fitness", "bodyweight"))
+                .thenReturn(new WorkoutPlanService(workoutService, mock(TransactionTemplate.class))
+                        .previewPlan("2026-09-28", "general_fitness", "bodyweight"));
         mockMvc.perform(get("/api/workouts/plan")
                         .param("startDate", "2026-09-28")
                         .param("goal", "general_fitness")
@@ -143,5 +150,8 @@ class WorkoutControllerTest {
                 .andExpect(jsonPath("$.days.length()").value(7))
                 .andExpect(jsonPath("$.days[0].workouts[0].rep").value("3X12"))
                 .andExpect(jsonPath("$.days[6].focus").value("Rest"));
+        verify(planService).previewPlan("2026-09-28", "general_fitness", "bodyweight");
+        verifyNoMoreInteractions(planService);
+        verifyNoInteractions(workoutService);
     }
 }
