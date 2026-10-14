@@ -76,6 +76,9 @@ public class WorkoutPlanService implements IWorkoutPlanService {
     }
 
     private static LocalDate parseStartDate(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("startDate must not be null");
+        }
         try {
             return LocalDate.parse(value);
         } catch (DateTimeParseException e) {
@@ -84,6 +87,9 @@ public class WorkoutPlanService implements IWorkoutPlanService {
     }
 
     private static Goal parseGoal(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("goal must not be null");
+        }
         return switch (value) {
             case "strength" -> Goal.STRENGTH;
             case "muscle_gain" -> Goal.MUSCLE_GAIN;
@@ -93,6 +99,9 @@ public class WorkoutPlanService implements IWorkoutPlanService {
     }
 
     private static Equipment parseEquipment(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("equipment must not be null");
+        }
         return switch (value) {
             case "bodyweight" -> Equipment.BODYWEIGHT;
             case "gym" -> Equipment.GYM;

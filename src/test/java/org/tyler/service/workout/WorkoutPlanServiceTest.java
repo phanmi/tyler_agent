@@ -2,6 +2,8 @@ package org.tyler.service.workout;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -28,6 +30,25 @@ class WorkoutPlanServiceTest {
         return new ApplicationContextRunner().withUserConfiguration(FileSandbox.class,
                 WorkoutDatabaseConfig.class, WorkoutDAOSqlite.class, WorkoutService.class, WorkoutPlanService.class)
                 .withPropertyValues("agent.workspace-dir=" + tempDir, "workout.database-path=plans.sqlite");
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "NULL, strength, gym, startDate must not be null",
+            "2026-09-28, NULL, gym, goal must not be null",
+            "2026-09-28, strength, NULL, equipment must not be null"
+    }, nullValues = "NULL")
+    void nullInputsAreRejectedByPreviewAndSaveBeforeStorageAccess(
+            String startDate, String goal, String equipment, String expectedMessage) {
+        IWorkoutService storage = mock(IWorkoutService.class);
+        TransactionTemplate transactions = mock(TransactionTemplate.class);
+        IWorkoutPlanService service = new WorkoutPlanService(storage, transactions);
+
+        assertEquals(expectedMessage, assertThrowsExactly(IllegalArgumentException.class,
+                () -> service.previewPlan(startDate, goal, equipment)).getMessage());
+        assertEquals(expectedMessage, assertThrowsExactly(IllegalArgumentException.class,
+                () -> service.generateAndSave(startDate, goal, equipment)).getMessage());
+        verifyNoInteractions(storage, transactions);
     }
 
     @Test
