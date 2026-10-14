@@ -7,6 +7,7 @@ import org.tyler.dao.workout.IWorkoutDAO;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
+import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.model.workout.Workout;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ class WorkoutServiceTest {
 
     private WorkoutService newService() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        return new WorkoutService(new WorkoutDAOSqlite(sandbox, "workout-record.sqlite"));
+        return new WorkoutService(new WorkoutDAOSqlite(new WorkoutDatabaseConfig().workoutJdbcTemplate(new WorkoutDatabaseConfig().workoutDataSource(sandbox, "workout-record.sqlite"))));
     }
 
     private static Workout workout(String name, String rep, String weight, String date) {

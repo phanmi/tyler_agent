@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tyler.model.workout.Workout;
 import org.tyler.service.workout.IWorkoutService;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool.WorkoutPlan;
+import org.tyler.service.workout.IWorkoutPlanService;
+import org.tyler.model.workout.WorkoutPlan;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -26,18 +26,18 @@ import java.util.List;
 public class WorkoutController implements IWorkoutController {
 
     private final IWorkoutService workoutService;
-    private final GenerateWorkoutPlanTool planTool;
+    private final IWorkoutPlanService planService;
 
-    public WorkoutController(IWorkoutService workoutService, GenerateWorkoutPlanTool planTool) {
+    public WorkoutController(IWorkoutService workoutService, IWorkoutPlanService planService) {
         this.workoutService = workoutService;
-        this.planTool = planTool;
+        this.planService = planService;
     }
 
     @Override
     @GetMapping("/plan")
     public WorkoutPlan workoutPlan(@RequestParam String startDate, @RequestParam String goal,
                                    @RequestParam String equipment) {
-        return planTool.previewPlan(startDate, goal, equipment);
+        return planService.previewPlan(startDate, goal, equipment);
     }
 
     @Override

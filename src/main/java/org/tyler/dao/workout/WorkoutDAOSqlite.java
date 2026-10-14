@@ -2,23 +2,20 @@ package org.tyler.dao.workout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
-import org.sqlite.SQLiteDataSource;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
-import org.tyler.filesandbox.IFileSandboxPath;
 import org.tyler.model.workout.Workout;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -42,13 +39,8 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
     private final String sqlUpdate;
     private final String sqlDelete;
 
-    public WorkoutDAOSqlite(
-            IFileSandboxPath sandbox,
-            @Value("${workout.database-path:workout-record.sqlite}") String dbFile) {
-        Path dbPath = sandbox.resolve(dbFile);
-        SQLiteDataSource dataSource = new SQLiteDataSource();
-        dataSource.setUrl("jdbc:sqlite:" + dbPath);
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    public WorkoutDAOSqlite(@Qualifier("workoutJdbcTemplate") JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
         this.sqlInsert = loadSql("insert.sql");
         this.sqlSelectById = loadSql("select_by_id.sql");
         this.sqlSelectAll = loadSql("select_all.sql");

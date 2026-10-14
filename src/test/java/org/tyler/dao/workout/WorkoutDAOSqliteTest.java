@@ -6,6 +6,7 @@ import org.springframework.dao.DataAccessException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.filesandbox.FileSandbox;
+import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.model.workout.Workout;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ class WorkoutDAOSqliteTest {
     Path tempDir;
 
     private WorkoutDAOSqlite newDao() throws IOException {
-        return new WorkoutDAOSqlite(new FileSandbox(tempDir.toString()), DB_FILE);
+        return new WorkoutDAOSqlite(new WorkoutDatabaseConfig().workoutJdbcTemplate(new WorkoutDatabaseConfig().workoutDataSource(new FileSandbox(tempDir.toString()), DB_FILE)));
     }
 
     private void makeDatabaseUnavailable() throws IOException {
@@ -100,6 +101,6 @@ class WorkoutDAOSqliteTest {
 
         assertInstanceOf(DataAccessException.class,
                 assertThrows(SQLPersistentException.class,
-                        () -> new WorkoutDAOSqlite(sandbox, DB_FILE)).getCause());
+                        () -> new WorkoutDAOSqlite(new WorkoutDatabaseConfig().workoutJdbcTemplate(new WorkoutDatabaseConfig().workoutDataSource(sandbox, DB_FILE)))).getCause());
     }
 }
