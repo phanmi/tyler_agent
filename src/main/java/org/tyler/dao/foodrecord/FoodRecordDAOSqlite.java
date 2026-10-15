@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * SQLite food-record DAO used by the primary cache decorator.
+ * Direct SQLite persistence for all food reads and writes.
  *
  * <p>Matches the {@code food_record} schema. Numeric values use {@link BigDecimal}
  * with {@code toPlainString()} on write and {@code getString} on read.

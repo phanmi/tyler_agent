@@ -121,7 +121,7 @@ flowchart TB
 
 For a chat request, `AgentService` loads retained history, adds the new message, and calls OpenAI with the registered tool definitions. It executes any requested tools and sends their results back to the model, up to five tool rounds. It then saves the user message and final reply and returns the reply to the frontend.
 
-Controllers and services are grouped by feature. The food controller and recording tool share `IFoodService`; the workout CRUD controller and plan tool share `IWorkoutService` for persistence. Both services call their DAO interfaces directly. The primary food DAO is the cache decorator backed by SQLite. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
+Controllers and services are grouped by feature. The food controller and recording tool share `IFoodService`; the workout CRUD controller and plan tool share `IWorkoutService` for persistence. Both services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
 ## Repository layout
 
@@ -134,7 +134,7 @@ tyler_agent/
 │  ├─ controller/                 # HTTP routes grouped by feature
 │  ├─ service/                    # Chat, history, settings, food, and workouts
 │  ├─ tool/                       # Agent tools
-│  ├─ dao/                        # SQLite persistence and food cache decorator
+│  ├─ dao/                        # SQLite persistence
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
 │  ├─ filter/                     # Request tracing
@@ -244,9 +244,13 @@ The workout database default is declared in its database configuration. `OPENAI_
 
 The API key is stored as a local text file. The key status API returns only whether a key is configured. Conversation requests go to OpenAI and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local.
 
-SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. The food cache is the primary `IFoodRecordDAO` implementation and delegates persistence to SQLite.
+SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food reads and writes use the sole `IFoodRecordDAO` implementation directly against SQLite.
 
 Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
+
+### Food persistence decision
+
+The in-memory food decorator was removed because no measured performance need justified maintaining a second state store. In the checkout reviewed for this change it was selected as the primary DAO, and its bulk-save cache replacement conflicted with the database append contract. All food reads now query SQLite, including reads with record IDs, and successful ID/date deletions are immediately visible through every read path. The wiring test scans the food DAO package, asserts exactly one implementation, and verifies that the service receives that same instance. Bulk saves retain their existing append semantics; this change does not add batch transactions.
 
 ## Networking and desktop startup
 
