@@ -133,10 +133,13 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         if (food == null) {
             throw new IllegalArgumentException("Food must not be null");
         }
-        String eatenDate = dateOf(food);
+        GenericInfo info = food.genericInfo();
+        if (info == null) {
+            throw new SQLDataValidationException("Food record is missing genericInfo");
+        }
+        String eatenDate = info.date();
         requireDate(eatenDate);
         validateForInsert(eatenDate, food);
-        GenericInfo info = food.genericInfo();
         MacroNutrients macros = food.macroNutrients();
         try {
             Long id = jdbcTemplate.queryForObject(sqlInsert, Long.class,
@@ -163,9 +166,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private static void validateForInsert(String eatenDate, Food food) {
         GenericInfo info = food.genericInfo();
         MacroNutrients macros = food.macroNutrients();
-        if (info == null) {
-            throw new SQLDataValidationException("Food record is missing genericInfo");
-        }
         if (macros == null) {
             throw new SQLDataValidationException("Food record is missing macroNutrients");
         }
@@ -218,10 +218,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private static BigDecimal decimal(ResultSet rs, String column) throws SQLException {
         String value = rs.getString(column);
         return value == null ? BigDecimal.ZERO : new BigDecimal(value);
-    }
-
-    private static String dateOf(Food food) {
-        return food.genericInfo() == null ? null : food.genericInfo().date();
     }
 
     private static void requireDate(String date) {

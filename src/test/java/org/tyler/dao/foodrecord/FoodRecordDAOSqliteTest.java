@@ -82,6 +82,20 @@ class FoodRecordDAOSqliteTest {
         assertEquals(before, dao.loadRecordsByDate(DATE));
     }
     @Test
+    void missingGenericInfoRaisesValidationExceptionWithoutChangingExistingData() throws Exception {
+        var dao = newDao();
+        Food validFood = food("apple", DATE);
+        dao.insert(validFood);
+        var before = dao.loadRecordsByDate(DATE);
+
+        var exception = assertThrowsExactly(SQLDataValidationException.class,
+                () -> dao.insert(new Food(null, validFood.macroNutrients())));
+
+        assertEquals("Food record is missing genericInfo", exception.getMessage());
+        assertEquals(before, dao.loadRecordsByDate(DATE));
+    }
+
+    @Test
     void existingDatabaseRowsKeepTheirIdsDatesAndCreationTimes() throws Exception {
         // Seed the unchanged table using the previous non-returning insertion format.
         try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + tempDir.resolve("food.sqlite"));
