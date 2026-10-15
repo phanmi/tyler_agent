@@ -52,7 +52,7 @@ class RecordFoodToolTest {
 
     @Test
     void parsesValidFood() throws Exception {
-        when(foodService.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(foodService.insertFood(any())).thenAnswer(inv -> new org.tyler.model.food.FoodEntry(7L, inv.getArgument(0)));
         JsonNode node = mapper.readTree(tool.execute(VALID_ARGS));
         JsonNode info = node.get("genericInfo");
         JsonNode macros = node.get("macroNutrients");
@@ -64,9 +64,9 @@ class RecordFoodToolTest {
 
     @Test
     void savesFoodOnceAndReturnsFoodJson() throws Exception {
-        when(foodService.saveFoodByDate(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(foodService.insertFood(any())).thenAnswer(inv -> new org.tyler.model.food.FoodEntry(7L, inv.getArgument(0)));
         String result = tool.execute(VALID_ARGS);
-        verify(foodService, times(1)).saveFoodByDate(any());
+        verify(foodService, times(1)).insertFood(any());
         JsonNode node = mapper.readTree(result);
         assertNotNull(node.get("genericInfo"));
         assertNotNull(node.get("macroNutrients"));
@@ -74,7 +74,7 @@ class RecordFoodToolTest {
 
     @Test
     void propagatesServiceException() {
-        when(foodService.saveFoodByDate(any())).thenThrow(new IllegalStateException("boom"));
+        when(foodService.insertFood(any())).thenThrow(new IllegalStateException("boom"));
         assertThrows(IllegalStateException.class, () -> tool.execute(VALID_ARGS));
     }
 

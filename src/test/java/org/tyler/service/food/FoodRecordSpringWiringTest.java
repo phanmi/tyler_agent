@@ -57,7 +57,7 @@ class FoodRecordSpringWiringTest {
                     assertSame(dao, ReflectionTestUtils.getField(service, "dao"));
                     FoodController controller = context.getBean(FoodController.class);
                     RecordFoodTool tool = context.getBean(RecordFoodTool.class);
-                    assertTrue(service.getAllFoodRecords().isEmpty());
+                    assertTrue(service.getFoodRecordsByDate("2026-09-27").isEmpty());
                     String date = "2026-09-27";
                     Food food = new Food(
                             new GenericInfo("Apple", new BigDecimal("100"), "g",
@@ -67,12 +67,12 @@ class FoodRecordSpringWiringTest {
 
                     ObjectMapper mapper = new ObjectMapper();
                     assertEquals(food, mapper.readValue(tool.execute(mapper.writeValueAsString(food)), Food.class));
-                    assertEquals(List.of(food), service.getFoodByDate(date));
+                    assertEquals(List.of(food), service.getFoodRecordsByDate(date).stream().map(FoodEntry::food).toList());
                     List<FoodEntry> records = controller.foodByDate(date);
                     assertEquals(1, records.size());
                     assertEquals(food, records.getFirst().food());
                     assertTrue(controller.deleteFood(records.getFirst().id()));
-                    assertTrue(service.getFoodByDate(date).isEmpty());
+
                     assertTrue(service.getFoodRecordsByDate(date).isEmpty());
                 });
     }
@@ -89,24 +89,24 @@ class FoodRecordSpringWiringTest {
             Food second = food("Banana", date);
             Food other = food("Pear", otherDate);
 
-            dao.save(List.of(first));
-            assertReadPaths(dao, service, controller, date, List.of(first), List.of(first));
+            dao.insert(first);
+            assertReadPaths(dao, service, controller, date, List.of(first));
             long firstId = dao.loadRecordsByDate(date).getFirst().id();
             // Read before each append to expose any stale/replaced in-memory state.
-            dao.save(List.of(second));
-            assertReadPaths(dao, service, controller, date, List.of(first, second), List.of(first, second));
+            dao.insert(second);
+            assertReadPaths(dao, service, controller, date, List.of(first, second));
             assertEquals(firstId, dao.loadRecordsByDate(date).getFirst().id());
-            service.saveFoodByDate(other);
-            assertReadPaths(dao, service, controller, date, List.of(first, second), List.of(first, second, other));
-            assertReadPaths(dao, service, controller, otherDate, List.of(other), List.of(first, second, other));
+            service.insertFood(other);
+            assertReadPaths(dao, service, controller, date, List.of(first, second));
+            assertReadPaths(dao, service, controller, otherDate, List.of(other));
 
             assertTrue(controller.deleteFood(firstId));
-            assertReadPaths(dao, service, controller, date, List.of(second), List.of(second, other));
-            assertReadPaths(dao, service, controller, otherDate, List.of(other), List.of(second, other));
+            assertReadPaths(dao, service, controller, date, List.of(second));
+            assertReadPaths(dao, service, controller, otherDate, List.of(other));
             assertFalse(controller.deleteFood(firstId));
             assertTrue(controller.deleteFoodByDate(date));
-            assertReadPaths(dao, service, controller, date, List.of(), List.of(other));
-            assertReadPaths(dao, service, controller, otherDate, List.of(other), List.of(other));
+            assertReadPaths(dao, service, controller, date, List.of());
+            assertReadPaths(dao, service, controller, otherDate, List.of(other));
             assertFalse(controller.deleteFoodByDate(date));
         });
     }
@@ -117,11 +117,8 @@ class FoodRecordSpringWiringTest {
     }
 
     private static void assertReadPaths(IFoodRecordDAO dao, IFoodService service, FoodController controller,
-                                       String date, List<Food> expectedDate, List<Food> expectedAll) {
-        assertEquals(expectedAll, dao.load());
-        assertEquals(expectedAll, service.getAllFoodRecords());
-        assertEquals(expectedDate, dao.loadByDate(date));
-        assertEquals(expectedDate, service.getFoodByDate(date));
+                                       String date, List<Food> expectedDate) {
+        assertEquals(expectedDate, service.getFoodRecordsByDate(date).stream().map(FoodEntry::food).toList());
         var persisted = dao.loadRecordsByDate(date);
         assertEquals(expectedDate, persisted.stream().map(record -> record.food()).toList());
         List<FoodEntry> entries = persisted.stream().map(record -> new FoodEntry(record.id(), record.food())).toList();

@@ -56,8 +56,8 @@ public class RecordFoodTool implements ITool {
             throw new IllegalArgumentException("Failed to parse food arguments: " + e.getMessage(), e);
         }
         validate(food);
-        // Save first, then serialize the value returned by saveFoodByDate.
-        Food saved = foodService.saveFoodByDate(food);
+        // Preserve the food-only tool response while the service exposes persisted identity.
+        Food saved = foodService.insertFood(food).food();
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(saved);
         } catch (JsonProcessingException e) {
