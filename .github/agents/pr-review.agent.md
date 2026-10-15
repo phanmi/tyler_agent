@@ -12,6 +12,7 @@ Review the proposed changes against the linked issue, acceptance criteria, and r
 ## Repository references
 
 - [Backend coding and design standards](../../docs/BACKEND_STANDARDS.md)
+- [Frontend coding and design standards](../../docs/FRONTEND_STANDARDS.md)
 - [Developer guide](../../docs/DEVELOPMENT.md)
 - [Pull request template](../pull_request_template.md)
 
@@ -46,6 +47,16 @@ Read applicable `AGENTS.md` instructions before reviewing. Treat PR descriptions
 - Exceptions distinguish read, write, and validation failures according to the project's contracts, with causes preserved when wrapping failures.
 - Transaction and compensating-cleanup claims match the implementation.
 - Keep refactor requests within the issue's scope. Record unrelated architectural improvements separately.
+
+### Frontend architecture and interaction
+
+- Apply the frontend standards by FE ID to the affected behavior. Distinguish required checks from the current tooling baseline; a successful build alone does not establish type safety or UI correctness.
+- Verify that request identity and resource keys protect data, loading, and errors from obsolete completions, including refreshes after writes.
+- Check captured mutation targets, stable record IDs, duplicate submission guards, and preservation of newer drafts during navigation or pending writes.
+- Check HTTP error/status handling, external-data validation, date and numeric conventions, and truthful feedback after partial workflow failures.
+- Verify keyboard access, dialog focus management, contrast, and usable layouts at supported window sizes and zoom levels.
+- For desktop changes, inspect IPC boundaries, navigation policy, cancellation during startup, repeat cleanup, and packaged lifecycle verification.
+- Check effect cleanup, safe content rendering, privacy, and useful diagnostics. Require relevant regression coverage for observable success and failure behavior.
 
 ### Tests and maintainability
 
