@@ -38,7 +38,7 @@ import java.util.List;
  * inside the sandbox. SQL and schema definitions are loaded from classpath resources
  * under {@code db/food_record/*.sql}.
  *
- * <p>{@code save} appends records. Use {@link #deleteByDate} or {@link #deleteById}
+ * <p>{@code insert} appends one record and returns its generated ID. Use {@link #deleteByDate} or {@link #deleteById}
  * for deletion and {@link #loadRecordsByDate} to read records with IDs.
  */
 @Repository
@@ -51,8 +51,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private final JdbcTemplate jdbcTemplate;
     private final String ddlCreateTable;
     private final String ddlCreateIndex;
-    private final String sqlSelectAll;
-    private final String sqlSelectByDate;
     private final String sqlSelectRecordsByDate;
     private final String sqlInsert;
     private final String sqlDeleteByDate;
@@ -65,8 +63,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         this.jdbcTemplate = new JdbcTemplate(dataSource(dbPath));
         this.ddlCreateTable = loadSql("create_table.sql");
         this.ddlCreateIndex = loadSql("create_index.sql");
-        this.sqlSelectAll = loadSql("select_all.sql");
-        this.sqlSelectByDate = loadSql("select_by_date.sql");
         this.sqlSelectRecordsByDate = loadSql("select_records_by_date.sql");
         this.sqlInsert = loadSql("insert.sql");
         this.sqlDeleteByDate = loadSql("delete_by_date.sql");
@@ -104,47 +100,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     }
 
     @Override
-    public List<Food> load() {
-        try {
-            return jdbcTemplate.query(sqlSelectAll, FoodRecordDAOSqlite::mapRow);
-        } catch (DataAccessException e) {
-            throw new SQLReadException("Failed to read food records", e);
-        }
-    }
-
-    @Override
-    public void save(List<Food> foods) {
-        // Append records without clearing existing data.
-        if (foods == null) {
-            return;
-        }
-        for (Food food : foods) {
-            if (food != null) {
-                insert(dateOf(food), food);
-            }
-        }
-    }
-
-    @Override
-    public List<Food> loadByDate(String date) {
-        requireDate(date);
-        try {
-            return jdbcTemplate.query(sqlSelectByDate, FoodRecordDAOSqlite::mapRow, date);
-        } catch (DataAccessException e) {
-            throw new SQLReadException("Failed to read food records by date", e);
-        }
-    }
-
-    @Override
-    public void saveByDate(String date, Food food) {
-        requireDate(date);
-        if (food == null) {
-            throw new IllegalArgumentException("Food must not be null");
-        }
-        insert(date, food);
-    }
-
-    @Override
     public List<FoodRecord> loadRecordsByDate(String date) {
         requireDate(date);
         try {
@@ -173,12 +128,21 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         }
     }
 
-    private void insert(String eatenDate, Food food) {
-        validateForInsert(eatenDate, food);
+    @Override
+    public long insert(Food food) {
+        if (food == null) {
+            throw new IllegalArgumentException("Food must not be null");
+        }
         GenericInfo info = food.genericInfo();
+        if (info == null) {
+            throw new SQLDataValidationException("Food record is missing genericInfo");
+        }
+        String eatenDate = info.date();
+        requireDate(eatenDate);
+        validateForInsert(eatenDate, food);
         MacroNutrients macros = food.macroNutrients();
         try {
-            jdbcTemplate.update(sqlInsert,
+            Long id = jdbcTemplate.queryForObject(sqlInsert, Long.class,
                     info.foodName(),
                     info.amount().toPlainString(),
                     info.unit(),
@@ -189,6 +153,11 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
                     macros.fiber().toPlainString(),
                     eatenDate,
                     LocalDateTime.now().toString());
+            if (id == null) {
+                throw new SQLPersistentException("Food insertion did not return an ID");
+            }
+            log.debug("Inserted food record with id={}", id);
+            return id;
         } catch (DataAccessException e) {
             throw new SQLPersistentException("Failed to save food records", e);
         }
@@ -197,9 +166,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private static void validateForInsert(String eatenDate, Food food) {
         GenericInfo info = food.genericInfo();
         MacroNutrients macros = food.macroNutrients();
-        if (info == null) {
-            throw new SQLDataValidationException("Food record is missing genericInfo");
-        }
         if (macros == null) {
             throw new SQLDataValidationException("Food record is missing macroNutrients");
         }
@@ -252,10 +218,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private static BigDecimal decimal(ResultSet rs, String column) throws SQLException {
         String value = rs.getString(column);
         return value == null ? BigDecimal.ZERO : new BigDecimal(value);
-    }
-
-    private static String dateOf(Food food) {
-        return food.genericInfo() == null ? null : food.genericInfo().date();
     }
 
     private static void requireDate(String date) {

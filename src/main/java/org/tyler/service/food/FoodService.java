@@ -29,22 +29,14 @@ public class FoodService implements IFoodService {
     }
 
     @Override
-    public List<Food> getFoodByDate(String date) {
-        requireDate(date);
-        return dao.loadByDate(date);
-    }
-
-    @Override
-    public Food saveFoodByDate(Food food) {
+    public FoodEntry insertFood(Food food) {
         if (food == null) {
             throw new IllegalArgumentException("Food must not be null");
         }
-        String date = dateOf(food);
-        requireDate(date);
-
-        dao.saveByDate(date, food);
-        log.info("Added food record for {}", date);
-        return food;
+        requireDate(dateOf(food));
+        long id = dao.insert(food);
+        log.info("Added food record with id={}", id);
+        return new FoodEntry(id, food);
     }
 
     @Override
@@ -55,36 +47,6 @@ public class FoodService implements IFoodService {
             log.info("Deleted food records for {}", date);
         }
         return removed;
-    }
-
-    @Override
-    public boolean deleteFoodFromDate(Food food, String date) {
-        requireDate(date);
-        if (food == null) {
-            throw new IllegalArgumentException("Food must not be null");
-        }
-        List<FoodRecord> records = dao.loadRecordsByDate(date);
-        for (FoodRecord record : records) {
-            if (food.equals(record.food())) {
-                boolean removed = dao.deleteById(record.id());
-                if (removed) {
-                    log.info("Deleted one food record for {}", date);
-                }
-                return removed;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public List<Food> getAllFoodRecords() {
-        List<Food> result = new ArrayList<>();
-        for (Food food : dao.load()) {
-            if (food != null) {
-                result.add(food);
-            }
-        }
-        return result;
     }
 
     @Override

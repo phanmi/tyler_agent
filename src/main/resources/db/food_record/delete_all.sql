@@ -1,1 +1,0 @@
-DELETE FROM food_record
