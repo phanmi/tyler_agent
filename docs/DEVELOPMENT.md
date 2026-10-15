@@ -4,7 +4,10 @@
 
 This page covers building, running, and maintaining Tyler. For the everyday app workflow, start with the [README](../README.md).
 
-For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
+For implementation and review conventions, use the applicable standards:
+
+- [Backend coding and design standards](BACKEND_STANDARDS.md)
+- [Frontend coding and design standards](FRONTEND_STANDARDS.md), including required AI implementation and review workflows
 
 ## Contents
 
@@ -280,6 +283,21 @@ npm run build
 ```
 
 Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover backend startup and release-version handling. TypeScript checking is a separate command because the Vite build does not run it.
+
+### Frontend verification baseline
+
+The [frontend standards](FRONTEND_STANDARDS.md) define the required checks. The following describes the tooling present when those standards were added (2026-10-15); update it when tooling changes.
+
+| Check | Current repository support |
+|---|---|
+| Strict type checking | Enabled in [tsconfig.json](../frontend/tsconfig.json); run `npx tsc --noEmit` with installed dependencies. CI does not currently run this command. |
+| Startup and version tests | `npm run test:startup` and `npm run test:version` run locally and in CI. They do not test rendered UI behavior. |
+| Production frontend build | `npm run build` runs Vite locally and in CI. It does not perform TypeScript type checking. |
+| Linting and formatting | No linter or formatter is configured. Their tools, rules, and scripts still need a focused setup change. |
+| Component and browser tests | No React component or browser end-to-end runner is configured. Behavior and race-condition tests need appropriate tooling. |
+| Packaged desktop smoke tests | No packaged-app smoke check is configured in CI. Desktop/release changes require recorded verification on the supported OS. |
+
+Use `npm ci` in `frontend/` to install the locked dependencies before checks. Follow-up tooling work must add the missing type-check/lint/test gates to [CI](../.github/workflows/ci.yml), establish the formatter, and configure required status checks in repository settings. Current CI passing does not establish compliance with all frontend standards. Record unavailable checks as unverified; do not invent `npm run lint` or `npm test` scripts. This documentation change does not install tooling or certify the existing UI against every rule.
 
 ## Release version and packaging
 
