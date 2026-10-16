@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-16):** Reviewed HEAD is `92290ae75b34ce8f74c08ad520e874d55e5e11b6` on `python-agenticfeature`, merging `main` at `428a81b` into the migration work at `b8355ac`. Steps 2 and 3 are complete; the application still runs the Java agent, with no Python worker or communication bridge. Continue Steps 4–6 from this merged architecture and the pending `AgentServiceTest` correction described below. The earlier checkout and test totals are historical execution evidence, not the current baseline.
+**Current state (refreshed 2026-10-16):** Reviewed committed HEAD is `4ee8cbe71c53a9991c4a8437dbfc83a992f2f2f5` on `python-agenticfeature`. It includes the merged architecture from `92290ae` and the committed `AgentServiceTest` correction. Steps 2 and 3 are complete; the application still runs the Java agent, with no Python worker or communication bridge. Continue Steps 4–6 from `4ee8cbe`; no separate test patch needs to be applied. Earlier checkout and local test observations are historical execution evidence.
 
 ## Current implementation baseline
 
@@ -16,17 +16,17 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | Workout and plan validation | [WorkoutValidator](../src/main/java/org/tyler/validation/WorkoutValidator.java) enforces workout rules through the workout service. [WorkoutPlanService](../src/main/java/org/tyler/service/workout/WorkoutPlanService.java) owns plan date/goal/equipment validation, including the seven-representable-days guard. [GenerateWorkoutPlanTool](../src/main/java/org/tyler/tool/workoutPlanTool/GenerateWorkoutPlanTool.java) checks JSON shape and passes missing/null text fields to the service. |
 | HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
-| CI | [CI workflow](../.github/workflows/ci.yml) runs Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. The review reports a 256-case backend CI run; that report is distinct from local verification below. |
-| Latest local backend verification | **261 tests passed**, zero failures/errors/skips, at 14:46:19 EDT on 2026-10-16. This is HEAD plus the pending agent-test correction: 35 agent cases and 14 client-factory cases are included. The correction replaces three outdated argument cases with eight shape/shared-service cases, accounting for the five-case increase from 256. |
+| CI | [CI workflow](../.github/workflows/ci.yml) runs Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. [Run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** for `4ee8cbe`, as reported in the review. This supersedes the earlier reported 256-case CI baseline. |
+| Earlier local backend verification | **261 tests passed**, zero failures/errors/skips, at 14:46:19 EDT on 2026-10-16 against `92290ae` plus the correction subsequently committed in `4ee8cbe`. That run included 35 agent cases and 14 client-factory cases. The correction replaced three outdated argument cases with eight shape/shared-service cases, accounting for the five-case increase from 256. This is separate evidence from the later CI run. |
 
-The only pre-existing working-tree change at this refresh was the `AgentServiceTest` correction from the preceding task; it remains uncommitted and is preserved. This refresh changes documentation only. Frontend suite presence and CI wiring were inspected, but frontend checks were not rerun locally. Step 1 remains partial until its remaining inventory and fresh frontend verification gates are satisfied.
+The working tree was clean before this documentation refresh. The agent-test correction is committed in `4ee8cbe`; there is no outstanding correction to preserve or locate. This refresh changes documentation only. Frontend suite presence and CI wiring were inspected during the earlier refresh, but frontend checks were not rerun locally. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied.
 
 ## Progress
 
 | Step | Work | Status | Completion evidence or remaining gate |
 |---|---|---|---|
-| 1 | Establish the migration baseline | Partially complete | Merged HEAD, pending test correction, shared validation, and frontend/CI configuration reconciled above. Finish the contract/startup inventory and fresh frontend checks. |
-| 2 | Characterize the Java agent | Complete | Current local run: 35 agent and 14 factory cases pass within 261 backend tests. Historical Step 2 results remain dated below. |
+| 1 | Establish the migration baseline | Partially complete | Committed HEAD `4ee8cbe`, included test correction, shared validation, and frontend/CI configuration reconciled above. Finish the contract/startup inventory and frontend verification evidence. |
+| 2 | Characterize the Java agent | Complete | CI run 38950225490 passes 261 backend tests on `4ee8cbe`. Earlier local verification includes 35 agent and 14 factory cases; historical results remain dated below. |
 | 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; 90 message fixtures, 24 framing fixtures, and 30 sequence scenarios. Static verification is recorded below; runtime conformance belongs to Step 4. |
 | 4 | Create and package the Python worker skeleton | Not started | Contract fixtures pass in both languages; a reproducible environment and packaged Windows worker complete a credential-free handshake. |
 | 5 | Implement Java worker lifecycle and adapter | Not started | Fake-worker tests prove request routing, callbacks, failures, and process cleanup. |
@@ -373,7 +373,7 @@ The Node audit scripts are temporary review helpers under ignored `target/`, not
 
 Inspected HEAD `92290ae`, its merge parents, frontend scripts/test layout/CI, shared service validators, plan date guard, and HTTP binding advice. Updated current-state facts and Step 1/6 instructions in this tracker and corrected the protocol's food/date/plan boundary descriptions. Earlier observations remain in the dated Step 2/3 records. The protocol wire shapes and fixtures are unchanged: malformed domain values still pass transport shape validation and are rejected by Java services.
 
-The preceding agent-test fix separates shape rejection from shared-service validation. Reproducing the old test gave one failure for `{}` because the service mock did not validate missing fields. The corrected agent/tool/plan suites passed 46 cases. A fresh full backend run against HEAD plus that pending fix then passed **261 tests**, zero failures/errors/skips; `BUILD SUCCESS` at 14:46:19 EDT. This supersedes the historical 153-case local baseline. The review's 256-case CI count is reported evidence, not a CI result fetched or rerun during this refresh.
+The agent-test fix separated shape rejection from shared-service validation. Reproducing the old test gave one failure for `{}` because the service mock did not validate missing fields. The corrected agent/tool/plan suites passed 46 cases. A full backend run against `92290ae` plus the then-uncommitted fix passed **261 tests**, zero failures/errors/skips; `BUILD SUCCESS` at 14:46:19 EDT. That fix was subsequently committed in `4ee8cbe`; this paragraph records the earlier local run, not an outstanding working-tree change. It superseded the historical 153-case local baseline. The earlier review's 256-case CI count was reported evidence, not a CI result fetched or rerun during that refresh.
 
 The full run used Java 26, the existing local Maven cache, forked compilation, and Mockito 5.23.0 as an explicit test JVM agent, matching the runner options documented above:
 
@@ -383,9 +383,15 @@ mvn -o "-Dmaven.repo.local=$testRepository" '-Dmaven.compiler.fork=true' "-DargL
 
 Initialize `$testRepository`, `$testJvmOptions`, and `MAVEN_OPTS` with the earlier reproducible PowerShell block. Output is locally recorded in ignored `target/agent-merged-baseline-test.log`; it is not durable committed evidence. Documentation checks verified 64 relative links/heading anchors and `git diff --check` passed. No frontend execution, remote CI retrieval, Python conformance, packaging, or new migration implementation is claimed.
 
+### 2026-10-16 Committed baseline and passing CI recorded
+
+Verified locally that HEAD is `4ee8cbe71c53a9991c4a8437dbfc83a992f2f2f5`, that the commit contains the `AgentServiceTest` correction, and that the working tree was clean before this documentation update. Updated the current-state block, progress table, next-step guidance, and protocol baseline reference accordingly.
+
+The review reports that [CI run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** on this committed revision. This is recorded separately from the 14:46:19 EDT local run above. The CI result was supplied by the reviewer; it was not independently fetched here because the local `gh` command is unavailable. No backend or frontend tests were rerun for this documentation-only correction. Relative links/anchors and diff whitespace were checked.
+
 ## Next work and decisions
 
-- Use merged HEAD `92290ae` and retain the pending agent-test fix; record its eventual commit and any later baseline changes. Finish Step 1's inventory and fresh frontend verification before runtime integration.
+- Use committed HEAD `4ee8cbe`, which already includes the agent-test correction; record any later baseline changes. Finish Step 1's inventory and frontend verification evidence before runtime integration.
 - Next unimplemented roadmap step: Step 4, the Python project, Java/Python fixture conformance, and packaging prototype.
 - Select Python version, dependency-lock tooling, and packaging approach during Step 4.
 - Decide whether to change round-limit/empty-reply behavior separately before asserting Python parity.

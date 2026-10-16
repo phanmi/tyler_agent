@@ -4,7 +4,7 @@
 
 This is the Step 3 contract for a Java-owned Python worker. It specifies messages and shared conformance fixtures; it does not implement a worker, bridge, codec, or process supervisor. Step 4 implements and tests codecs in both languages, Step 5 implements lifecycle, and Step 6 implements service handlers.
 
-Compatibility facts were refreshed against merged HEAD `92290ae` on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained only in dated execution records.
+The current committed compatibility baseline is `4ee8cbe`, including the merged architecture and agent-test correction, recorded on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained only in dated execution records.
 
 ## Contract artifacts and authority
 
