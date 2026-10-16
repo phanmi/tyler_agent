@@ -3,12 +3,13 @@ package org.tyler.service.food;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
 import org.tyler.model.food.FoodRecord;
 import org.tyler.validation.DomainValidation;
-import org.tyler.validation.FoodValidator;
+import org.tyler.validation.IValidator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +26,16 @@ public class FoodService implements IFoodService {
     private static final Logger log = LoggerFactory.getLogger(FoodService.class);
 
     private final IFoodRecordDAO dao;
+    private final IValidator<Food> validator;
 
-    public FoodService(IFoodRecordDAO dao) {
+    public FoodService(IFoodRecordDAO dao, @Qualifier("foodValidator") IValidator<Food> validator) {
         this.dao = dao;
+        this.validator = validator;
     }
 
     @Override
     public FoodEntry insertFood(Food food) {
-        FoodValidator.validate(food);
+        validator.validate(food);
         long id = dao.insert(food);
         log.info("Added food record with id={}", id);
         return new FoodEntry(id, food);

@@ -3,6 +3,8 @@ package org.tyler.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.WorkoutValidator;
+import org.tyler.validation.FoodValidator;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
@@ -48,8 +50,8 @@ class DomainValidationContractTest {
             """;
     private final IFoodRecordDAO foodDao = mock(IFoodRecordDAO.class);
     private final IWorkoutDAO workoutDao = mock(IWorkoutDAO.class);
-    private final FoodService foodService = new FoodService(foodDao);
-    private final WorkoutService workoutService = new WorkoutService(workoutDao);
+    private final FoodService foodService = new FoodService(foodDao, new FoodValidator());
+    private final WorkoutService workoutService = new WorkoutService(workoutDao, new WorkoutValidator());
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
     private final WorkoutPlanService planService = new WorkoutPlanService(workoutService, transactions);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new FoodController(foodService),

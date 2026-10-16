@@ -2,6 +2,7 @@ package org.tyler.service.food;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.FoodValidator;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
@@ -40,7 +41,7 @@ class FoodRecordSpringWiringTest {
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(FileSandbox.class, FoodDaoScan.class,
-                        FoodService.class, FoodController.class, RecordFoodTool.class)
+                        FoodValidator.class, FoodService.class, FoodController.class, RecordFoodTool.class)
                 .withPropertyValues("agent.workspace-dir=" + tempDir,
                         "food.database-path=food-record.sqlite");
     }

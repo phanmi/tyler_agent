@@ -1,13 +1,14 @@
 package org.tyler.validation;
 
+import org.springframework.stereotype.Component;
 import org.tyler.model.workout.Workout;
 
 /** Shared workout rules; the model retains its intrinsic sets/repetitions invariant. */
-public final class WorkoutValidator {
-    private WorkoutValidator() {
-    }
+@Component
+public final class WorkoutValidator implements IValidator<Workout> {
 
-    public static void validate(Workout workout) {
+    @Override
+    public void validate(Workout workout) {
         if (workout == null) {
             throw new IllegalArgumentException("Workout must not be null");
         }

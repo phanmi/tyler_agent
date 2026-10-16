@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.FoodValidator;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -86,7 +87,7 @@ class RecordFoodToolTest {
         String args = """
                 {"macroNutrients":{"protein":62,"carbs":0,"fat":7,"fiber":0}}
                 """;
-        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class))).execute(args));
+        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class), new FoodValidator())).execute(args));
     }
 
     @Test
@@ -97,7 +98,7 @@ class RecordFoodToolTest {
                   "macroNutrients": {"protein":62,"carbs":0,"fat":7,"fiber":0}
                 }
                 """;
-        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class))).execute(args));
+        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class), new FoodValidator())).execute(args));
     }
 
     @Test
@@ -113,7 +114,7 @@ class RecordFoodToolTest {
                   "macroNutrients": {"protein":1,"carbs":1,"fat":1,"fiber":1}
                 }
                 """;
-        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class))).execute(args));
+        assertThrows(IllegalArgumentException.class, () -> new RecordFoodTool(new FoodService(mock(IFoodRecordDAO.class), new FoodValidator())).execute(args));
     }
 
     @Test

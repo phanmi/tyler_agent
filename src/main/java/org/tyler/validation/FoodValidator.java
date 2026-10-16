@@ -1,15 +1,16 @@
 package org.tyler.validation;
 
+import org.springframework.stereotype.Component;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.GenericInfo;
 import org.tyler.model.food.MacroNutrients;
 
 /** Food insertion rules shared by all callers of the food service. */
-public final class FoodValidator {
-    private FoodValidator() {
-    }
+@Component
+public final class FoodValidator implements IValidator<Food> {
 
-    public static void validate(Food food) {
+    @Override
+    public void validate(Food food) {
         if (food == null) {
             throw new IllegalArgumentException("Food must not be null");
         }

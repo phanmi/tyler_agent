@@ -232,6 +232,20 @@ All food insertion callers use `FoodService`; HTTP food reads/deletes use that s
 
 Focused validators under `org.tyler.validation` apply these rules before storage access:
 
+`IValidator<T>` is the shared, stateless validation contract: `void validate(T value)` returns normally for valid input and throws `IllegalArgumentException` for invalid domain input. Validators must not mutate input or perform I/O. `FoodValidator` and `WorkoutValidator` are Spring components, injected into services as explicitly qualified `IValidator<Food>` and `IValidator<Workout>` dependencies. `DomainValidation` remains a utility for individual field checks and date parsing. Direct workout DAO calls retain the same validator implementation and persistence exception translation.
+
+For a future service with several validators for the **same input type**, Spring can inject a map keyed by bean name:
+
+```java
+private final Map<String, IValidator<Food>> validators;
+
+public ComplexFoodService(Map<String, IValidator<Food>> validators) {
+    this.validators = Map.copyOf(validators);
+}
+```
+
+The current food map contains `foodValidator`; a workout map contains `workoutValidator`. Select a required validator by an explicit key and fail clearly if it is absent; do not silently skip validation. If multiple rules must run in sequence, define that order explicitly rather than relying on map iteration. Use separate typed maps for different input types; `Map<String, IValidator<?>>` cannot safely validate arbitrary objects without recovering each validator's input type. No registry or map is needed in the current simple services.
+
 | Input | Domain rule |
 |---|---|
 | Food | Food, generic info, and macro nutrients are required. Name and unit must be nonblank; amount, calories, protein, carbs, fat, and fiber must be present and nonnegative. Zero and arbitrary decimal precision remain accepted; no new unit vocabulary or upper limits are imposed. |

@@ -12,6 +12,7 @@ import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.model.workout.Workout;
 import org.tyler.validation.WorkoutValidator;
+import org.tyler.validation.IValidator;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +31,8 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
 
     private static final Logger log = LoggerFactory.getLogger(WorkoutDAOSqlite.class);
     private static final String SQL_DIR = "db/workout_record/";
+    // Direct DAO callers receive the same integrity checks independently of service wiring.
+    private static final IValidator<Workout> VALIDATOR = new WorkoutValidator();
 
     private final JdbcTemplate jdbcTemplate;
     private final String sqlInsert;
@@ -159,7 +162,7 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
     /** Retain defensive validation for direct DAO callers without duplicating domain rules. */
     private static void validate(Workout workout) {
         try {
-            WorkoutValidator.validate(workout);
+            VALIDATOR.validate(workout);
         } catch (IllegalArgumentException e) {
             throw new SQLDataValidationException(e.getMessage(), e);
         }
