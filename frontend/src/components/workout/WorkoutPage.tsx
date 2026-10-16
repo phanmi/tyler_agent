@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { createWorkout, deleteWorkout, loadWorkoutPlan, loadWorkoutsByDate, updateWorkout } from '../../api'
-import type { Workout, WorkoutEntry, WorkoutPlan } from '../../types'
+import { loadWorkoutPlan } from '../../api'
+import type { WorkoutPlan } from '../../types'
 import ConfirmDialog from '../common/ConfirmDialog'
-
-function toDateString(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+import { toDateString, useWorkoutDay } from './useWorkoutDay'
 
 function weekStart(date: Date): string {
   const monday = new Date(date)
@@ -19,168 +12,40 @@ function weekStart(date: Date): string {
   return toDateString(monday)
 }
 
-interface WorkoutDraft {
-  workoutName: string
-  rep: string
-  weight: string
-}
-
-const EMPTY_DRAFT: WorkoutDraft = { workoutName: '', rep: '', weight: '0' }
-
 export default function WorkoutPage() {
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
-  const [workouts, setWorkouts] = useState<WorkoutEntry[]>([])
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [draft, setDraft] = useState<WorkoutDraft>(EMPTY_DRAFT)
-  const [pendingDelete, setPendingDelete] = useState<WorkoutEntry | null>(null)
-  const [plan, setPlan] = useState<WorkoutPlan | null>(null)
-  const [planLoading, setPlanLoading] = useState(false)
-  const [planError, setPlanError] = useState('')
+  const { selectedDate, dateLabel, chooseDate, workouts, loaded, loading, loadError, saving, error, notice,
+    draft, editingId, changeDraft, resetForm, edit, save, requestDelete, pendingDelete, confirmDelete,
+    cancelDelete, schedule, reload } = useWorkoutDay()
   const [goal, setGoal] = useState('general_fitness')
   const [equipment, setEquipment] = useState('bodyweight')
-  const requestId = useRef(0)
+  const [planState, setPlanState] = useState<{ key: string; plan: WorkoutPlan | null; loading: boolean; error: string }>({
+    key: '', plan: null, loading: true, error: '',
+  })
   const planRequestId = useRef(0)
-
-  const load = useCallback(async (date: Date) => {
-    const currentRequest = ++requestId.current
-    setLoading(true)
-    setError('')
-    try {
-      const entries = await loadWorkoutsByDate(toDateString(date))
-      if (currentRequest === requestId.current) setWorkouts(entries)
-    } catch (err) {
-      if (currentRequest === requestId.current) {
-        setWorkouts([])
-        setError(err instanceof Error ? err.message : 'Failed to load workouts')
-      }
-    } finally {
-      if (currentRequest === requestId.current) setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load(selectedDate)
-    return () => { requestId.current++ }
-  }, [selectedDate, load])
-
   const startDate = weekStart(selectedDate)
+  const planKey = JSON.stringify([startDate, goal, equipment])
+  const plan = planState.key === planKey ? planState.plan : null
+  const planLoading = planState.key !== planKey || planState.loading
+  const planError = planState.key === planKey ? planState.error : ''
+
   useEffect(() => {
     const currentRequest = ++planRequestId.current
-    setPlan(null)
-    setPlanLoading(true)
-    setPlanError('')
+    setPlanState({ key: planKey, plan: null, loading: true, error: '' })
     loadWorkoutPlan(startDate, goal, equipment)
       .then((result) => {
-        if (currentRequest === planRequestId.current) setPlan(result)
+        if (currentRequest === planRequestId.current) {
+          setPlanState({ key: planKey, plan: result, loading: false, error: '' })
+        }
       })
       .catch((err) => {
         if (currentRequest === planRequestId.current) {
-          setPlanError(err instanceof Error ? err.message : 'Failed to load workout plan')
+          setPlanState({ key: planKey, plan: null, loading: false,
+            error: err instanceof Error ? err.message : 'Failed to load workout plan' })
         }
       })
-      .finally(() => {
-        if (currentRequest === planRequestId.current) setPlanLoading(false)
-      })
     return () => { planRequestId.current++ }
-  }, [startDate, goal, equipment])
+  }, [startDate, goal, equipment, planKey])
 
-  const chooseDate = (date: Date) => {
-    setSelectedDate(date)
-    setEditingId(null)
-    setDraft(EMPTY_DRAFT)
-    setNotice('')
-  }
-
-  const edit = (entry: WorkoutEntry) => {
-    setEditingId(entry.id)
-    setDraft({
-      workoutName: entry.workout.workoutName,
-      rep: entry.workout.rep,
-      weight: String(entry.workout.weight),
-    })
-    setError('')
-    setNotice('')
-  }
-
-  const resetForm = () => {
-    setEditingId(null)
-    setDraft(EMPTY_DRAFT)
-  }
-
-  const save = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const workoutName = draft.workoutName.trim()
-    const weight = Number(draft.weight)
-    if (!workoutName || !/^[1-9]\d*X[1-9]\d*$/.test(draft.rep.trim()) ||
-        draft.weight.trim() === '' || !Number.isFinite(weight) || weight < 0) {
-      setError('Enter an exercise name, sets and reps like 4X12, and a nonnegative weight.')
-      return
-    }
-
-    const workout: Workout = {
-      workoutName,
-      rep: draft.rep.trim(),
-      weight,
-      workoutDate: toDateString(selectedDate),
-    }
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      if (editingId === null) {
-        await createWorkout(workout)
-      } else {
-        await updateWorkout(editingId, workout)
-      }
-      resetForm()
-      await load(selectedDate)
-      setNotice('Workout saved.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save workout')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const confirmDelete = async () => {
-    if (!pendingDelete) return
-    const entry = pendingDelete
-    setPendingDelete(null)
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      await deleteWorkout(entry.id)
-      if (editingId === entry.id) resetForm()
-      await load(selectedDate)
-      setNotice('Workout deleted.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete workout')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const schedule = async (suggestion: WorkoutPlan['days'][number]['workouts'][number]) => {
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      await createWorkout({ ...suggestion, weight: 0 })
-      await load(selectedDate)
-      setNotice('Exercise added to your calendar. Edit it to set your weight.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to schedule exercise')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const dateLabel = toDateString(selectedDate)
   const planDay = plan?.days.find((day) => day.date === dateLabel)
 
   return (
@@ -224,13 +89,20 @@ export default function WorkoutPage() {
         </header>
 
         {loading && <p className="food-loading">Loading...</p>}
+        {loadError && (
+          <div role="alert">
+            <p className="food-error">{loadError}</p>
+            {notice && <p>Changes were saved, but the list could not be refreshed.</p>}
+            <button type="button" onClick={() => void reload()} disabled={saving}>Retry loading exercises</button>
+          </div>
+        )}
         {error && <p className="food-error" role="alert">{error}</p>}
         {notice && <p className="userinfo-msg userinfo-msg--ok" role="status">{notice}</p>}
 
-        {!loading && workouts.length === 0 && (
+        {loaded && workouts.length === 0 && (
           <p className="food-empty">No saved exercises for this date.</p>
         )}
-        {!loading && workouts.length > 0 && (
+        {loaded && workouts.length > 0 && (
           <ul className="workout-list">
             {workouts.map((entry) => (
               <li className="workout-item" key={entry.id}>
@@ -243,7 +115,7 @@ export default function WorkoutPage() {
                 <div className="workout-item__actions">
                   <button type="button" onClick={() => edit(entry)} disabled={saving}>Edit</button>
                   <button type="button" className="workout-item__delete"
-                    onClick={() => setPendingDelete(entry)} disabled={saving}>Delete</button>
+                    onClick={() => requestDelete(entry)} disabled={saving}>Delete</button>
                 </div>
               </li>
             ))}
@@ -264,7 +136,7 @@ export default function WorkoutPage() {
               <p className="calendar-subtitle">{plan?.weightGuidance}</p>
               <ul className="workout-list">
                 {planDay.workouts.map((suggestion) => {
-                  const alreadySaved = workouts.some((entry) =>
+                  const alreadySaved = loaded && workouts.some((entry) =>
                     entry.workout.workoutName === suggestion.workoutName)
                   return (
                     <li className="workout-item" key={suggestion.workoutName}>
@@ -273,8 +145,8 @@ export default function WorkoutPage() {
                         <div className="workout-item__meta">{suggestion.rep}</div>
                       </div>
                       <button type="button" className="workout-suggestions__add"
-                        onClick={() => schedule(suggestion)} disabled={saving || alreadySaved}>
-                        {alreadySaved ? 'Scheduled' : 'Add to calendar'}
+                        onClick={() => schedule(suggestion)} disabled={saving || !loaded || alreadySaved}>
+                        {!loaded ? (loading ? 'Checking schedule...' : 'Schedule unavailable') : alreadySaved ? 'Scheduled' : 'Add to calendar'}
                       </button>
                     </li>
                   )
@@ -284,23 +156,24 @@ export default function WorkoutPage() {
           )}
         </div>
 
-        <form className="workout-form" onSubmit={save}>
+        <form className="workout-form" onSubmit={(event) => { event.preventDefault(); void save() }}>
           <h3>{editingId === null ? 'Add exercise' : 'Edit exercise'}</h3>
+          <p className="calendar-subtitle">Changing dates clears this form. Submitted changes continue for their original date.</p>
           <label>
             Exercise name
             <input value={draft.workoutName} onChange={(event) =>
-              setDraft({ ...draft, workoutName: event.target.value })} required />
+              changeDraft('workoutName', event.target.value)} required />
           </label>
           <div className="workout-form__row">
             <label>
               Sets and reps
               <input value={draft.rep} placeholder="4X12" onChange={(event) =>
-                setDraft({ ...draft, rep: event.target.value })} required />
+                changeDraft('rep', event.target.value)} required />
             </label>
             <label>
               Weight (0 for bodyweight or unset)
               <input type="number" min="0" step="any" value={draft.weight}
-                onChange={(event) => setDraft({ ...draft, weight: event.target.value })} required />
+                onChange={(event) => changeDraft('weight', event.target.value)} required />
             </label>
           </div>
           <div className="workout-form__actions">
@@ -309,7 +182,7 @@ export default function WorkoutPage() {
                 Cancel edit
               </button>
             )}
-            <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save exercise'}</button>
+            <button type="submit" disabled={saving || !loaded}>{saving ? 'Saving...' : 'Save exercise'}</button>
           </div>
         </form>
       </section>
@@ -317,11 +190,11 @@ export default function WorkoutPage() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete exercise"
-        message={`Delete ${pendingDelete?.workout.workoutName ?? 'this exercise'} from ${dateLabel}?`}
+        message={`Delete ${pendingDelete?.workout.workoutName ?? 'this exercise'} from ${pendingDelete?.workout.workoutDate ?? dateLabel}?`}
         confirmText="Delete"
         danger
         onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={cancelDelete}
       />
     </div>
   )
