@@ -8,8 +8,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Tests the three branches in {@link GenericExceptionHandler}:
+ * Tests direct validation and fallback responses in {@link GenericExceptionHandler}:
  * invalid arguments return 400, unexpected errors 500, and missing resources 404.
+ * Request binding is covered through MockMvc in {@link RequestBindingExceptionTest}.
  */
 class GenericExceptionHandlerTest {
 

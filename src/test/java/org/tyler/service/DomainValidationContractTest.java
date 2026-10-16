@@ -196,10 +196,13 @@ class DomainValidationContractTest {
         assertEquals(expected.getMessage(), assertThrowsExactly(IllegalArgumentException.class,
                 () -> new GenerateWorkoutPlanTool(planService).execute(json)).getMessage());
         // Required query-parameter absence is an HTTP binding error; supplied values reach the service.
-        if (date != null && goal != null && equipment != null) {
-            mvc.perform(get("/api/workouts/plan").param("startDate", date).param("goal", goal).param("equipment", equipment))
-                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value(expected.getMessage()));
-        }
+        var request = get("/api/workouts/plan");
+        if (date != null) request.param("startDate", date);
+        if (goal != null) request.param("goal", goal);
+        if (equipment != null) request.param("equipment", equipment);
+        String missing = date == null ? "startDate" : goal == null ? "goal" : equipment == null ? "equipment" : null;
+        mvc.perform(request).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error")
+                .value(missing == null ? expected.getMessage() : "Missing required parameter: " + missing));
         verifyNoInteractions(workoutDao, transactions);
     }
 
