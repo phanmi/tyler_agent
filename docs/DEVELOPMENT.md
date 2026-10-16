@@ -6,6 +6,8 @@ This page covers building, running, and maintaining Tyler. For the everyday app 
 
 For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
 
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines the planned private Java/Python communication and shared fixtures; runtime implementation is tracked separately.
+
 ## Contents
 
 - [Install prerequisites (Windows)](#install-prerequisites-windows)
@@ -280,6 +282,16 @@ npm run build
 ```
 
 Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover backend startup and release-version handling. TypeScript checking is a separate command because the Vite build does not run it.
+
+### Agent migration behavior baseline
+
+Run the agent characterization tests before changing its implementation:
+
+```powershell
+mvn "-Dtest=AgentServiceTest,OpenAIClientFactoryTest" test
+```
+
+The suites use deterministic provider mocks and synthetic credentials without network requests. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
 
 ## Release version and packaging
 
