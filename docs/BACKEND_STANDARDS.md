@@ -86,6 +86,8 @@ Apply the four object-oriented principles pragmatically:
 - Prefer records for immutable data carriers. A record containing a mutable collection still needs defensive copying where isolation matters.
 - Validate intrinsic invariants at construction when appropriate; validate request syntax at the boundary and persistence requirements before executing SQL.
 - Service entry points must also work correctly for tool callers. Do not rely solely on HTTP validation for business rules.
+- Put shared domain rules in the service or focused reusable validators invoked by it. Adapters parse transport shapes and types; they must not maintain competing required-value, range, or date rules. Preserve intrinsic model invariants and persistence-level defensive checks; reuse validators where these checks enforce the same rule.
+- Equivalent domain input must produce consistent validation errors before storage access, regardless of caller. Keep validation failures distinct from storage read/write failures. Document any newly rejected inputs and verify required fields, date validity, numeric boundaries, and identifiers with parameterized tests through real service entry points.
 - Use precise decimal representations for quantities that require exact arithmetic. Preserve the storage precision and format; avoid conversion through floating-point types that lose precision.
 - Define and preserve accepted formats, units, ranges, and normalization rules in each data contract.
 - Keep invalid input, missing records, and infrastructure failure distinct.

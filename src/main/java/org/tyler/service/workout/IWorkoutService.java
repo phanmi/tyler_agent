@@ -6,7 +6,13 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
-/** Contract for creating, reading, updating, and deleting workouts. */
+/**
+ * Contract for creating, reading, updating, and deleting workouts.
+ * Invalid domain input raises {@link IllegalArgumentException} before storage access.
+ * Writes require a nonblank name, nonnegative weight and a real ISO date; the model
+ * enforces positive sets/repetitions. IDs must be positive; valid missing IDs retain
+ * the absence result. Storage exceptions propagate unchanged.
+ */
 public interface IWorkoutService {
 
     long saveWorkout(Workout workout);

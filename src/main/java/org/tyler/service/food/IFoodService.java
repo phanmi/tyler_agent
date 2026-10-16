@@ -4,7 +4,12 @@ import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
 import java.util.List;
 
-/** Food use cases with stable persisted identity and calendar response DTOs. */
+/**
+ * Food use cases with stable persisted identity and calendar response DTOs.
+ * Invalid domain input raises {@link IllegalArgumentException} before storage access:
+ * required food fields must be present, numbers nonnegative, dates real ISO calendar dates,
+ * and IDs positive. Storage exceptions propagate unchanged.
+ */
 public interface IFoodService {
     /** Appends one entry using its embedded date and returns its generated ID and food value. */
     FoodEntry insertFood(Food food);
