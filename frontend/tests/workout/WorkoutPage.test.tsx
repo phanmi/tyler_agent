@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import * as api from '../../api'
-import WorkoutPage from './WorkoutPage'
+import * as api from '../../src/api'
+import WorkoutPage from '../../src/components/workout/WorkoutPage'
 import { A, B, dateA, dateB, deferred, entry, plan, setupApi, suggestion } from './workoutTestSupport'
-import type { WorkoutPlan } from '../../types'
+import type { WorkoutPlan } from '../../src/types'
 
-vi.mock('../../api')
+vi.mock('../../src/api')
 // Calendar's date selection is the only third-party UI boundary replaced in these workflow tests.
 vi.mock('react-calendar', () => ({
   default: ({ onChange }: { onChange: (date: Date) => void }) => (

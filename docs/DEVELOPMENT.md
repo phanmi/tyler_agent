@@ -148,8 +148,12 @@ tyler_agent/
 │  └─ db/                         # Food and workout SQL files
 ├─ src/test/java/org/tyler/        # Backend tests
 ├─ frontend/
-│  ├─ electron/                   # Main process, preload bridge, startup tests
+│  ├─ electron/                   # Production main process, preload bridge, backend startup
 │  ├─ scripts/                    # Development and version synchronization
+│  ├─ tests/                      # All frontend tests and test-only helpers/fixtures
+│  │  ├─ workout/                 # Component/hook tests and workout test helpers
+│  │  ├─ electron/                # Node tests for backend startup
+│  │  └─ scripts/                 # Node tests for release-version handling
 │  ├─ src/components/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
 │  │  ├─ food/                   # FoodCalendar
@@ -306,6 +310,16 @@ CORS allows the Electron file origin (`null`) for `/api/**` without credentials.
 The launcher searches for Java in packaged runtime locations, `resources/runtime/bin/java.exe`, `JAVA_HOME`, the user's `.jdks` directory, and finally `PATH`. Set `BACKEND_JAR_PATH` to override the backend JAR location.
 
 ## Testing
+
+### Required frontend test location
+
+**Put every frontend test and test-only helper, mock, or fixture in `frontend/tests/`. Do not mix test files into production folders (`frontend/src/`, `frontend/electron/`, or `frontend/scripts/`) or the frontend root.** This requirement applies to human contributors and AI coding agents; see [FE-11 in the frontend standards](FRONTEND_STANDARDS.md#fe-11--testing).
+
+Group files by feature or runtime: workout component/hook tests and their helpers belong in `tests/workout/`, startup tests in `tests/electron/`, and version-script tests in `tests/scripts/`. Tests import production modules from their original locations. Shared test helpers can live in `tests/helpers/` when needed; production code must never import them.
+
+Vitest discovers `tests/**/*.test.ts` and `tests/**/*.test.tsx`. The Node test scripts target `tests/electron/backend-process.test.cjs` and `tests/scripts/release-version.test.cjs`. TypeScript checks both `src/` and `tests/`. When moving or adding tests, keep these configurations aligned so CI continues to execute and type-check them.
+
+### Commands
 
 From the repository root:
 

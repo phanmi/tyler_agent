@@ -1,7 +1,7 @@
 import { act } from '@testing-library/react'
 import { vi } from 'vitest'
-import * as api from '../../api'
-import type { Workout, WorkoutEntry, WorkoutPlan } from '../../types'
+import * as api from '../../src/api'
+import type { Workout, WorkoutEntry, WorkoutPlan } from '../../src/types'
 
 export const A = '2026-10-16'
 export const B = '2026-10-17'

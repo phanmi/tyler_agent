@@ -1,11 +1,11 @@
 import { StrictMode } from 'react'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as api from '../../api'
-import { useWorkoutDay } from './useWorkoutDay'
+import * as api from '../../src/api'
+import { useWorkoutDay } from '../../src/components/workout/useWorkoutDay'
 import { A, B, dateA, dateB, entry, setupApi, suggestion } from './workoutTestSupport'
 
-vi.mock('../../api')
+vi.mock('../../src/api')
 let requests: ReturnType<typeof setupApi>
 beforeEach(() => { requests = setupApi() })
 afterEach(() => { cleanup(); vi.useRealTimers() })
