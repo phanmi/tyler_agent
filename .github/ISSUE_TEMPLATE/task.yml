@@ -39,6 +39,15 @@ body:
         - label: I understand that all backend implementation for this task must comply with the backend coding and design standards.
           required: true
 
+  - type: checkboxes
+    id: frontend_standards
+    attributes:
+      label: Frontend standards
+      description: Frontend changes must comply with docs/FRONTEND_STANDARDS.md.
+      options:
+        - label: I understand that all frontend implementation for this task must comply with the frontend coding and design standards.
+          required: true
+
   - type: textarea
     id: context
     attributes:

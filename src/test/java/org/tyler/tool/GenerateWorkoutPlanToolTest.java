@@ -29,8 +29,8 @@ class GenerateWorkoutPlanToolTest {
     }
 
     @Test
-    void rejectsMalformedAndMissingArgumentsBeforeCallingService() {
-        for (String args : List.of("not-json", "[]", "null", "{}", "{\"startDate\":4}", ARGS.replace("strength", " "))) {
+    void rejectsMalformedArgumentShapesBeforeCallingService() {
+        for (String args : List.of("not-json", "[]", "null", "{\"startDate\":4}")) {
             assertThrows(IllegalArgumentException.class, () -> tool.execute(args));
         }
         verifyNoInteractions(service);

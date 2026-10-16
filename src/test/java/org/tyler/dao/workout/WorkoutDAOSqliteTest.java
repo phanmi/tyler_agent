@@ -2,9 +2,12 @@ package org.tyler.dao.workout;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.dao.DataAccessException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
+import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.model.workout.Workout;
@@ -15,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,6 +27,30 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** Verifies date-scoped reads and exception conversion against temporary SQLite storage. */
 class WorkoutDAOSqliteTest {
+
+    static Stream<Workout> invalidWrites() {
+        return Stream.of(null,
+                new Workout(null, "4X12", BigDecimal.ZERO, "2026-10-16"),
+                new Workout(" ", "4X12", BigDecimal.ZERO, "2026-10-16"),
+                new Workout("Squat", "4X12", null, "2026-10-16"),
+                new Workout("Squat", "4X12", new BigDecimal("-0.01"), "2026-10-16"),
+                new Workout("Squat", "4X12", BigDecimal.ZERO, null),
+                new Workout("Squat", "4X12", BigDecimal.ZERO, "2026-02-30"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidWrites")
+    void directWritesRetainDefensiveValidationAndPreserveExistingRows(Workout invalid) throws IOException {
+        WorkoutDAOSqlite dao = newDao();
+        Workout saved = new Workout("Squat", "4X12", BigDecimal.ZERO, "2026-10-16");
+        long id = dao.insert(saved);
+        var before = dao.selectAll();
+        assertInstanceOf(IllegalArgumentException.class,
+                assertThrows(SQLDataValidationException.class, () -> dao.insert(invalid)).getCause());
+        assertInstanceOf(IllegalArgumentException.class,
+                assertThrows(SQLDataValidationException.class, () -> dao.update(id, invalid)).getCause());
+        assertEquals(before, dao.selectAll());
+    }
 
     private static final String DB_FILE = "workout-record.sqlite";
 

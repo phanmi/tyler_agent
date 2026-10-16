@@ -1,11 +1,11 @@
 package org.tyler.service.workout;
 
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.WorkoutValidator;
 import org.junit.jupiter.api.io.TempDir;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.dao.workout.IWorkoutDAO;
 import org.tyler.exceptionHandler.exception.SQLReadException;
-import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.model.workout.Workout;
@@ -37,7 +37,7 @@ class WorkoutServiceTest {
 
     private WorkoutService newService() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        return new WorkoutService(new WorkoutDAOSqlite(new WorkoutDatabaseConfig().workoutJdbcTemplate(new WorkoutDatabaseConfig().workoutDataSource(sandbox, "workout-record.sqlite"))));
+        return new WorkoutService(new WorkoutDAOSqlite(new WorkoutDatabaseConfig().workoutJdbcTemplate(new WorkoutDatabaseConfig().workoutDataSource(sandbox, "workout-record.sqlite"))), new WorkoutValidator());
     }
 
     private static Workout workout(String name, String rep, String weight, String date) {
@@ -47,7 +47,7 @@ class WorkoutServiceTest {
     @Test
     void dateScopedReadUsesOnlyTheDateQueryAndPreservesItsResult() {
         IWorkoutDAO dao = mock(IWorkoutDAO.class);
-        WorkoutService service = new WorkoutService(dao);
+        WorkoutService service = new WorkoutService(dao, new WorkoutValidator());
         LocalDate date = LocalDate.of(2026, 9, 26);
         Map<Long, Workout> records = new LinkedHashMap<>();
         records.put(7L, workout("Squat", "4X12", "20", date.toString()));
@@ -61,7 +61,7 @@ class WorkoutServiceTest {
     @Test
     void dateScopedReadPreservesEmptyResultsAndReadFailures() {
         IWorkoutDAO dao = mock(IWorkoutDAO.class);
-        WorkoutService service = new WorkoutService(dao);
+        WorkoutService service = new WorkoutService(dao, new WorkoutValidator());
         LocalDate date = LocalDate.of(2026, 9, 26);
         SQLReadException failure = new SQLReadException("Read failed");
         when(dao.selectByDate(date)).thenReturn(Map.of()).thenThrow(failure);
@@ -75,7 +75,7 @@ class WorkoutServiceTest {
     @Test
     void dateScopedReadRejectsNullBeforeCallingDao() {
         IWorkoutDAO dao = mock(IWorkoutDAO.class);
-        WorkoutService service = new WorkoutService(dao);
+        WorkoutService service = new WorkoutService(dao, new WorkoutValidator());
         assertEquals("date must not be null",
                 assertThrows(IllegalArgumentException.class, () -> service.getWorkoutsByDate(null)).getMessage());
         verifyNoInteractions(dao);
@@ -132,14 +132,14 @@ class WorkoutServiceTest {
         Workout original = workout("Squat", "4X12", "20", "2026-09-26");
         long id = service.saveWorkout(original);
 
-        assertThrows(SQLDataValidationException.class, () -> service.updateWorkout(id, null));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class, () -> service.updateWorkout(id, null));
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout(" ", "4X12", "20", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, new Workout("Squat", "4X12", null, "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout("Squat", "4X12", "-1", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout("Squat", "4X12", "20", "2026-02-30")));
 
         assertEquals(Map.of(id, original), service.getAllWorkouts());
@@ -151,14 +151,14 @@ class WorkoutServiceTest {
         assertTrue(service.getAllWorkouts().isEmpty());
         assertTrue(service.getWorkoutById(9999).isEmpty());
 
-        assertThrows(SQLDataValidationException.class, () -> service.saveWorkout(null));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class, () -> service.saveWorkout(null));
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout(" ", "4X12", "20", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(new Workout("Squat", "4X12", null, "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout("Squat", "4X12", "-1", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout("Squat", "4X12", "20", "2026-02-30")));
         assertThrows(IllegalArgumentException.class,
                 () -> workout("Squat", "4x12", "20", "2026-09-26"));

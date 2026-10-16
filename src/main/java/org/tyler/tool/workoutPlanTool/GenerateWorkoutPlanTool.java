@@ -54,8 +54,8 @@ public class GenerateWorkoutPlanTool implements ITool {
             throw new IllegalArgumentException("Workout plan arguments must be a JSON object");
         }
 
-        WorkoutPlan savedPlan = planService.generateAndSave(requiredText(arguments, "startDate"),
-                requiredText(arguments, "goal"), requiredText(arguments, "equipment"));
+        WorkoutPlan savedPlan = planService.generateAndSave(textArgument(arguments, "startDate"),
+                textArgument(arguments, "goal"), textArgument(arguments, "equipment"));
 
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(savedPlan);
@@ -64,10 +64,14 @@ public class GenerateWorkoutPlanTool implements ITool {
         }
     }
 
-    private static String requiredText(JsonNode arguments, String field) {
+    // Shape belongs to the adapter; missing/blank values belong to shared service validation.
+    private static String textArgument(JsonNode arguments, String field) {
         JsonNode value = arguments.get(field);
-        if (value == null || !value.isTextual() || value.asText().isBlank()) {
-            throw new IllegalArgumentException("Missing or invalid field: " + field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (!value.isTextual()) {
+            throw new IllegalArgumentException("Field " + field + " must be a string");
         }
         return value.asText();
     }

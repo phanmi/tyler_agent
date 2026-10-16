@@ -1,6 +1,7 @@
 package org.tyler.service.food;
 
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.FoodValidator;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
@@ -18,7 +19,7 @@ import static org.mockito.Mockito.*;
 /** Verifies identity-preserving DTO mapping, validation, and exception propagation. */
 class FoodServiceTest {
     private final IFoodRecordDAO dao = mock(IFoodRecordDAO.class);
-    private final FoodService service = new FoodService(dao);
+    private final FoodService service = new FoodService(dao, new FoodValidator());
     private static Food food(String date) {
         return new Food(new GenericInfo("Apple", BigDecimal.ONE, "piece", BigDecimal.TEN, date),
                 new MacroNutrients(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE));

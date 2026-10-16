@@ -1,6 +1,7 @@
 package org.tyler.service.workout;
 
 import org.junit.jupiter.api.Test;
+import org.tyler.validation.WorkoutValidator;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -28,7 +29,7 @@ class WorkoutPlanServiceTest {
 
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner().withUserConfiguration(FileSandbox.class,
-                WorkoutDatabaseConfig.class, WorkoutDAOSqlite.class, WorkoutService.class, WorkoutPlanService.class)
+                WorkoutDatabaseConfig.class, WorkoutDAOSqlite.class, WorkoutValidator.class, WorkoutService.class, WorkoutPlanService.class)
                 .withPropertyValues("agent.workspace-dir=" + tempDir, "workout.database-path=plans.sqlite");
     }
 

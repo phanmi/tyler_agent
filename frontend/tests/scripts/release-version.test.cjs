@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { readReleaseVersion, syncFrontendVersion } = require('./release-version.cjs')
+const { readReleaseVersion, syncFrontendVersion } = require('../../scripts/release-version.cjs')
 
 function fixture(t, revision = '1.2.3-rc.1') {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tyler-version-test-'))

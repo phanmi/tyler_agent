@@ -11,6 +11,8 @@ import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.model.workout.Workout;
+import org.tyler.validation.WorkoutValidator;
+import org.tyler.validation.IValidator;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +31,8 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
 
     private static final Logger log = LoggerFactory.getLogger(WorkoutDAOSqlite.class);
     private static final String SQL_DIR = "db/workout_record/";
+    // Direct DAO callers receive the same integrity checks independently of service wiring.
+    private static final IValidator<Workout> VALIDATOR = new WorkoutValidator();
 
     private final JdbcTemplate jdbcTemplate;
     private final String sqlInsert;
@@ -156,23 +159,12 @@ public class WorkoutDAOSqlite implements IWorkoutDAO {
         }
     }
 
+    /** Retain defensive validation for direct DAO callers without duplicating domain rules. */
     private static void validate(Workout workout) {
-        if (workout == null) {
-            throw new SQLDataValidationException("Workout must not be null");
-        }
-        if (workout.workoutName() == null || workout.workoutName().isBlank()) {
-            throw new SQLDataValidationException("Workout name must not be blank");
-        }
-        if (workout.weight() == null || workout.weight().signum() < 0) {
-            throw new SQLDataValidationException("Workout weight must be nonnegative");
-        }
         try {
-            if (workout.workoutDate() == null) {
-                throw new DateTimeParseException("missing date", "", 0);
-            }
-            LocalDate.parse(workout.workoutDate());
-        } catch (DateTimeParseException e) {
-            throw new SQLDataValidationException("Workout date must use the YYYY-MM-DD format");
+            VALIDATOR.validate(workout);
+        } catch (IllegalArgumentException e) {
+            throw new SQLDataValidationException(e.getMessage(), e);
         }
     }
 }

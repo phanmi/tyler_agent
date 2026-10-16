@@ -15,9 +15,9 @@ import org.tyler.model.workout.Workout;
 import org.tyler.service.workout.IWorkoutService;
 import org.tyler.service.workout.IWorkoutPlanService;
 import org.tyler.model.workout.WorkoutPlan;
+import org.tyler.validation.DomainValidation;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /** Parses calendar request dates, maps HTTP responses, and delegates persistence to the service. */
@@ -43,12 +43,7 @@ public class WorkoutController implements IWorkoutController {
     @Override
     @GetMapping
     public List<WorkoutEntry> workoutsByDate(@RequestParam("date") String date) {
-        LocalDate parsedDate;
-        try {
-            parsedDate = LocalDate.parse(date);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("date must use the format YYYY-MM-DD", e);
-        }
+        LocalDate parsedDate = DomainValidation.parseDate(date, "date");
         return workoutService.getWorkoutsByDate(parsedDate).entrySet().stream()
                 .map(entry -> new WorkoutEntry(entry.getKey(), entry.getValue()))
                 .toList();

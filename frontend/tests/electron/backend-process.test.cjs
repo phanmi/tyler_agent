@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { startBackendProcess } = require('./backend-process.cjs')
+const { startBackendProcess } = require('../../electron/backend-process.cjs')
 
 test('uses only the nonce-matched port reported by its child', async () => {
     const script = [
