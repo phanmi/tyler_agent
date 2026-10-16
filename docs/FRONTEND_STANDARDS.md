@@ -109,6 +109,12 @@ Rules describe responsibilities and observable behavior without assigning them t
 
 ## FE-11 — Testing
 
+**All frontend test files MUST live in the dedicated `frontend/tests/` directory.** This includes component/hook tests, Electron tests, script tests, and test-only helpers, mocks, and fixtures. Do not colocate them with production files in `frontend/src/`, `frontend/electron/`, or `frontend/scripts/`, or scatter them in the frontend root. AI agents must follow this placement rule when adding or moving tests.
+
+- Organize tests by feature or runtime under `tests/`, such as `tests/workout/`, `tests/electron/`, and `tests/scripts/`. Keep feature-specific helpers with their tests; place broadly shared helpers in `tests/helpers/` when needed.
+- Use `*.test.ts` / `*.test.tsx` for Vitest tests and `*.test.cjs` for Node's test runner. Import production code from its source location; production code must not import test-only modules.
+- Keep test discovery, npm scripts, and TypeScript configuration aligned when moving tests. Type checking must include TypeScript tests and helpers as well as application code. The production build must not import or bundle test modules.
+
 Test observable contracts with deterministic inputs and controlled async completion. Avoid assertions tied only to implementation structure, arbitrary sleeps, live credentials, or real user data.
 
 | Area | Required coverage when affected |
@@ -173,6 +179,7 @@ Test observable contracts with deterministic inputs and controlled async complet
 - [ ] Privileged boundaries, content rendering, and sensitive data remain protected.
 - [ ] Comments and diagnostics match the final behavior; meaningful error paths have coverage.
 - [ ] Required checks and any verification gaps are reported accurately.
+- [ ] All test files, fixtures, and test-only helpers are under `frontend/tests/`; discovery and type checking include the moved or added tests.
 
 ## Future additions and exceptions
 

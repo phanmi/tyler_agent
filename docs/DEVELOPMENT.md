@@ -148,8 +148,12 @@ tyler_agent/
 │  └─ db/                         # Food and workout SQL files
 ├─ src/test/java/org/tyler/        # Backend tests
 ├─ frontend/
-│  ├─ electron/                   # Main process, preload bridge, startup tests
+│  ├─ electron/                   # Production main process, preload bridge, backend startup
 │  ├─ scripts/                    # Development and version synchronization
+│  ├─ tests/                      # All frontend tests and test-only helpers/fixtures
+│  │  ├─ workout/                 # Component/hook tests and workout test helpers
+│  │  ├─ electron/                # Node tests for backend startup
+│  │  └─ scripts/                 # Node tests for release-version handling
 │  ├─ src/components/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
 │  │  ├─ food/                   # FoodCalendar
@@ -166,6 +170,10 @@ tyler_agent/
 ```
 
 `App` owns navigation between Chat, Workouts, and Settings. Chat includes the collapsible food calendar. `WorkoutPage` owns date selection, plan previews, and the saved-exercise editor. `api.ts` handles HTTP requests. Electron uses a preload bridge for the backend address and custom window controls, with context isolation enabled and renderer Node integration disabled.
+
+The workout page delegates selected-day reads, drafts, and writes to `useWorkoutDay`. Each read belongs to a date, visit, and request ID. Each write captures its ID/date/payload and draft revision, with a per-date submission lock held through refresh. Switching dates clears the unsaved form and closes confirmations; submitted writes continue against their original date. New typing during a save is preserved. If a new-record save succeeds while its draft is still being edited, that draft adopts the returned ID so the next save updates the same record. An old completion cannot reset another date's form, feedback, or pending state. Revisiting a date reads fresh data; finishing a pending write on the revisited date refreshes it without restoring old feedback.
+
+Suggestion availability is unknown until the selected date's saved records load successfully. Failed loads show a retry action rather than an empty-list success, and scheduling/submission remains disabled until confirmed data is available. A successful write followed by a failed refresh is reported separately, with retry refreshing the list rather than repeating the write. Existing exercise-name matching and backend duplicate policy are unchanged.
 
 CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; `theme.css` supplies base and component styles; `layout.css` arranges the application shell; `chat.css` and `workout.css` style their respective pages.
 
@@ -303,6 +311,16 @@ The launcher searches for Java in packaged runtime locations, `resources/runtime
 
 ## Testing
 
+### Required frontend test location
+
+**Put every frontend test and test-only helper, mock, or fixture in `frontend/tests/`. Do not mix test files into production folders (`frontend/src/`, `frontend/electron/`, or `frontend/scripts/`) or the frontend root.** This requirement applies to human contributors and AI coding agents; see [FE-11 in the frontend standards](FRONTEND_STANDARDS.md#fe-11--testing).
+
+Group files by feature or runtime: workout component/hook tests and their helpers belong in `tests/workout/`, startup tests in `tests/electron/`, and version-script tests in `tests/scripts/`. Tests import production modules from their original locations. Shared test helpers can live in `tests/helpers/` when needed; production code must never import them.
+
+Vitest discovers `tests/**/*.test.ts` and `tests/**/*.test.tsx`. The Node test scripts target `tests/electron/backend-process.test.cjs` and `tests/scripts/release-version.test.cjs`. TypeScript checks both `src/` and `tests/`. When moving or adding tests, keep these configurations aligned so CI continues to execute and type-check them.
+
+### Commands
+
 From the repository root:
 
 ```powershell
@@ -314,7 +332,8 @@ From `frontend/`:
 ```powershell
 npm run test:startup
 npm run test:version
-npx tsc --noEmit
+npm run typecheck
+npm run test:ui
 npm run build
 ```
 
@@ -322,18 +341,18 @@ Backend tests cover controllers, services, tools, file access, and database oper
 
 ### Frontend verification baseline
 
-The [frontend standards](FRONTEND_STANDARDS.md) define the required checks. The following describes the tooling present when those standards were added (2026-10-15); update it when tooling changes.
+The [frontend standards](FRONTEND_STANDARDS.md) define the required checks. The following describes the current tooling; update it when tooling changes.
 
 | Check | Current repository support |
 |---|---|
-| Strict type checking | Enabled in [tsconfig.json](../frontend/tsconfig.json); run `npx tsc --noEmit` with installed dependencies. CI does not currently run this command. |
+| Strict type checking | Enabled in [tsconfig.json](../frontend/tsconfig.json); `npm run typecheck` runs locally and in CI, including the TypeScript UI tests. |
 | Startup and version tests | `npm run test:startup` and `npm run test:version` run locally and in CI. They do not test rendered UI behavior. |
 | Production frontend build | `npm run build` runs Vite locally and in CI. It does not perform TypeScript type checking. |
 | Linting and formatting | No linter or formatter is configured. Their tools, rules, and scripts still need a focused setup change. |
-| Component and browser tests | No React component or browser end-to-end runner is configured. Behavior and race-condition tests need appropriate tooling. |
+| Component and hook tests | `npm run test:ui` runs Vitest with React Testing Library and jsdom locally and in CI. Workout tests control read/write completion order, navigation, draft revisions, refresh failures, duplicate submission, and unmount. Calendar selection and HTTP calls are mocked; no browser end-to-end runner is configured. |
 | Packaged desktop smoke tests | No packaged-app smoke check is configured in CI. Desktop/release changes require recorded verification on the supported OS. |
 
-Use `npm ci` in `frontend/` to install the locked dependencies before checks. Follow-up tooling work must add the missing type-check/lint/test gates to [CI](../.github/workflows/ci.yml), establish the formatter, and configure required status checks in repository settings. Current CI passing does not establish compliance with all frontend standards. Record unavailable checks as unverified; do not invent `npm run lint` or `npm test` scripts. This documentation change does not install tooling or certify the existing UI against every rule.
+Use `npm ci` in `frontend/` to install the locked dependencies before checks. [CI](../.github/workflows/ci.yml) runs the type checker and UI tests in addition to startup/version tests and the build. Follow-up tooling work still needs linting, an agreed formatter, browser end-to-end coverage, and required status checks in repository settings. Current CI passing does not establish compliance with all frontend standards. Record unavailable checks as unverified; there is no `npm run lint` or `npm test` script.
 
 ## Release version and packaging
 
