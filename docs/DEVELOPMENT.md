@@ -4,10 +4,9 @@
 
 This page covers building, running, and maintaining Tyler. For the everyday app workflow, start with the [README](../README.md).
 
-For implementation and review conventions, use the applicable standards:
+For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
 
-- [Backend coding and design standards](BACKEND_STANDARDS.md)
-- [Frontend coding and design standards](FRONTEND_STANDARDS.md), including required AI implementation and review workflows
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines the planned private Java/Python communication and shared fixtures; runtime implementation is tracked separately.
 
 ## Contents
 
@@ -148,12 +147,8 @@ tyler_agent/
 │  └─ db/                         # Food and workout SQL files
 ├─ src/test/java/org/tyler/        # Backend tests
 ├─ frontend/
-│  ├─ electron/                   # Production main process, preload bridge, backend startup
+│  ├─ electron/                   # Main process, preload bridge, startup tests
 │  ├─ scripts/                    # Development and version synchronization
-│  ├─ tests/                      # All frontend tests and test-only helpers/fixtures
-│  │  ├─ workout/                 # Component/hook tests and workout test helpers
-│  │  ├─ electron/                # Node tests for backend startup
-│  │  └─ scripts/                 # Node tests for release-version handling
 │  ├─ src/components/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
 │  │  ├─ food/                   # FoodCalendar
@@ -170,10 +165,6 @@ tyler_agent/
 ```
 
 `App` owns navigation between Chat, Workouts, and Settings. Chat includes the collapsible food calendar. `WorkoutPage` owns date selection, plan previews, and the saved-exercise editor. `api.ts` handles HTTP requests. Electron uses a preload bridge for the backend address and custom window controls, with context isolation enabled and renderer Node integration disabled.
-
-The workout page delegates selected-day reads, drafts, and writes to `useWorkoutDay`. Each read belongs to a date, visit, and request ID. Each write captures its ID/date/payload and draft revision, with a per-date submission lock held through refresh. Switching dates clears the unsaved form and closes confirmations; submitted writes continue against their original date. New typing during a save is preserved. If a new-record save succeeds while its draft is still being edited, that draft adopts the returned ID so the next save updates the same record. An old completion cannot reset another date's form, feedback, or pending state. Revisiting a date reads fresh data; finishing a pending write on the revisited date refreshes it without restoring old feedback.
-
-Suggestion availability is unknown until the selected date's saved records load successfully. Failed loads show a retry action rather than an empty-list success, and scheduling/submission remains disabled until confirmed data is available. A successful write followed by a failed refresh is reported separately, with retry refreshing the list rather than repeating the write. Existing exercise-name matching and backend duplicate policy are unchanged.
 
 CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; `theme.css` supplies base and component styles; `layout.css` arranges the application shell; `chat.css` and `workout.css` style their respective pages.
 
@@ -234,42 +225,6 @@ Saved workout responses wrap the record as `{ "id": 7, "workout": { ... } }`. Re
 
 The workout date endpoint parses the requested date in the controller and passes a `LocalDate` through the service to the DAO. The DAO selects that date's records using a bound SQL parameter, ordered by ascending record ID; the controller maps them to the existing response shape. A valid date without records returns `[]`. Blank or malformed dates return HTTP 400 with a date-format error. Internal date-scoped service and DAO calls reject null dates. The all-records operation remains available for callers that need it.
 
-### Shared domain validation
-
-All food insertion callers use `FoodService`; HTTP food reads/deletes use that same service. There is no food HTTP insertion route, so this change does not add one. Workout HTTP CRUD uses `WorkoutService`; the plan Tool and HTTP preview share `WorkoutPlanService`, whose saves pass through `WorkoutService` inside the existing database transaction.
-
-Focused validators under `org.tyler.validation` apply these rules before storage access:
-
-`IValidator<T>` is the shared, stateless validation contract: `void validate(T value)` returns normally for valid input and throws `IllegalArgumentException` for invalid domain input. Validators must not mutate input or perform I/O. `FoodValidator` and `WorkoutValidator` are Spring components, injected into services as explicitly qualified `IValidator<Food>` and `IValidator<Workout>` dependencies. `DomainValidation` remains a utility for individual field checks and date parsing. Direct workout DAO calls retain the same validator implementation and persistence exception translation.
-
-For a future service with several validators for the **same input type**, Spring can inject a map keyed by bean name:
-
-```java
-private final Map<String, IValidator<Food>> validators;
-
-public ComplexFoodService(Map<String, IValidator<Food>> validators) {
-    this.validators = Map.copyOf(validators);
-}
-```
-
-The current food map contains `foodValidator`; a workout map contains `workoutValidator`. Select a required validator by an explicit key and fail clearly if it is absent; do not silently skip validation. If multiple rules must run in sequence, define that order explicitly rather than relying on map iteration. Use separate typed maps for different input types; `Map<String, IValidator<?>>` cannot safely validate arbitrary objects without recovering each validator's input type. No registry or map is needed in the current simple services.
-
-| Input | Domain rule |
-|---|---|
-| Food | Food, generic info, and macro nutrients are required. Name and unit must be nonblank; amount, calories, protein, carbs, fat, and fiber must be present and nonnegative. Zero and arbitrary decimal precision remain accepted; no new unit vocabulary or upper limits are imposed. |
-| Workout | Workout and nonblank name are required; weight must be present and nonnegative. Zero remains valid for generated plans. The model retains its existing positive `setsXrepetitions` invariant. |
-| Dates | Insertion dates, food lookup/deletion dates, and plan dates must parse as real ISO calendar dates using `LocalDate.parse`. No whitespace trimming or timezone conversion is performed. Existing Java ISO extended-year support remains accepted. Workout query strings use the same parser before passing `LocalDate` to the service. |
-| Plan options | Existing supported goal/equipment values are unchanged. Preview and save validate the same inputs; the start date must leave room for all seven days within `LocalDate`'s range. Preview remains read-only. |
-| IDs | Service record IDs must be positive. Valid but absent IDs keep the existing empty/false/404 behavior appropriate to each endpoint. |
-
-Domain failures use `IllegalArgumentException` and map to HTTP 400 with the existing `error` response field. Tools propagate the same service exceptions and messages for equivalent domain input. Malformed JSON, incompatible types, and missing required HTTP query parameters remain adapter binding errors (also HTTP 400); their parsing messages need not match domain messages. `GenericExceptionHandler` explicitly maps missing required parameters (`MissingServletRequestParameterException`) and argument conversion failures (`MethodArgumentTypeMismatchException`), including nonnumeric and overflowing record IDs, to HTTP 400 before services are invoked. MockMvc tests exercise these binding failures through the actual routes. Required-value validation for parsed plan arguments now belongs to the plan service.
-
-Actual database read and write failures remain `SQLReadException` and `SQLPersistentException`, with HTTP 500 handling. DAO defensive validation remains: food checks required persistence fields, and workout reuses the shared validator while preserving `SQLDataValidationException` for direct DAO callers. That exception is an argument-validation subtype, not a storage outage. SQL `NOT NULL` constraints, the workout model invariant, and real transaction rollback remain intact.
-
-**Compatibility decision:** Food domain dates previously only needed to be nonblank; malformed or impossible dates are now rejected for writes, lookup, and date deletion. Negative food values previously passed direct service calls but were rejected by the Tool; all service callers now follow the nonnegative rule. Nonpositive food deletion IDs now produce HTTP 400 instead of an absent-record result. Workout service validation now reports a domain exception before the DAO rather than relying on a SQL-named validation subtype. Plan dates too near the maximum calendar date now give a client validation error instead of overflowing during generation. No existing records are rewritten or deleted; legacy records can still be deleted by a positive ID, and direct DAO reads retain their compatibility behavior. Repairing legacy malformed dates is a separate data-maintenance task.
-
-Parameterized contract tests use real services behind the adapters and assert that invalid input never reaches persistence. DAO tests independently verify defensive checks and unchanged rows after rejection; the existing plan integration tests continue to verify real atomic rollback.
-
 ## Configuration and data storage
 
 Defaults are in [application.yml](../src/main/resources/application.yml). The workspace defaults to `{user.home}/AppData/Local/tyler_agent`; set `AGENT_WORKSPACE_DIR` to choose another directory. Data paths below are relative to that workspace.
@@ -297,7 +252,7 @@ Logging is configured in [logback-spring.xml](../src/main/resources/logback-spri
 
 ### Food persistence decision
 
-The in-memory food decorator was removed because no measured performance need justified maintaining a second state store. In the checkout reviewed for this change it was selected as the primary DAO, and its bulk-save cache replacement conflicted with the database append contract. All food reads now query SQLite, including reads with record IDs, and successful ID/date deletions are immediately visible through every read path. The wiring test scans the food DAO package, asserts exactly one implementation, and verifies that the service receives that same instance. Persisted food entries are addressed by stable IDs. The DAO exposes single-record insertion, ID-bearing date lookup, ID deletion, and date deletion. Insertion always appends and returns the generated ID; equal food values remain separate records. The embedded food date is the only insertion date source, so a second date argument cannot disagree. Service dates follow the shared domain validation rules above; the DAO retains its persistence-level presence checks. The service returns an ID-bearing entry, while the recording tool deliberately serializes only its food value to preserve its external response. The calendar retains its ID-bearing API DTO. Unused list-style reads, bulk saving, and structural-equality deletion were removed after a caller inventory found only test callers for those redundant operations. No schema migration or stored-data rewrite is needed.
+The in-memory food decorator was removed because no measured performance need justified maintaining a second state store. In the checkout reviewed for this change it was selected as the primary DAO, and its bulk-save cache replacement conflicted with the database append contract. All food reads now query SQLite, including reads with record IDs, and successful ID/date deletions are immediately visible through every read path. The wiring test scans the food DAO package, asserts exactly one implementation, and verifies that the service receives that same instance. Persisted food entries are addressed by stable IDs. The DAO exposes single-record insertion, ID-bearing date lookup, ID deletion, and date deletion. Insertion always appends and returns the generated ID; equal food values remain separate records. The embedded food date is the only insertion date source, so a second date argument cannot disagree. Date validation retains the existing nonblank requirement. The service returns an ID-bearing entry, while the recording tool deliberately serializes only its food value to preserve its external response. The calendar retains its ID-bearing API DTO. Unused list-style reads, bulk saving, and structural-equality deletion were removed after a caller inventory found only test callers for those redundant operations. No schema migration or stored-data rewrite is needed.
 
 ## Networking and desktop startup
 
@@ -311,16 +266,6 @@ The launcher searches for Java in packaged runtime locations, `resources/runtime
 
 ## Testing
 
-### Required frontend test location
-
-**Put every frontend test and test-only helper, mock, or fixture in `frontend/tests/`. Do not mix test files into production folders (`frontend/src/`, `frontend/electron/`, or `frontend/scripts/`) or the frontend root.** This requirement applies to human contributors and AI coding agents; see [FE-11 in the frontend standards](FRONTEND_STANDARDS.md#fe-11--testing).
-
-Group files by feature or runtime: workout component/hook tests and their helpers belong in `tests/workout/`, startup tests in `tests/electron/`, and version-script tests in `tests/scripts/`. Tests import production modules from their original locations. Shared test helpers can live in `tests/helpers/` when needed; production code must never import them.
-
-Vitest discovers `tests/**/*.test.ts` and `tests/**/*.test.tsx`. The Node test scripts target `tests/electron/backend-process.test.cjs` and `tests/scripts/release-version.test.cjs`. TypeScript checks both `src/` and `tests/`. When moving or adding tests, keep these configurations aligned so CI continues to execute and type-check them.
-
-### Commands
-
 From the repository root:
 
 ```powershell
@@ -332,27 +277,21 @@ From `frontend/`:
 ```powershell
 npm run test:startup
 npm run test:version
-npm run typecheck
-npm run test:ui
+npx tsc --noEmit
 npm run build
 ```
 
 Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover backend startup and release-version handling. TypeScript checking is a separate command because the Vite build does not run it.
 
-### Frontend verification baseline
+### Agent migration behavior baseline
 
-The [frontend standards](FRONTEND_STANDARDS.md) define the required checks. The following describes the current tooling; update it when tooling changes.
+Run the agent characterization tests before changing its implementation:
 
-| Check | Current repository support |
-|---|---|
-| Strict type checking | Enabled in [tsconfig.json](../frontend/tsconfig.json); `npm run typecheck` runs locally and in CI, including the TypeScript UI tests. |
-| Startup and version tests | `npm run test:startup` and `npm run test:version` run locally and in CI. They do not test rendered UI behavior. |
-| Production frontend build | `npm run build` runs Vite locally and in CI. It does not perform TypeScript type checking. |
-| Linting and formatting | No linter or formatter is configured. Their tools, rules, and scripts still need a focused setup change. |
-| Component and hook tests | `npm run test:ui` runs Vitest with React Testing Library and jsdom locally and in CI. Workout tests control read/write completion order, navigation, draft revisions, refresh failures, duplicate submission, and unmount. Calendar selection and HTTP calls are mocked; no browser end-to-end runner is configured. |
-| Packaged desktop smoke tests | No packaged-app smoke check is configured in CI. Desktop/release changes require recorded verification on the supported OS. |
+```powershell
+mvn "-Dtest=AgentServiceTest,OpenAIClientFactoryTest" test
+```
 
-Use `npm ci` in `frontend/` to install the locked dependencies before checks. [CI](../.github/workflows/ci.yml) runs the type checker and UI tests in addition to startup/version tests and the build. Follow-up tooling work still needs linting, an agreed formatter, browser end-to-end coverage, and required status checks in repository settings. Current CI passing does not establish compliance with all frontend standards. Record unavailable checks as unverified; there is no `npm run lint` or `npm test` script.
+The suites use deterministic provider mocks and synthetic credentials without network requests. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
 
 ## Release version and packaging
 

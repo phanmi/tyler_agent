@@ -1,0 +1,2340 @@
+{
+  "protocolVersion": 1,
+  "cases": [
+    {
+      "id": "ready",
+      "description": "Worker handshake uses the process session and no request ID.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "ready",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": null,
+        "payload": {
+          "workerVersion": "0.3.0"
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "run",
+      "description": "A request snapshot contains normalized history and a conspicuously synthetic credential.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "completed",
+      "description": "Successful response preserves its text.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "Your plan is saved."
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_provider",
+      "description": "Provider failure preserves the existing failure category.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "provider",
+            "code": "PROVIDER_FAILURE",
+            "message": "Provider request failed",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_cancelled",
+      "description": "Cancellation is a terminal failure, not a rollback claim.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "cancelled",
+            "code": "REQUEST_CANCELLED",
+            "message": "Request cancelled",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_timeout",
+      "description": "A deadline can expire while a dispatched write remains unresolved.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "timeout",
+            "code": "DEADLINE_EXCEEDED",
+            "message": "Request deadline exceeded",
+            "writeOutcome": "unknown"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "cancel",
+      "description": "Cancel identifies the active request.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "cancel",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reason": "user_cancelled"
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "shutdown",
+      "description": "Shutdown has no request ID.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "shutdown",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": null,
+        "payload": {
+          "reason": "application_exit"
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_request",
+      "description": "Food insertion preserves decimal strings and date text.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_result",
+      "description": "Successful insertion returns the generated ID separately from the food.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "42",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_request",
+      "description": "Plan generation and saving remain one Java service operation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "input": {
+            "startDate": "2026-10-16",
+            "goal": "strength",
+            "equipment": "gym"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_result",
+      "description": "A seven-day plan preserves null activities, empty workout arrays and decimal weights.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "outcome": "success",
+          "result": {
+            "plan": {
+              "startDate": "2026-10-16",
+              "goal": "strength",
+              "equipment": "gym",
+              "weightGuidance": "Choose a weight appropriate to your ability.",
+              "days": [
+                {
+                  "date": "2026-10-16",
+                  "focus": "Strength",
+                  "workouts": [
+                    {
+                      "workoutName": "Squat",
+                      "rep": "4X12",
+                      "workoutDate": "2026-10-16",
+                      "weight": "0.00"
+                    }
+                  ],
+                  "activity": null,
+                  "durationMinutes": 0
+                },
+                {
+                  "date": "2026-10-17",
+                  "focus": "Recovery",
+                  "workouts": [],
+                  "activity": "Walk",
+                  "durationMinutes": 30
+                },
+                {
+                  "date": "2026-10-18",
+                  "focus": "Strength",
+                  "workouts": [
+                    {
+                      "workoutName": "Squat",
+                      "rep": "4X12",
+                      "workoutDate": "2026-10-18",
+                      "weight": "0.00"
+                    }
+                  ],
+                  "activity": null,
+                  "durationMinutes": 0
+                },
+                {
+                  "date": "2026-10-19",
+                  "focus": "Recovery",
+                  "workouts": [],
+                  "activity": "Walk",
+                  "durationMinutes": 30
+                },
+                {
+                  "date": "2026-10-20",
+                  "focus": "Strength",
+                  "workouts": [
+                    {
+                      "workoutName": "Squat",
+                      "rep": "4X12",
+                      "workoutDate": "2026-10-20",
+                      "weight": "0.00"
+                    }
+                  ],
+                  "activity": null,
+                  "durationMinutes": 0
+                },
+                {
+                  "date": "2026-10-21",
+                  "focus": "Recovery",
+                  "workouts": [],
+                  "activity": "Walk",
+                  "durationMinutes": 30
+                },
+                {
+                  "date": "2026-10-22",
+                  "focus": "Strength",
+                  "workouts": [
+                    {
+                      "workoutName": "Squat",
+                      "rep": "4X12",
+                      "workoutDate": "2026-10-22",
+                      "weight": "0.00"
+                    }
+                  ],
+                  "activity": null,
+                  "durationMinutes": 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "profile_request",
+      "description": "Profile reads require an explicitly empty input object.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "user_info.read",
+          "input": {}
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "profile_result",
+      "description": "Profile fields preserve the existing stored JSON capitalization.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "user_info.read",
+          "outcome": "success",
+          "result": {
+            "profile": {
+              "User": {
+                "Name": "Test User",
+                "Gender": "Unspecified",
+                "Age": "30.0",
+                "JobType": "Office"
+              },
+              "Other": {
+                "Info": "Synthetic fixture profile",
+                "expectationFromLLM": "Help track meals and workouts"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "file_read_request",
+      "description": "The Python adapter sends the parsed sandbox-relative path.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "input": {
+            "path": "notes/session.txt"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "file_read_result",
+      "description": "File content is returned without an additional JSON-string encoding layer.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "success",
+          "result": {
+            "content": "Café 💪\nLine two\twith a tab\r\nFinal line"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "file_write_request",
+      "description": "File writing preserves embedded Unicode and newlines.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.write",
+          "input": {
+            "path": "notes/session.txt",
+            "content": "Café 💪\nLine two\twith a tab\r\nFinal line"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "file_write_result",
+      "description": "The requested path is retained for the legacy tool reply.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.write",
+          "outcome": "success",
+          "result": {
+            "path": "notes/session.txt"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "time_request",
+      "description": "Time lookup has no arguments.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "time.current",
+          "input": {}
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "time_result",
+      "description": "Time text retains the Java server-local representation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "time.current",
+          "outcome": "success",
+          "result": {
+            "text": "2026-10-16 12:34:56 EDT"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "operation_failure",
+      "description": "A failed service operation carries an error and no result.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "failure",
+          "error": {
+            "category": "validation",
+            "code": "INVALID_ARGUMENT",
+            "message": "Food amount must not be negative",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_validation",
+      "description": "The designated validation subtype remains identifiable.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "validation",
+            "code": "SQL_DATA_VALIDATION",
+            "message": "Food record is missing genericInfo",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_authentication",
+      "description": "Authentication failures retain their established safe message.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "authentication",
+            "code": "PROVIDER_AUTH",
+            "message": "This API key is invalid or unavailable",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_storage",
+      "description": "A later read failure does not erase a previously committed write.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "storage",
+            "code": "SQL_READ",
+            "message": "Database read failed",
+            "writeOutcome": "committed"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_worker",
+      "description": "Unknown tools are worker failures rather than domain validation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "worker",
+            "code": "UNKNOWN_TOOL",
+            "message": "Unknown tool",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "failed_protocol",
+      "description": "A correlated active protocol failure has an allowlisted diagnostic code.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "protocol",
+            "code": "INVALID_SEQUENCE",
+            "message": "Invalid message sequence",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "completed_empty",
+      "description": "The characterized agent baseline permits an empty reply.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": ""
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "run_empty_message",
+      "description": "The transport preserves empty message strings without imposing HTTP validation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "",
+          "history": [],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "profile_null_components",
+      "description": "Nullable profile components remain explicit nulls.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "user_info.read",
+          "outcome": "success",
+          "result": {
+            "profile": {
+              "User": null,
+              "Other": null
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "profile_null_fields",
+      "description": "Nullable profile fields are distinct from omitted fields.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "user_info.read",
+          "outcome": "success",
+          "result": {
+            "profile": {
+              "User": {
+                "Name": null,
+                "Gender": null,
+                "Age": null,
+                "JobType": null
+              },
+              "Other": {
+                "Info": null,
+                "expectationFromLLM": null
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_exact_decimals",
+      "description": "Large exact decimals, trailing zeros, exponent spelling and negative zero survive transport.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "9007199254740993.123456789012345678900",
+                "unit": "g",
+                "calories": "1.2300e+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "-0.00"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_id_long_max",
+      "description": "The largest positive signed Java long is an exact string.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "9223372036854775807",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_expanded_date",
+      "description": "Expanded ISO years remain strings for Java service interpretation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "input": {
+            "startDate": "+10000-01-01",
+            "goal": "strength",
+            "equipment": "gym"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_null_components",
+      "description": "Missing domain components represented as null pass transport and reach domain validation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": null,
+              "macroNutrients": null
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_null_fields",
+      "description": "Null required domain values pass shape validation without being silently defaulted.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": null,
+                "amount": null,
+                "unit": null,
+                "calories": null,
+                "date": null
+              },
+              "macroNutrients": {
+                "protein": null,
+                "carbs": null,
+                "fat": null,
+                "fiber": null
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_null_fields",
+      "description": "Null plan arguments are domain inputs rather than malformed protocol.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "input": {
+            "startDate": null,
+            "goal": null,
+            "equipment": null
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_malformed_date",
+      "description": "An impossible calendar date reaches the shared date validator.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "input": {
+            "startDate": "2026-02-30",
+            "goal": "strength",
+            "equipment": "gym"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "plan_unsupported_goal",
+      "description": "Unsupported domain enum text is not a protocol enum failure.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "workout_plan.generate_save",
+          "input": {
+            "startDate": "2026-10-16",
+            "goal": "unsupported",
+            "equipment": "gym"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_negative_values",
+      "description": "Negative quantities and nutrition remain domain-invalid but transport-valid.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "-1",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "-0.01",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_id_overflow",
+      "description": "Nineteen digits satisfy shape but exceed the signed Java long maximum.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "9223372036854775808",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "run_operation_timeout_exceeds_run",
+      "description": "The operation timeout must not exceed the total run timeout.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 1000,
+          "operationTimeoutMs": 1001
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "run_blank_model",
+      "description": "A whitespace-only model passes shape but fails semantic validation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": " \t ",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "run_blank_key",
+      "description": "A whitespace-only credential arriving on the wire is a sender defect.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": " \t ",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "food_unrepresentable_decimal",
+      "description": "A lexical decimal with an unsupported Java BigDecimal exponent fails semantic validation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "1E+2147483648",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "invalid_version",
+      "description": "An explicitly incompatible version is rejected before other shape checks.",
+      "message": {
+        "protocolVersion": 2,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "invalid_version_type",
+      "description": "A string protocol version is not integer version 1.",
+      "message": {
+        "protocolVersion": "1",
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "invalid_unknown_envelope_field",
+      "description": "Unknown top-level fields are not ignored.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x"
+        },
+        "extra": true
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_unknown_payload_field",
+      "description": "Unknown payload fields are not ignored.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x",
+          "extra": true
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_missing_envelope_field",
+      "description": "Every envelope field is required.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_null_envelope",
+      "description": "The message must be an object.",
+      "message": null,
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_array_envelope",
+      "description": "An array cannot contain a message in place of its envelope.",
+      "message": [
+        {
+          "protocolVersion": 1,
+          "type": "completed",
+          "sessionId": "0123456789abcdef0123456789abcdef",
+          "requestId": "req-1",
+          "payload": {
+            "reply": "x"
+          }
+        }
+      ],
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_null_payload",
+      "description": "Payload cannot be null.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": null
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_null_session",
+      "description": "A session identifier cannot be null.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": null,
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_session_format",
+      "description": "Session identifiers are exactly 32 lowercase hexadecimal characters.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789ABCDEF0123456789ABCDEF",
+        "requestId": "req-1",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_ready_request_id",
+      "description": "Readiness must have a null request ID.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "ready",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "workerVersion": "0.3.0"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_run_null_request_id",
+      "description": "A run requires its correlation ID.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": null,
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_correlation_id",
+      "description": "Correlation IDs must start with an ASCII letter or digit.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "-request",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_correlation_length",
+      "description": "Correlation IDs are bounded at 128 characters.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "completed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "payload": {
+          "reply": "x"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_unknown_type",
+      "description": "Unknown message types require a new protocol version.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "heartbeat",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {}
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_unknown_operation",
+      "description": "Unknown commands never reach the operation dispatcher.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "sql.execute",
+          "input": {}
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "UNKNOWN_OPERATION"
+      }
+    },
+    {
+      "id": "invalid_missing_operation_input",
+      "description": "Input is required even for operations with no arguments.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "time.current"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_noarg_input_field",
+      "description": "No-argument operations reject unexpected transport fields.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "time.current",
+          "input": {
+            "ignored": true
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_result_operation_shape",
+      "description": "Result shape must match its operation.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "success",
+          "result": {
+            "path": "notes/session.txt"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_result_and_error",
+      "description": "A result cannot claim both success and failure.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "success",
+          "result": {
+            "content": "x"
+          },
+          "error": {
+            "category": "storage",
+            "code": "FILE_READ",
+            "message": "Read failed",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_success_missing_result",
+      "description": "A successful operation requires its typed result.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "success"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_failure_missing_error",
+      "description": "A failed operation requires its classified error.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "failure"
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_failure_with_result",
+      "description": "A failure cannot also contain a success result.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "file.read",
+          "outcome": "failure",
+          "result": {
+            "content": "x"
+          },
+          "error": {
+            "category": "storage",
+            "code": "FILE_READ",
+            "message": "Read failed",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_category_code_pair",
+      "description": "Error codes are restricted to their documented category.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "storage",
+            "code": "INVALID_ARGUMENT",
+            "message": "Wrong category",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_unknown_error_code",
+      "description": "Arbitrary exception names are not protocol codes.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "worker",
+            "code": "RuntimeException",
+            "message": "Unexpected failure",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_empty_error_message",
+      "description": "Diagnostic failure messages cannot be empty.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "provider",
+            "code": "PROVIDER_FAILURE",
+            "message": "",
+            "writeOutcome": "none"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_unknown_error_field",
+      "description": "Errors do not carry serialized exception objects or stack traces.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "provider",
+            "code": "PROVIDER_FAILURE",
+            "message": "Provider failed",
+            "writeOutcome": "none",
+            "stackTrace": "synthetic stack"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_write_outcome",
+      "description": "Write outcome must use an explicit supported uncertainty state.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "failed",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "error": {
+            "category": "provider",
+            "code": "PROVIDER_FAILURE",
+            "message": "Provider failed",
+            "writeOutcome": "rolled_back"
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_numeric_decimal",
+      "description": "Decimal transport values must be strings, never JSON numbers.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": 1.25,
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_decimal_nan",
+      "description": "Nonfinite numeric spellings are not decimal strings.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "NaN",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_decimal_leading_zero",
+      "description": "Decimal strings follow JSON numeric lexical rules.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "01.2",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_decimal_plus",
+      "description": "A leading plus sign is not permitted.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "+1.2",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_decimal_exponent",
+      "description": "An exponent requires digits.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "1E",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_numeric_id",
+      "description": "Record IDs use exact strings rather than JSON numbers.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": 42,
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_zero_id",
+      "description": "Generated record IDs must be positive.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "0",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_signed_id",
+      "description": "Generated record IDs cannot be signed.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "-1",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_leading_zero_id",
+      "description": "Generated record IDs have no leading zeros.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "042",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_id_digit_count",
+      "description": "Record IDs cannot exceed nineteen digits.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "10000000000000000000",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_missing_nullable_field",
+      "description": "A nullable field must still be present in the transport.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "3.8900E+2"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_profile_field_case",
+      "description": "Profile field names preserve their established capitalization.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "user_info.read",
+          "outcome": "success",
+          "result": {
+            "profile": {
+              "user": null,
+              "Other": null
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_history_role",
+      "description": "Provider-only roles are not persisted history roles.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "system",
+              "content": "unexpected"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_empty_key",
+      "description": "A missing credential is not encoded as an empty string.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_tool_rounds",
+      "description": "The migration retains the characterized five-round limit.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 6,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_timeout_lower_bound",
+      "description": "Run timeouts must be at least one second.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 999,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_timeout_upper_bound",
+      "description": "Run timeouts cannot exceed one hour.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 3600001,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_fractional_timeout",
+      "description": "Timeouts are integer milliseconds.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 1000.5,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    }
+  ]
+}

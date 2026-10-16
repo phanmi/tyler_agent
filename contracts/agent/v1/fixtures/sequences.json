@@ -1,0 +1,1483 @@
+{
+  "protocolVersion": 1,
+  "cases": [
+    {
+      "id": "plain_reply",
+      "description": "History settles before the next chat may start.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "success",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sequential_tools",
+      "description": "Each operation is dispatched once and resolved before the next; writes survive completion.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "food_result",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "writeOutcome": "committed"
+          }
+        },
+        {
+          "ref": "time_request",
+          "from": "python",
+          "set": {
+            "/payload/operationId": "op-2"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "time.current"
+          }
+        },
+        {
+          "ref": "time_result",
+          "from": "java",
+          "set": {
+            "/payload/operationId": "op-2"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "success",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_before_ready",
+      "description": "A run cannot start before compatible readiness.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING",
+            "dispatchCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_ready",
+      "description": "Readiness is accepted once.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "second_active_run",
+      "description": "The Java queue must not send overlapping runs.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/requestId": "req-2"
+          },
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reused_request_id",
+      "description": "A previously completed request ID cannot execute again.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "success",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "reject",
+            "reason": "DUPLICATE_MESSAGE",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_operation_request",
+      "description": "Repeated operation IDs do not re-execute a write.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "food_result",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "writeOutcome": "committed"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "reject",
+            "reason": "DUPLICATE_MESSAGE",
+            "state": "STOPPING",
+            "dispatchCount": 1,
+            "writeOutcome": "committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "second_pending_operation",
+      "description": "Calls in a provider batch must be serialized.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "file_write_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "file.write",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "set": {
+            "/payload/operationId": "op-2"
+          },
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING",
+            "dispatchCount": 1,
+            "writeOutcome": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "id": "wrong_operation_result",
+      "description": "An active result must match the pending operation ID.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "time_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "time.current"
+          }
+        },
+        {
+          "ref": "time_result",
+          "from": "java",
+          "set": {
+            "/payload/operationId": "op-wrong"
+          },
+          "expected": {
+            "action": "reject",
+            "reason": "OPERATION_NOT_PENDING",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "wrong_operation_name",
+      "description": "A matching operation ID does not permit a different operation result.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "file_read_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "file.read"
+          }
+        },
+        {
+          "ref": "time_result",
+          "from": "java",
+          "expected": {
+            "action": "reject",
+            "reason": "OPERATION_NOT_PENDING",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_operation_result",
+      "description": "An already-resolved operation is never applied twice.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "time_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "time.current"
+          }
+        },
+        {
+          "ref": "time_result",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "time_result",
+          "from": "java",
+          "expected": {
+            "action": "reject",
+            "reason": "DUPLICATE_MESSAGE",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "completed_with_pending_operation",
+      "description": "A worker cannot complete while waiting for a Java service.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING",
+            "historyAppend": 0,
+            "writeOutcome": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "id": "operation_failure",
+      "description": "A service failure aborts the agent; no successful exchange is appended.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "operation_failure",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "writeOutcome": "none",
+            "failedOperation": true
+          }
+        },
+        {
+          "ref": "failed_provider",
+          "from": "python",
+          "set": {
+            "/payload/error/category": "validation",
+            "/payload/error/code": "INVALID_ARGUMENT",
+            "/payload/error/message": "Food amount must not be negative"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "historyAppend": 0,
+            "writeOutcome": "none",
+            "httpStatus": 400
+          }
+        }
+      ]
+    },
+    {
+      "id": "complete_after_operation_failure",
+      "description": "A failed operation cannot be relabeled a successful chat.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert"
+          }
+        },
+        {
+          "ref": "operation_failure",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "failedOperation": true,
+            "writeOutcome": "none"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING",
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wrong_direction",
+      "description": "Shape-valid messages in the wrong direction do not execute.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "java",
+          "expected": {
+            "action": "reject",
+            "reason": "WRONG_DIRECTION",
+            "state": "STOPPING",
+            "dispatchCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wrong_session",
+      "description": "A prior process generation cannot affect this worker.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "set": {
+            "/sessionId": "ffffffffffffffffffffffffffffffff"
+          },
+          "expected": {
+            "action": "reject",
+            "reason": "SESSION_MISMATCH",
+            "state": "STOPPING",
+            "dispatchCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "stale_operation",
+      "description": "A late well-formed request from an inactive chat is ignored before dispatch.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "success",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/requestId": "req-2"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "ignore",
+            "reason": "REQUEST_NOT_ACTIVE",
+            "state": "RUNNING",
+            "activeRequestId": "req-2",
+            "dispatchCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_terminal",
+      "description": "A repeated terminal cannot append history twice or alter a newer run.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "success",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/requestId": "req-2"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "ignore",
+            "reason": "DUPLICATE_MESSAGE",
+            "state": "RUNNING",
+            "activeRequestId": "req-2",
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown_request",
+      "description": "An unsolicited future request cannot dispatch an operation.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "set": {
+            "/requestId": "req-future"
+          },
+          "expected": {
+            "action": "ignore",
+            "reason": "REQUEST_NOT_ACTIVE",
+            "state": "RUNNING",
+            "dispatchCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "cancel_before_dispatch",
+      "description": "Cancellation disables dispatch immediately; late completion and tool work are discarded.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING"
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "ignore",
+            "reason": "REQUEST_NOT_ACTIVE",
+            "state": "CANCELLING",
+            "historyAppend": 0
+          }
+        },
+        {
+          "ref": "failed_cancelled",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "historyAppend": 0,
+            "writeOutcome": "none",
+            "httpStatus": 500
+          }
+        }
+      ]
+    },
+    {
+      "id": "operation_after_cancel",
+      "description": "An operation crossing cancellation is ignored without dispatch or worker termination.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "ignore",
+            "reason": "REQUEST_NOT_ACTIVE",
+            "state": "CANCELLING",
+            "dispatchCount": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cancel_during_write",
+      "description": "A worker's stale none claim cannot downgrade Java's unresolved write; acknowledgement does not free the lane.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "failed_cancelled",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING",
+            "historyAppend": 0,
+            "writeOutcome": "unknown",
+            "laneBlocked": true
+          }
+        },
+        {
+          "event": "operation_settled",
+          "operationId": "op-1",
+          "outcome": "committed",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "writeOutcome": "committed",
+            "historyAppend": 0,
+            "sendResult": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "deadline_and_late_reply",
+      "description": "A deadline wins before completion acceptance and cannot become HTTP success.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "event": "deadline",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING",
+            "httpStatus": 500,
+            "historyAppend": 0
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "set": {
+            "/payload/reason": "deadline_exceeded"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "ignore",
+            "reason": "REQUEST_NOT_ACTIVE",
+            "state": "CANCELLING",
+            "historyAppend": 0
+          }
+        },
+        {
+          "ref": "failed_timeout",
+          "from": "python",
+          "set": {
+            "/payload/error/writeOutcome": "none"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "writeOutcome": "none",
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "worker_timeout_during_write",
+      "description": "An independently observed timeout retains pending-write uncertainty.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "failed_timeout",
+          "from": "python",
+          "set": {
+            "/payload/error/writeOutcome": "unknown"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING",
+            "writeOutcome": "unknown",
+            "laneBlocked": true,
+            "historyAppend": 0
+          }
+        },
+        {
+          "event": "operation_settled",
+          "operationId": "op-1",
+          "outcome": "committed",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "writeOutcome": "committed",
+            "sendResult": false,
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "force_exit_during_write",
+      "description": "Terminating Python cannot establish Java rollback.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "cancel",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "CANCELLING"
+          }
+        },
+        {
+          "event": "cancel_grace_elapsed",
+          "expected": {
+            "action": "accept",
+            "state": "STOPPING",
+            "terminateWorker": true,
+            "writeOutcome": "unknown",
+            "laneBlocked": true
+          }
+        },
+        {
+          "event": "pipe_eof",
+          "expected": {
+            "action": "accept",
+            "state": "CLOSED",
+            "writeOutcome": "unknown",
+            "laneBlocked": true,
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "crash_after_write",
+      "description": "A confirmed write survives a later worker crash; do not replay it.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "food_result",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "writeOutcome": "committed"
+          }
+        },
+        {
+          "event": "pipe_eof",
+          "expected": {
+            "action": "accept",
+            "state": "CLOSED",
+            "writeOutcome": "committed",
+            "historyAppend": 0,
+            "replayCount": 0,
+            "httpStatus": 500
+          }
+        }
+      ]
+    },
+    {
+      "id": "crash_with_unknown_write",
+      "description": "Lost worker/result leaves a dispatched write unresolved until Java observes settlement.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "event": "pipe_eof",
+          "expected": {
+            "action": "accept",
+            "state": "CLOSED",
+            "writeOutcome": "unknown",
+            "historyAppend": 0,
+            "laneBlocked": true,
+            "replayCount": 0
+          }
+        },
+        {
+          "event": "operation_settled",
+          "operationId": "op-1",
+          "outcome": "rolled_back",
+          "expected": {
+            "action": "accept",
+            "state": "CLOSED",
+            "writeOutcome": "none",
+            "laneBlocked": false,
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "shutdown_idempotent",
+      "description": "Shutdown and EOF during startup require no credential or terminal frame.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "shutdown",
+          "from": "java",
+          "set": {
+            "/payload/reason": "startup_cancelled"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "STOPPING"
+          }
+        },
+        {
+          "ref": "shutdown",
+          "from": "java",
+          "set": {
+            "/payload/reason": "startup_cancelled"
+          },
+          "expected": {
+            "action": "accept",
+            "state": "STOPPING"
+          }
+        },
+        {
+          "event": "pipe_eof",
+          "expected": {
+            "action": "accept",
+            "state": "CLOSED",
+            "historyAppend": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "new_run_waits_for_history",
+      "description": "Completion does not free the conversation before history settles.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/requestId": "req-2"
+          },
+          "expected": {
+            "action": "reject",
+            "reason": "INVALID_SEQUENCE",
+            "state": "STOPPING"
+          }
+        }
+      ]
+    },
+    {
+      "id": "history_failure_after_write",
+      "description": "History failure does not replay earlier tools or create a success response.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "ready",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE"
+          }
+        },
+        {
+          "ref": "run",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING"
+          }
+        },
+        {
+          "ref": "food_request",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "dispatch": "food.insert",
+            "writeOutcome": "unknown"
+          }
+        },
+        {
+          "ref": "food_result",
+          "from": "java",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "writeOutcome": "committed"
+          }
+        },
+        {
+          "ref": "completed",
+          "from": "python",
+          "expected": {
+            "action": "accept",
+            "state": "RUNNING",
+            "historyAppend": 1,
+            "awaitingHistory": true
+          }
+        },
+        {
+          "event": "history_settled",
+          "outcome": "failure",
+          "expected": {
+            "action": "accept",
+            "state": "IDLE",
+            "code": "HISTORY_FAILURE",
+            "httpStatus": 500,
+            "writeOutcome": "committed",
+            "replayCount": 0
+          }
+        }
+      ]
+    }
+  ]
+}
