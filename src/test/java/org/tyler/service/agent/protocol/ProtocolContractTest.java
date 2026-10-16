@@ -46,8 +46,12 @@ class ProtocolContractTest {
         } else {
             CODEC.validateShape(message);
             if (expected.has("semantic") && !expected.path("semantic").path("valid").asBoolean()) {
+                byte[] frame = assertDoesNotThrow(() -> MAPPER.writeValueAsBytes(message));
+                assertEquals(message, CODEC.decode(frame), "Decoding must defer semantic checks to the receiver");
                 assertEquals(expected.path("semantic").path("reason").asText(), assertThrowsExactly(ProtocolException.class,
                         () -> CODEC.validateSemantics(message)).code());
+                assertEquals(expected.path("semantic").path("reason").asText(), assertThrowsExactly(ProtocolException.class,
+                        () -> CODEC.encode(message)).code(), "Outbound encoding must still validate semantic values");
             } else {
                 byte[] encoded = CODEC.encode(message);
                 assertEquals('\n', encoded[encoded.length - 1]);
@@ -113,8 +117,15 @@ class ProtocolContractTest {
                     assertTrue(target.has(key));
                     target.set(key, replacement.getValue());
                 }
-                byte[] encoded = CODEC.encode(message);
-                actual = session.accept(CODEC.decode(Arrays.copyOf(encoded, encoded.length - 1)), step.path("from").asText());
+                // Inject raw peer bytes: the outbound encoder must not pre-reject invalid test input.
+                byte[] frame = MAPPER.writeValueAsBytes(message);
+                byte[] encoded = Arrays.copyOf(frame, frame.length + 1);
+                encoded[frame.length] = '\n';
+                FrameReader reader = new FrameReader(CODEC);
+                List<JsonNode> decoded = reader.feed(encoded);
+                reader.finish();
+                assertEquals(1, decoded.size());
+                actual = session.accept(decoded.getFirst(), step.path("from").asText());
             }
             for (var field : step.path("expected").properties()) {
                 assertEquals(field.getValue(), actual.path(field.getKey()), fixture.path("id").asText() + ": " + field.getKey());

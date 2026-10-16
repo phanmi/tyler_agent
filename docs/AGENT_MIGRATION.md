@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-16):** Steps 2–4 are complete. Step 4 was implemented from committed source revision `2158f10` on `python-agenticfeature`, which already includes the corrected agent tests and baseline documentation. The Python worker prototype, Java/Python codecs and conformance tests, and Windows bundle are described in the execution record below. The application still runs the Java agent; connecting the prototype through a Java process supervisor is Step 5. No separate historical agent-test patch needs to be applied. Earlier checkout/CI observations remain dated evidence.
+**Current state (refreshed 2026-10-16):** Steps 2–4 are complete. The protocol review follow-up started from committed revision `a85f482`, which contains Step 4 and the Python standards. Step 4 originally started from `2158f10`; its implementation and subsequent error-detail/validation-order corrections are recorded below. The application still runs the Java agent; connecting the prototype through a Java process supervisor is Step 5. No separate historical agent-test patch needs to be applied. Earlier checkout/CI observations remain dated evidence.
 
 ## Current implementation baseline
 
@@ -18,17 +18,17 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
 | CI | [CI workflow](../.github/workflows/ci.yml) runs Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. [Run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** for `4ee8cbe`, as reported in the review. This supersedes the earlier reported 256-case CI baseline. |
 | Step 4 implementation | [Python project and commands](../agent-python/README.md), [Python codec](../agent-python/src/tyler_agent/protocol.py), and [Java protocol infrastructure](../src/main/java/org/tyler/service/agent/protocol) implement framing/validation and pure sequence observation. The worker is a readiness/shutdown prototype; valid runs fail explicitly as unavailable. No model call or service operation is implemented. |
-| Latest local verification | **428 backend tests passed** (261 existing plus 167 new protocol/HTTP-mapping cases); **166 Python tests passed** including development and relocated Windows worker smoke cases. Formatter, lint, and strict type checks pass. A separate fresh environment installed from `uv.lock` offline and passed all seven development-worker smoke/version cases. See the dated Step 4 record for commands and limitations. |
+| Latest local verification | On `a85f482` plus the protocol review corrections below, **436 backend tests passed** (261 existing plus 175 protocol/HTTP-mapping cases); **184 Python tests passed** including development and rebuilt, relocated Windows worker smoke cases. Locked synchronization, formatter, lint, and strict type checks pass. The separate fresh-environment check remains historical Step 4 evidence. See the dated review-correction record for commands and limitations. |
 
-Step 4 started from a clean working tree at `2158f10`; its changes are recorded below and have not been committed by this task. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure step. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
+Step 4 is included in the committed baseline `a85f482`; the latest local verification includes this follow-up's changes on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure work. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
 
 ## Progress
 
 | Step | Work | Status | Completion evidence or remaining gate |
 |---|---|---|---|
 | 1 | Establish the migration baseline | Partially complete | Source revision `2158f10`, included test correction, shared validation, and frontend/CI configuration reconciled above. Finish the contract/startup inventory and frontend verification evidence. |
-| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 428-case backend run. Earlier CI/local results remain dated below. |
-| 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; shared fixtures now contain 97 message cases, 24 framing cases, and 30 sequence scenarios after Step 4 boundary corrections. |
+| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 436-case backend run. Earlier CI/local results remain dated below. |
+| 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; shared fixtures contain 97 message cases, 24 framing cases, and 38 sequence scenarios after the protocol review corrections. |
 | 4 | Create and package the Python worker skeleton | Complete | Locked Python environment, checks, Java/Python fixture conformance, and credential-free development/relocated Windows bundle smoke tests pass. See the Step 4 record. |
 | 5 | Implement Java worker lifecycle and adapter | Not started | Fake-worker tests prove request routing, callbacks, failures, and process cleanup. |
 | 6 | Expose Java service operations | Not started | Allowlisted handlers preserve service validation, result formats, and storage guarantees. |
@@ -435,9 +435,34 @@ In this restricted workspace, uv was bootstrapped under `target/agent-bootstrap`
 
 **Remaining gates:** The skeleton is not wired into the application's startup or chat API. No actual Java operation/history dispatch, live model loop, real cross-process transaction rollback, parent-death cleanup, installer/clean-machine certification, Electron integration, or CI workflow expansion is claimed. Those remain Steps 5–9. Frontend code, storage data, and business rules were not changed. Step 4's bundle was tested on this Windows host with ambient interpreter lookup removed; it is not a signed production release.
 
+### 2026-10-16 — Step 4 protocol review corrections
+
+**Source:** Follow-up changes on committed `a85f482`. These correct the existing prototype; Step 5 process supervision and service integration remain unimplemented.
+
+**Changes and regression evidence**
+
+- `ProtocolFailures` now selects Java-owned exception messages by validated error code. It discards worker `error.message`, including from causes, so advice cannot echo or log secrets supplied by the worker. Existing exception types, HTTP statuses, and response shapes remain; remote validation/file detail uses the fixed messages documented in the protocol. Local service exception handling is unchanged.
+- Both `MessageCodec.decode` implementations and frame readers now stop after framing/shape validation. The session observers and Python receiver check session, direction, semantics, then state/correlation. Outbound encoding still checks semantic values.
+- Added eight shared sequence fixtures for overlapping session/direction/value failures and control cases. Both languages inject raw peer bytes through their readers; five applicable cases also run through real development and packaged-worker pipes. All rejected cases assert no dispatch/history write.
+- Mapping tests inject synthetic API-key, prompt, history, and file-content text, then verify exception messages/causes, actual HTTP responses, and captured advice logs. Before the implementation fix, four of 15 Java mapping tests failed. The Python precedence run failed 11 of 13 cases before the fix, including three real-pipe misclassifications; both controls on real pipes already returned `INVALID_VALUE`.
+
+**Verification on Windows x64**
+
+| Command/check | Result |
+|---|---|
+| `uv sync --locked --offline` | Pinned environment synchronized from cached dependencies. |
+| `uv run --locked --offline ruff format --check src tests`, `ruff check src tests`, and `mypy` through the same uv command | Formatting/lint passed; strict typing passed for all nine source/test files. |
+| `uv run --locked --offline pytest tests` | **173 passed**, including five new development-worker pipe cases. |
+| Focused Maven run with `-Dtest=ProtocolContractTest,ProtocolFailuresTest` | **175 passed**. |
+| Full Maven `test` run | **436 passed**, zero failures/errors/skips; includes the final positive log-capture assertion. |
+| `uv run --locked --offline pyinstaller --noconfirm --distpath dist --workpath build worker.spec` | Windows bundle rebuilt successfully. |
+| `uv run --locked --offline pytest tests --worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe` | **184 passed**, including all 11 smoke cases against the rebuilt, relocated bundle with empty `PATH` and no provider credentials. |
+
+Maven used the previously documented offline cache, forked compilation, and explicit Mockito-agent options. uv used the workspace cache/interpreter directories; pytest used disposable `target/pytest-protocol-fix` and `target/pytest-protocol-fix-packaged` temporary directories. Local logs are `target/java-protocol-fix-full.log`, `target/python-protocol-fix.log`, `target/python-protocol-fix-package.log`, and `target/python-protocol-fix-packaged.log`. These are local results, not a new CI result or proof of the deferred supervisor/service/installer gates. No live provider or user database was used.
+
 ## Next work and decisions
 
-- Continue from the Step 4 implementation based on `2158f10`; record its eventual commit and later baseline changes. Finish Step 1's inventory and frontend verification evidence before runtime integration.
+- Continue from the Step 4 implementation present in `a85f482` and the protocol review corrections recorded above. Record later baseline changes and finish Step 1's inventory and frontend verification evidence before runtime integration.
 - Next unimplemented roadmap step: Step 5, the Java adapter and real worker process lifecycle.
 - Use the pinned Python/uv environment, shared conformance suites, and packaging commands established in Step 4.
 - Decide whether to change round-limit/empty-reply behavior separately before asserting Python parity.

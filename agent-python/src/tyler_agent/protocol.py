@@ -118,7 +118,7 @@ class MessageCodec:
                 self._numbers(item)
 
     def decode(self, frame: bytes) -> Message:
-        """Decode bytes before LF; errors contain only allowlisted reason codes."""
+        """Decode framing and shape only; the receiver checks session/direction before semantics."""
         if len(frame) > MAX_FRAME_BYTES:
             raise ProtocolError("MESSAGE_TOO_LARGE")
         if not frame or frame.startswith(b"\xef\xbb\xbf") or frame.endswith(b"\r"):
@@ -135,23 +135,22 @@ class MessageCodec:
             if isinstance(error, ProtocolError):
                 raise
             raise ProtocolError("INVALID_FRAME") from None
-        message = self.validate_shape(value)
-        self.validate_semantics(message)
-        return message
+        return self.validate_shape(value)
 
     def encode(self, message: Message) -> bytes:
+        """Reject invalid locally generated values before writing a frame to the peer."""
         try:
             frame = json.dumps(
                 message, ensure_ascii=False, allow_nan=False, separators=(",", ":")
             ).encode("utf-8")
         except (ValueError, UnicodeError, TypeError, RecursionError):
             raise ProtocolError("INVALID_FRAME") from None
-        self.decode(frame)
+        self.validate_semantics(self.decode(frame))
         return frame + b"\n"
 
 
 class FrameReader:
-    """Bound incomplete frames and preserve UTF-8 sequences across arbitrary chunks."""
+    """Return shape-validated frames; session/direction and semantics remain receiver checks."""
 
     def __init__(self, codec: MessageCodec) -> None:
         self._codec = codec

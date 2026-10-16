@@ -11,7 +11,7 @@ from threading import Thread
 from typing import Any
 
 import pytest
-from conftest import ROOT
+from conftest import ROOT, cases, sequence_message
 
 from tyler_agent.resources import release_version
 
@@ -149,6 +149,35 @@ def test_invalid_session_has_no_readiness(worker_command: list[str], tmp_path: P
         output, errors = process.communicate(timeout=10)
         assert process.returncode == 2 and output == b""
         assert b"SESSION_MISMATCH" in errors
+    finally:
+        stop(process)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        case
+        for case in cases("sequences")
+        if case["id"].startswith("precedence_") and case["steps"][-1]["from"] == "java"
+    ],
+    ids=lambda item: item["id"],
+)
+def test_rejection_precedence_on_real_pipe(
+    worker_command: list[str], tmp_path: Path, case: dict[str, Any]
+) -> None:
+    step = case["steps"][-1]
+    message = sequence_message(step)
+    process = start(worker_command, tmp_path)
+    try:
+        ready(process)
+        output, errors = process.communicate(json.dumps(message).encode() + b"\n", timeout=10)
+        assert output == b"" and process.returncode == 2
+        assert (
+            errors.splitlines()[-1]
+            == ("ERROR Worker protocol failure: code=" + step["expected"]["reason"]).encode()
+        )
+        assert b"SYNTHETIC_FIXTURE_KEY" not in errors
+        assert b"Help me plan" not in errors
     finally:
         stop(process)
 

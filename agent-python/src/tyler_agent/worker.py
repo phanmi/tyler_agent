@@ -44,6 +44,8 @@ def serve(source: BufferedReader, sink: BinaryIO, session_id: str) -> int:
             kind = message["type"]
             if kind not in {"run", "cancel", "operation_result", "shutdown"}:
                 raise ProtocolError("WRONG_DIRECTION")
+            # Peer identity and direction take precedence over payload values on the private wire.
+            codec.validate_semantics(message)
             if kind == "shutdown":
                 log.info("Worker shutdown accepted")
                 return 0

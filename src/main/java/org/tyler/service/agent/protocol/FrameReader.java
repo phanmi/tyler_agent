@@ -6,7 +6,10 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Incremental LF framing with a bound on incomplete bytes, including split UTF-8 sequences. */
+/**
+ * Incremental LF framing with a bound on incomplete bytes, including split UTF-8 sequences.
+ * Returned messages are shape-validated only; session/direction checks must precede semantics.
+ */
 public final class FrameReader {
     private final MessageCodec codec;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream();

@@ -14,7 +14,7 @@ public final class ProtocolFailures {
     private ProtocolFailures() {
     }
 
-    /** Accept only a validated failure envelope; never load a class named by the worker. */
+    /** Map an accepted failure by code only; worker detail must never reach advice logs or HTTP. */
     public static RuntimeException translate(JsonNode message, MessageCodec codec) {
         codec.validateShape(message);
         codec.validateSemantics(message);
@@ -22,17 +22,18 @@ public final class ProtocolFailures {
         if (error.isMissingNode()) {
             throw new ProtocolException("INVALID_MESSAGE");
         }
-        String detail = error.path("message").asText();
+        // Schema validation cannot make arbitrary worker text safe, including in exception causes.
+        // Keep remote detail out of Java exceptions; the validated code identifies the failure.
         return switch (error.path("code").asText()) {
-            case "INVALID_ARGUMENT" -> new IllegalArgumentException(detail);
-            case "SQL_DATA_VALIDATION" -> new SQLDataValidationException(detail);
+            case "INVALID_ARGUMENT" -> new IllegalArgumentException("Invalid agent request");
+            case "SQL_DATA_VALIDATION" -> new SQLDataValidationException("Invalid agent record data");
             case "API_KEY_MISSING" -> new OpenAIKeyException("OpenAI API key is empty; chat is unavailable");
             case "PROVIDER_AUTH" -> new OpenAIKeyException("This API key is invalid or unavailable");
             case "SQL_READ" -> new SQLReadException("Agent database read failed");
             case "SQL_WRITE" -> new SQLPersistentException("Agent database write failed");
             case "SQL_ACCESS" -> new DataAccessResourceFailureException("Agent database access failed");
-            case "FILE_READ" -> new FileReadException(detail);
-            case "FILE_WRITE" -> new FileWriteException(detail);
+            case "FILE_READ" -> new FileReadException("Agent file read failed");
+            case "FILE_WRITE" -> new FileWriteException("Agent file write failed");
             default -> new IllegalStateException("Agent request failed: " + error.path("code").asText());
         };
     }

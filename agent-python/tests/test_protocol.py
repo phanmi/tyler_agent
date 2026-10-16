@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 import pytest
-from conftest import cases
+from conftest import cases, sequence_message
 
 from tyler_agent.protocol import FrameReader, MessageCodec, ProtocolError
 from tyler_agent.session import ProtocolSession
@@ -25,9 +25,13 @@ def test_message_contract(case: dict[str, Any]) -> None:
     else:
         CODEC.validate_shape(message)
         if expected.get("semantic", {}).get("valid") is False:
+            assert CODEC.decode(json.dumps(message).encode()) == message
             with pytest.raises(ProtocolError) as failure:
                 CODEC.validate_semantics(message)
             assert failure.value.code == expected["semantic"]["reason"]
+            with pytest.raises(ProtocolError) as outbound_failure:
+                CODEC.encode(message)
+            assert outbound_failure.value.code == expected["semantic"]["reason"]
         else:
             encoded = CODEC.encode(message)
             assert CODEC.decode(encoded[:-1]) == message
@@ -82,16 +86,13 @@ def test_protocol_sequence(case: dict[str, Any]) -> None:
                 operation_id=step.get("operationId", ""),
             )
         else:
-            message = copy.deepcopy(MESSAGES[step["ref"]])
-            for pointer, value in step.get("set", {}).items():
-                keys = [key.replace("~1", "/").replace("~0", "~") for key in pointer[1:].split("/")]
-                target = message
-                for key in keys[:-1]:
-                    target = target[key]
-                assert keys[-1] in target
-                target[keys[-1]] = value
-            # Exercise the codec before the state observer, including every patched message.
-            actual = session.accept(CODEC.decode(CODEC.encode(message)[:-1]), step["from"])
+            # Raw peer bytes can violate semantics; do not pre-validate with our outbound encoder.
+            message = sequence_message(step)
+            reader = FrameReader(CODEC)
+            decoded = reader.feed(json.dumps(message).encode() + b"\n")
+            reader.finish()
+            assert len(decoded) == 1
+            actual = session.accept(decoded[0], step["from"])
         assert {key: actual.get(key) for key in step["expected"]} == step["expected"]
 
 

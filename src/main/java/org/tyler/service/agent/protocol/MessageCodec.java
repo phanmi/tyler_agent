@@ -95,7 +95,10 @@ public final class MessageCodec {
         }
     }
 
-    /** Decode the bytes preceding LF, preserving strict framing and rejection precedence. */
+    /**
+     * Decode the bytes preceding LF and validate shape only. The receiver must check session and
+     * direction before calling validateSemantics, then check state/correlation before dispatch.
+     */
     public JsonNode decode(byte[] frame) {
         if (frame.length > MAX_FRAME_BYTES) {
             throw new ProtocolException("MESSAGE_TOO_LARGE");
@@ -117,7 +120,6 @@ public final class MessageCodec {
         }
         validateUnicode(message);
         validateShape(message);
-        validateSemantics(message);
         return message;
     }
 
@@ -147,11 +149,12 @@ public final class MessageCodec {
         }
     }
 
+    /** Reject invalid locally generated values before writing a frame to the peer. */
     public byte[] encode(JsonNode message) {
         validateUnicode(message);
         try {
             byte[] frame = mapper.writeValueAsBytes(message);
-            decode(frame);
+            validateSemantics(decode(frame));
             byte[] terminated = java.util.Arrays.copyOf(frame, frame.length + 1);
             terminated[frame.length] = '\n';
             return terminated;

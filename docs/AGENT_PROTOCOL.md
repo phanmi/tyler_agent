@@ -121,7 +121,7 @@ An already dispatched Java write may finish or fail. Do not label it rolled back
 
 ## Failures and HTTP compatibility
 
-`error` contains exactly `category`, `code`, `message`, and `writeOutcome`. `message` is a safe nonempty diagnostic string, without keys, raw prompts, tool payloads, SQL, paths containing sensitive information, or stack traces. No exception class name is loaded dynamically from the protocol. Java maps allowlisted codes explicitly and retains original local exceptions/causes in its request ledger when available; Python preserves category/code when forwarding an operation failure.
+`error` contains exactly `category`, `code`, `message`, and `writeOutcome`. Senders must use a safe nonempty diagnostic `message`, without keys, raw prompts, tool payloads, SQL, paths containing sensitive information, or stack traces. Schema validation only establishes its shape, not its safety. Java therefore ignores worker-provided detail when constructing exceptions, including causes, and uses Java-owned messages selected by the validated code. Raw remote detail must never reach advice logs or HTTP responses. No exception class name is loaded dynamically from the protocol. Java retains original local exceptions/causes in its request ledger when available; Python preserves category/code when forwarding an operation failure.
 
 `writeOutcome` describes the operation for an `operation_result`, and all tool operations for a terminal `failed`:
 
@@ -133,11 +133,11 @@ Java computes the effective outcome from its own ledger, never downgrading uncer
 
 | Category | Codes | Java mapping and HTTP behavior |
 |---|---|---|
-| `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with the designated safe validation message. |
+| `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | Remote failures map to `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with Java-owned `Invalid agent request` / `Invalid agent record data`. |
 | `authentication` | `API_KEY_MISSING`, `PROVIDER_AUTH` | `OpenAIKeyException`; HTTP 401. Preserve `OpenAI API key is empty; chat is unavailable` and `This API key is invalid or unavailable`, respectively. Provider unauthorized and permission-denied failures both use the latter. |
 | `provider` | `PROVIDER_FAILURE` | Unexpected provider/transport/rate-limit/server failure; HTTP 500 with `Internal server error. Please try again later`. Preserve the existing HTTP mapping, not the provider's 429/5xx status. |
 | `storage` | `SQL_READ`, `SQL_WRITE`, `SQL_ACCESS` | Existing SQL read/write/Spring data-access mapping; HTTP 500 with `Database operation failed. Please try again later`. |
-| `storage` | `FILE_READ`, `FILE_WRITE` | Existing file exceptions; HTTP 500 with `Failed to read file: ` / `Failed to write file: ` plus the designated safe message. The payload message must not include that prefix twice. |
+| `storage` | `FILE_READ`, `FILE_WRITE` | Remote failures map to existing file exceptions; HTTP 500 with `Failed to read file: Agent file read failed` / `Failed to write file: Agent file write failed`. Worker detail is not appended. |
 | `worker` | `UNKNOWN_TOOL`, `SERIALIZATION_FAILURE`, `HISTORY_FAILURE`, `WORKER_UNAVAILABLE`, `WORKER_BUSY`, `INTERNAL_FAILURE` | Existing unexpected-failure HTTP 500 mapping. `HISTORY_FAILURE` is synthesized by Java after worker completion, not emitted by Python. |
 | `timeout` | `DEADLINE_EXCEEDED` | Java adapter failure, HTTP 500 with the existing generic internal-error body if the connection remains open. No 504 contract change in this migration. |
 | `cancelled` | `REQUEST_CANCELLED` | Java adapter failure with the same HTTP 500 body if a response can still be sent; disconnected clients receive no response. No new public cancellation endpoint or 499 status. |
@@ -150,6 +150,8 @@ The bridge emits only domain/SQL/file/internal failures for its operations. Pyth
 ### Rejection precedence
 
 First enforce byte count (`MESSAGE_TOO_LARGE`), framing/strict decoding/JSON rules (`INVALID_FRAME`), then an explicitly present incompatible `protocolVersion` (`UNSUPPORTED_VERSION`). An unknown string operation on an operation message is `UNKNOWN_OPERATION`; other schema failures are `INVALID_MESSAGE`. Then check session, direction, semantic values (ID range, nonblank model/key, timeout relationship, representable decimals), and state/correlation. Semantic value failures are `INVALID_VALUE`. A blank credential from a valid Java request is caught locally as `API_KEY_MISSING`, before encoding; a blank credential arriving on the private wire is a sender defect. Multiple simultaneous violations are diagnosed by this order. Domain validation runs only after protocol acceptance.
+
+Both codecs' `decode` methods and incremental frame readers validate framing and shape only. Receivers must check session and direction, then call semantic validation before state/correlation checks or dispatch. Outbound `encode` still validates semantic values to prevent sending invalid local messages. Sequence tests inject raw serialized peer bytes through the frame reader so the outbound encoder cannot mask overlapping-invalidity cases. The shared `precedence_*` cases cover wrong sessions/directions combined with blank models, decimal overflow, and out-of-range IDs; controls confirm semantic checks still run for the correct session and direction. Applicable Java-to-worker cases also run through real subprocess pipes.
 
 ## Credentials, logging, and history
 

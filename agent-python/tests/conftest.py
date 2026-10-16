@@ -1,5 +1,6 @@
 """Shared contract loading and optional packaged-worker selection."""
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,21 @@ def cases(name: str) -> list[dict[str, Any]]:
         "cases"
     ]
     return value
+
+
+def sequence_message(step: dict[str, Any]) -> dict[str, Any]:
+    """Apply shared fixture replacements without running the outbound validation path."""
+    message: dict[str, Any] = copy.deepcopy(
+        next(case["message"] for case in cases("messages") if case["id"] == step["ref"])
+    )
+    for pointer, value in step.get("set", {}).items():
+        keys = [key.replace("~1", "/").replace("~0", "~") for key in pointer[1:].split("/")]
+        target = message
+        for key in keys[:-1]:
+            target = target[key]
+        assert keys[-1] in target
+        target[keys[-1]] = value
+    return message
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
