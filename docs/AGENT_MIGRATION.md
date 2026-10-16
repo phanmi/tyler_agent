@@ -6,14 +6,27 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state:** Steps 2 and 3 are complete. The application still runs the Java agent; no Python worker or communication bridge has been implemented. The version 1 contract and shared fixtures are ready for Step 4's executable Java/Python conformance tests. At the time of this entry, the base revision is `f18aa42` and migration changes remain in the working tree, without a migration commit yet.
+**Current state (refreshed 2026-10-16):** Reviewed HEAD is `92290ae75b34ce8f74c08ad520e874d55e5e11b6` on `python-agenticfeature`, merging `main` at `428a81b` into the migration work at `b8355ac`. Steps 2 and 3 are complete; the application still runs the Java agent, with no Python worker or communication bridge. Continue Steps 4–6 from this merged architecture and the pending `AgentServiceTest` correction described below. The earlier checkout and test totals are historical execution evidence, not the current baseline.
+
+## Current implementation baseline
+
+| Area | Verified current state and source |
+|---|---|
+| Food validation | [FoodService](../src/main/java/org/tyler/service/food/FoodService.java) invokes the injected `IValidator<Food>` implemented by [FoodValidator](../src/main/java/org/tyler/validation/FoodValidator.java) before DAO insertion. Required fields, real calendar dates, and nonnegative amounts/nutrition are shared domain rules. [RecordFoodTool](../src/main/java/org/tyler/tool/foodRecordTool/RecordFoodTool.java) deserializes arguments, delegates to `IFoodService`, and serializes the food-only result. |
+| Workout and plan validation | [WorkoutValidator](../src/main/java/org/tyler/validation/WorkoutValidator.java) enforces workout rules through the workout service. [WorkoutPlanService](../src/main/java/org/tyler/service/workout/WorkoutPlanService.java) owns plan date/goal/equipment validation, including the seven-representable-days guard. [GenerateWorkoutPlanTool](../src/main/java/org/tyler/tool/workoutPlanTool/GenerateWorkoutPlanTool.java) checks JSON shape and passes missing/null text fields to the service. |
+| HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
+| Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
+| CI | [CI workflow](../.github/workflows/ci.yml) runs Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. The review reports a 256-case backend CI run; that report is distinct from local verification below. |
+| Latest local backend verification | **261 tests passed**, zero failures/errors/skips, at 14:46:19 EDT on 2026-10-16. This is HEAD plus the pending agent-test correction: 35 agent cases and 14 client-factory cases are included. The correction replaces three outdated argument cases with eight shape/shared-service cases, accounting for the five-case increase from 256. |
+
+The only pre-existing working-tree change at this refresh was the `AgentServiceTest` correction from the preceding task; it remains uncommitted and is preserved. This refresh changes documentation only. Frontend suite presence and CI wiring were inspected, but frontend checks were not rerun locally. Step 1 remains partial until its remaining inventory and fresh frontend verification gates are satisfied.
 
 ## Progress
 
 | Step | Work | Status | Completion evidence or remaining gate |
 |---|---|---|---|
-| 1 | Establish the migration baseline | Partially complete | Current code and startup flow inspected; backend tests verified in Step 2. Confirm the intended merge baseline and earlier pending work before implementation. |
-| 2 | Characterize the Java agent | Complete | 30 agent cases and 14 client-factory cases pass; full backend suite passes all 153 tests. See the execution and verification records below. |
+| 1 | Establish the migration baseline | Partially complete | Merged HEAD, pending test correction, shared validation, and frontend/CI configuration reconciled above. Finish the contract/startup inventory and fresh frontend checks. |
+| 2 | Characterize the Java agent | Complete | Current local run: 35 agent and 14 factory cases pass within 261 backend tests. Historical Step 2 results remain dated below. |
 | 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; 90 message fixtures, 24 framing fixtures, and 30 sequence scenarios. Static verification is recorded below; runtime conformance belongs to Step 4. |
 | 4 | Create and package the Python worker skeleton | Not started | Contract fixtures pass in both languages; a reproducible environment and packaged Windows worker complete a credential-free handshake. |
 | 5 | Implement Java worker lifecycle and adapter | Not started | Fake-worker tests prove request routing, callbacks, failures, and process cleanup. |
@@ -25,7 +38,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 The roadmap describes future work. A planned configuration, component, or test below must not be treated as already available.
 
-Each step's definition of done is its acceptance checklist. Check an item only when the execution record identifies the supporting change or verification. A step is complete only when every item passes; deferred items keep it partial. Step 2's checked items refer to the recorded 2026-10-16 runs, not new verification on every documentation edit.
+Each step's definition of done is its acceptance checklist. Check an item only when the execution record identifies the supporting change or verification. A step is complete only when every item passes; deferred items keep it partial. Use the current implementation baseline for new work and the dated execution records for past results; test totals always identify the tested revision and local changes.
 
 ## Target architecture and boundaries
 
@@ -67,17 +80,17 @@ Migration constraints:
 
 ### Step 1 Establish the migration baseline
 
-1. Select the intended source branch and reconcile earlier pending changes before choosing the migration merge base.
-2. Create a migration branch, for example `codex/python-agent-migration`, when implementation starts.
+1. Use the recorded merged HEAD as the current reference; reconcile any subsequent merges and local changes before implementation.
+2. Continue on the existing `python-agenticfeature` migration branch. Record a new branch/base if that changes.
 3. Inventory current HTTP/tool contracts, validation, history behavior, and process startup.
 4. Run backend and frontend baseline checks and record their results. Use temporary workspaces and databases for tests.
 
 **Definition of done**
 
-- [ ] Record the intended source branch, base commit, migration branch, and disposition of existing working-tree changes.
+- [x] Record the intended source branch, base commit, migration branch, and disposition of existing working-tree changes. See the current implementation baseline and dated merged-HEAD refresh below.
 - [ ] Inventory the public chat/history HTTP contracts and all six tool names, schemas, outputs, validation, and side effects, with source references.
 - [ ] Record startup ownership, readiness, storage paths, release-version handling, and the target Java/Python responsibility split.
-- [ ] Reconcile earlier pending frontend work with the chosen baseline. The reviewed checkout lacks the previously discussed `typecheck`/`test:ui` scripts and dedicated frontend testing folder; record whether those changes are included or deferred.
+- [x] Reconcile earlier pending frontend work with the chosen baseline. `typecheck`, `test:ui`, and the dedicated `frontend/tests/` directory are included in the merged HEAD and wired into CI.
 - [ ] Run the selected baseline's backend and frontend checks successfully and record commands, runtime versions, and results. Step 2's backend run can be reused only if the tested code still matches the selected baseline.
 
 ### Step 2 Characterize the Java agent
@@ -158,14 +171,14 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 1. Map the six existing tools to narrow handlers: `recordFood`, `generateWorkoutPlan`, `GetUserInfo`, `readFile`, `writeFile`, and `getCurrentTime`.
 2. Delegate to existing services or sandbox abstractions. Do not expose arbitrary Java method calls, SQL execution, or unrestricted paths.
-3. Inventory validation and output formatting before bypassing each Java tool. In the reviewed checkout, `RecordFoodTool` still owns validation checks; preserve them at the appropriate shared boundary before removing the adapter.
+3. Preserve the existing service validation boundary when bypassing Java tools: `FoodService` invokes `FoodValidator`; workout and plan services enforce their domain rules. Inventory adapter parsing/coercion and output formatting separately. Do not relocate or duplicate shared domain rules in Python or bridge handlers.
 4. Preserve tool-name capitalization, result formatting, date semantics, file restrictions, and exception distinctions.
 
 **Definition of done**
 
 - [ ] Every existing tool has an explicit allowlisted operation mapping and service/sandbox destination; the bridge cannot invoke arbitrary methods, SQL, or paths.
 - [ ] Dependency/wiring checks prove handlers call the shared services or sandbox abstractions, without DAO/DAL access from agent adapters.
-- [ ] Existing tool validation is inventoried and preserved at the appropriate boundary before bypassing the legacy adapter; shared domain rules remain authoritative in Java services.
+- [ ] Existing adapter shape/parsing rules are inventoried and preserved when bypassing the legacy adapter. Bridge handlers call the existing services, including their shared validators; tests cover missing fields, malformed dates, negative values, and plan date bounds without duplicating those rules in Python.
 - [ ] Contract tests preserve tool-name capitalization, argument/result formats, decimal/date semantics, record IDs, and exception distinctions.
 - [ ] Tests reject malformed/unsupported operations before side effects and retain sandbox path restrictions and persistence safeguards.
 - [ ] Service tests still verify preview without writes, transactional plan saving, sequential duplicate handling, and preservation of pre-existing edits. No concurrent deduplication guarantee is added.
@@ -246,7 +259,9 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 ### 2026-10-16 Step 2 completed
 
-The existing Java implementation was characterized before any migration of production code:
+Historical source: `f18aa42`, with characterization changes then uncommitted. This checkout preceded the merge recorded in the current baseline; it lacked the later frontend `typecheck`/`test:ui` suites and dedicated testing directory. At that time, required/nonnegative food checks were in the tool, the food service required only a nonblank date, and the plan service lacked the upper-date guard. These observations must not guide new bridge implementation. Migration work was subsequently committed in `b8355ac` and merged with `main` in `92290ae`.
+
+The then-existing Java implementation was characterized before any migration of production code:
 
 - Expanded [AgentServiceTest](../src/test/java/org/tyler/service/agent/AgentServiceTest.java) from 2 to 30 executed cases.
 - Expanded [OpenAIClientFactoryTest](../src/test/java/org/tyler/service/agent/OpenAIClientFactoryTest.java) from 3 to 14 executed cases. Constructed SDK clients use synthetic keys and are closed during test cleanup.
@@ -259,9 +274,9 @@ Tests use mocked provider and history boundaries. They establish agent orchestra
 
 ### Preserved edge cases
 
-These are observations of the current implementation. Changing them requires an explicit behavior decision and corresponding test updates.
+These are observations from the Step 2 run above. Use the current merged characterization suite to verify parity; historical observations do not override later shared-service rules.
 
-| Case | Current behavior |
+| Case | Behavior observed in that run |
 |---|---|
 | Five tool rounds complete but the last response requests another tool | That extra call is not executed. Text/refusals from the last response are returned and saved; a tool-only response produces an empty reply. There is no round-limit exception. |
 | Empty response or message | An empty reply is returned and appended to history. |
@@ -352,11 +367,25 @@ git diff --check
 
 The Node audit scripts are temporary review helpers under ignored `target/`, not committed test runners or durable evidence. Their checks are recorded here; future Java/Python suites must implement the conformance gates against the committed fixtures. The initial PowerShell example piped an empty-array fixture away; using `ConvertTo-Json -InputObject` fixed the example, and the published block passed all 90 cases. A local `python --version` probe found an inaccessible WindowsApps alias; the static audit used available Node instead. Python runtime selection remains Step 4.
 
-**Limitations:** These checks establish contract/fixture consistency. There is no implemented Java/Python codec, subprocess supervisor, HTTP bridge, or database integration for the new protocol yet, so runtime acceptance, semantic validators, cancellation, history races, and transaction outcomes are not claimed as tested. Backend/frontend suites were not rerun for this specification-only step; the 153 backend passes above remain the earlier Step 2 results. Steps 4–9 retain their executable gates. Step 1's baseline/branch decisions remain pending; no migration commit or PR was created.
+**Limitations at Step 3 completion:** These checks established contract/fixture consistency. No Java/Python codec, subprocess supervisor, HTTP bridge, or database integration for the new protocol existed, so runtime acceptance, semantic validators, cancellation, history races, and transaction outcomes were not tested. Backend/frontend suites were not rerun for that specification-only step; the 153 backend passes above were the earlier Step 2 results. Steps 4–9 retained their executable gates. Step 1's baseline/branch decisions were still pending, and no migration commit or PR was created during that step. The subsequent merged-HEAD refresh below supersedes its checkout and test-baseline facts.
+
+### 2026-10-16 Merged-HEAD baseline refreshed
+
+Inspected HEAD `92290ae`, its merge parents, frontend scripts/test layout/CI, shared service validators, plan date guard, and HTTP binding advice. Updated current-state facts and Step 1/6 instructions in this tracker and corrected the protocol's food/date/plan boundary descriptions. Earlier observations remain in the dated Step 2/3 records. The protocol wire shapes and fixtures are unchanged: malformed domain values still pass transport shape validation and are rejected by Java services.
+
+The preceding agent-test fix separates shape rejection from shared-service validation. Reproducing the old test gave one failure for `{}` because the service mock did not validate missing fields. The corrected agent/tool/plan suites passed 46 cases. A fresh full backend run against HEAD plus that pending fix then passed **261 tests**, zero failures/errors/skips; `BUILD SUCCESS` at 14:46:19 EDT. This supersedes the historical 153-case local baseline. The review's 256-case CI count is reported evidence, not a CI result fetched or rerun during this refresh.
+
+The full run used Java 26, the existing local Maven cache, forked compilation, and Mockito 5.23.0 as an explicit test JVM agent, matching the runner options documented above:
+
+```powershell
+mvn -o "-Dmaven.repo.local=$testRepository" '-Dmaven.compiler.fork=true' "-DargLine=$testJvmOptions" test
+```
+
+Initialize `$testRepository`, `$testJvmOptions`, and `MAVEN_OPTS` with the earlier reproducible PowerShell block. Output is locally recorded in ignored `target/agent-merged-baseline-test.log`; it is not durable committed evidence. Documentation checks verified 64 relative links/heading anchors and `git diff --check` passed. No frontend execution, remote CI retrieval, Python conformance, packaging, or new migration implementation is claimed.
 
 ## Next work and decisions
 
-- Confirm the intended merge baseline and record the commit containing Step 2 when it is committed.
+- Use merged HEAD `92290ae` and retain the pending agent-test fix; record its eventual commit and any later baseline changes. Finish Step 1's inventory and fresh frontend verification before runtime integration.
 - Next unimplemented roadmap step: Step 4, the Python project, Java/Python fixture conformance, and packaging prototype.
 - Select Python version, dependency-lock tooling, and packaging approach during Step 4.
 - Decide whether to change round-limit/empty-reply behavior separately before asserting Python parity.

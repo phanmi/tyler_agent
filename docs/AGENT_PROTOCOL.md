@@ -4,6 +4,8 @@
 
 This is the Step 3 contract for a Java-owned Python worker. It specifies messages and shared conformance fixtures; it does not implement a worker, bridge, codec, or process supervisor. Step 4 implements and tests codecs in both languages, Step 5 implements lifecycle, and Step 6 implements service handlers.
 
+Compatibility facts were refreshed against merged HEAD `92290ae` on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained only in dated execution records.
+
 ## Contract artifacts and authority
 
 - [Message schema](../contracts/agent/v1/message.schema.json): closed message and domain-transport shapes, using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core).
@@ -86,12 +88,12 @@ The generated food `id` is a decimal string representing `1` through `9223372036
 
 ### Dates, nulls, and existing adapter behavior
 
-- Dates remain lossless strings. Do not apply JSON Schema `format: date` or a four-digit-year regex, normalize time zones, or pass them through Python's limited calendar range in the codec. Existing Java services own date interpretation. Expanded ISO years such as `+10000-01-01` can be valid plan inputs; the reviewed food path only requires a nonblank date.
+- Dates remain lossless strings. Do not apply JSON Schema `format: date` or a four-digit-year regex, normalize time zones, or pass them through Python's limited calendar range in the codec. Java services use `DomainValidation.parseDate` for real ISO calendar dates without trimming. Expanded ISO years such as `+10000-01-01` can be valid inputs. Food insertion, lookup, and date deletion require valid dates; nonblank text alone is insufficient.
 - Required transport fields may be explicit null where the schema permits it. Preserve plan-day `activity: null`, empty workout arrays, and nullable profile fields. Empty strings are not automatically null.
 - Shape-valid malformed dates, missing domain values represented as null, and negative nutrition must reach the appropriate domain/adapter validation outcome, not be mislabeled as corrupt transport.
-- The reviewed food tool still contains required-field/nonnegative checks. Step 6 must preserve them at the shared boundary before legacy bypass; this contract does not claim validation is already consolidated.
+- `FoodService` already invokes the shared `FoodValidator` for required fields, dates, and nonnegative quantities/nutrition before persistence. `RecordFoodTool` owns JSON deserialization and result serialization. Step 6 must call the same service from the bridge and preserve its validation errors; Python and bridge handlers must not duplicate these domain rules.
 - File tools currently coerce scalar path/content through `JsonNode.asText()` and wrap malformed/missing arguments as file exceptions. No-argument tools ignore arguments. Python adapter parity tests must preserve or explicitly document changes to these behaviors. Transport `path`/`content` are strings after adapter parsing/coercion.
-- Preserve unknown-tool and unexpected-null failure behavior from the baseline; do not turn all adapter errors into HTTP 400. The current plan service also has no seven-day upper-date guard in this checkout. The protocol introduces none.
+- Preserve unknown-tool and adapter failure distinctions; do not turn all adapter errors into HTTP 400. Missing/null plan text fields pass from the tool to shared service validation. `WorkoutPlanService` rejects start dates after `LocalDate.MAX.minusDays(6)` with `IllegalArgumentException("startDate must allow seven representable calendar days")`. This existing domain guard remains in Java; a date outside that bound is transport-valid, then domain-invalid.
 
 ## State, correlation, and execution
 

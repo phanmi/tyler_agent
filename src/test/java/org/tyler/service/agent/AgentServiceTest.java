@@ -27,12 +27,15 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.model.chat.ChatMessage;
 import org.tyler.service.chatHistory.IChatHistoryService;
 import org.tyler.service.workout.IWorkoutPlanService;
+import org.tyler.service.workout.IWorkoutService;
+import org.tyler.service.workout.WorkoutPlanService;
 import org.tyler.tool.ITool;
 import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
 
@@ -225,8 +228,8 @@ class AgentServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"not-json", "[]", "{}"})
-    void propagatesRealToolArgumentValidationWithoutCallingItsService(String arguments) {
+    @ValueSource(strings = {"not-json", "[]", "null", "{\"startDate\":4}"})
+    void propagatesRealToolShapeValidationWithoutCallingItsService(String arguments) {
         IWorkoutPlanService planService = mock(IWorkoutPlanService.class);
         ITool tool = new GenerateWorkoutPlanTool(planService);
         when(responses.create(any(ResponseCreateParams.class)))
@@ -239,12 +242,40 @@ class AgentServiceTest {
             assertTrue(failure.getMessage().startsWith("Failed to parse workout plan arguments:"));
             assertNotNull(failure.getCause());
         } else {
-            assertEquals(arguments.equals("[]") ? "Workout plan arguments must be a JSON object"
-                    : "Missing or invalid field: startDate", failure.getMessage());
+            assertEquals(arguments.equals("{\"startDate\":4}") ? "Field startDate must be a string"
+                    : "Workout plan arguments must be a JSON object", failure.getMessage());
         }
         verifyNoInteractions(planService);
         requests(1);
         assertHistoryUnchanged();
+    }
+
+    @ParameterizedTest
+    @MethodSource("missingPlanArguments")
+    void propagatesSharedPlanValidationWithoutContinuingOrAccessingStorage(String arguments, String expectedMessage) {
+        IWorkoutService workouts = mock(IWorkoutService.class);
+        TransactionTemplate transactions = mock(TransactionTemplate.class);
+        // Missing values belong to the real service validator, not an unstubbed service mock.
+        ITool tool = new GenerateWorkoutPlanTool(new WorkoutPlanService(workouts, transactions));
+        when(responses.create(any(ResponseCreateParams.class)))
+                .thenReturn(response("response-1", functionCall("call-1", tool.name(), arguments)));
+
+        IllegalArgumentException failure = assertThrowsExactly(IllegalArgumentException.class,
+                () -> service(tool).ask(MESSAGE));
+
+        assertEquals(expectedMessage, failure.getMessage());
+        verifyNoInteractions(workouts, transactions);
+        requests(1);
+        assertHistoryUnchanged();
+    }
+
+    static Stream<Arguments> missingPlanArguments() {
+        return Stream.of(
+                Arguments.of("{}", "startDate must not be null"),
+                Arguments.of("{\"startDate\":null,\"goal\":\"strength\",\"equipment\":\"gym\"}",
+                        "startDate must not be null"),
+                Arguments.of("{\"startDate\":\"2026-09-28\",\"equipment\":\"gym\"}", "goal must not be null"),
+                Arguments.of("{\"startDate\":\"2026-09-28\",\"goal\":\"strength\"}", "equipment must not be null"));
     }
 
     @ParameterizedTest(name = "translates {0}, after tool: {1}")
