@@ -2,9 +2,9 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the Step 3 contract for a Java-owned Python worker. It specifies messages and shared conformance fixtures; it does not implement a worker, bridge, codec, or process supervisor. Step 4 implements and tests codecs in both languages, Step 5 implements lifecycle, and Step 6 implements service handlers.
+This is the version 1 contract established in Step 3. Step 4 now provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). The prototype is not connected to application chat. Step 5 implements process supervision and Step 6 implements service handlers.
 
-The current committed compatibility baseline is `4ee8cbe`, including the merged architecture and agent-test correction, recorded on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained only in dated execution records.
+Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
 ## Contract artifacts and authority
 
@@ -82,7 +82,7 @@ Null components render as `null` (for example `UserInfo[user=null, other=null]`)
 
 Food quantities/nutrition, workout weights, and profile age cross the pipe as decimal **strings**, or null where allowed. The lexical grammar is `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`. Parse with `BigDecimal`/`Decimal`, never binary floating point. Keep significant digits, trailing zeros/scale, exponent value, and sign according to Java `BigDecimal` semantics; Java should encode its `BigDecimal.toString()` representation. In particular, Java normalizes negative zero (`-0.00` becomes `0.00`); Python must match that normalization in returned model-visible output. Negative values are transport-valid and remain subject to existing domain validation. The transport does not introduce rounding, units, or new numeric ranges.
 
-Before dispatch, decimal tokens must be representable by Java `BigDecimal`, including its scale range; the schema's lexical pattern alone cannot establish that. Preserve previously accepted model input coercions in the Python adapter before encoding a domain command. Python emits JSON **numbers**, not quoted decimals, in the model-visible food/plan JSON string, using decimal-aware serialization. JSON results are compared by field names, value types, exact numeric value/scale where observable, and preserved nulls; whitespace is not a new business contract.
+Before dispatch, decimal tokens must be representable by Java `BigDecimal`, including its scale range; the schema's lexical pattern alone cannot establish that. Java 26 accepts `1E+2147483648` and `1.0E+2147483649` at its minimum scale; `1E+2147483649` is outside that range. Do not impose an independent signed-32-bit exponent bound in Python. Preserve previously accepted model input coercions in the Python adapter before encoding a domain command. Python emits JSON **numbers**, not quoted decimals, in the model-visible food/plan JSON string, using decimal-aware serialization. JSON results are compared by field names, value types, exact numeric value/scale where observable, and preserved nulls; whitespace is not a new business contract.
 
 The generated food `id` is a decimal string representing `1` through `9223372036854775807`. Leading zeros, signs, zero, and more than 19 digits fail the schema (`INVALID_MESSAGE`). A lexically valid value above the signed-long maximum fails the codec's full-range check (`INVALID_VALUE`). Do not convert IDs through a floating-point JSON parser. Public tool output still omits this ID. Version 1 introduces no ID-based mutation command.
 
@@ -184,7 +184,7 @@ Framing fixtures provide `chunksBase64` or a bounded generator descriptor. Conca
 
 Sequence fixtures refer to message-case IDs through `ref`. An optional `set` map replaces existing fields at JSON Pointer paths; it is a fixture instruction, never a wire message. A `from` field identifies direction. Local events (`deadline`, `operation_settled`, `history_settled`, `pipe_eof`, `cancel_grace_elapsed`) model supervisor observations. Each step lists expected acceptance/rejection/ignore behavior and the resulting Java supervisor state. `historyAppend` counts attempts caused by that step; `dispatchCount` and `replayCount` count cumulative service dispatches and replays within the case. `operation_settled` records a local outcome after the worker no longer awaits a result; it must not send a late result back to resume tools. These fixtures specify an oracle; static inspection does not prove a live supervisor implements it.
 
-Step 4 must add parameterized Java and Python tests loading these same fixtures, without duplicating fixture data:
+Step 4's parameterized Java and Python tests load these same fixtures without duplicating fixture data. Keep the following checks passing as implementation continues:
 
 1. Validate message shape and semantic rules, preserving decimal strings, full-range IDs, expanded dates, explicit nulls, multiline text, and Unicode.
 2. Exercise incremental byte readers with split UTF-8, combined frames, malformed/truncated input, duplicate keys, invalid versions, and exactly-at/over-size boundaries.
@@ -192,4 +192,4 @@ Step 4 must add parameterized Java and Python tests loading these same fixtures,
 4. Check fixture direction/sequence expectations in a pure protocol-state harness. Step 5/8 then connect those expectations to real process/service execution, timing, cancellation, and actual database state.
 5. Verify the documented HTTP mapping at the Java boundary, including legacy file errors and worker/provider failures. No live API keys or provider calls are needed.
 
-Steps 4, 5, and 8 remain incomplete until their respective executable gates pass. Step 3 verification is limited to contract consistency, schema/fixture checks, and documentation validation.
+Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Steps 5 and 8 still require real supervisor/service integration, timing, and database outcomes; pure fixture scenarios do not prove those behaviors. The original Step 3 static checks remain historical evidence.

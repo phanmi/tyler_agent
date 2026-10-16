@@ -8,7 +8,7 @@
   "properties": {
     "protocolVersion": { "type": "integer", "const": 1 },
     "type": { "type": "string" },
-    "sessionId": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "sessionId": { "type": "string", "pattern": "^[a-f0-9]{32}$(?![\\s\\S])" },
     "requestId": { "oneOf": [{ "$ref": "#/$defs/correlationId" }, { "type": "null" }] },
     "payload": { "type": "object" }
   },
@@ -73,20 +73,20 @@
   "$defs": {
     "correlationId": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\\s\\S])"
     },
     "nonemptyString": { "type": "string", "minLength": 1 },
     "nullableString": { "type": ["string", "null"] },
     "decimal": {
       "$comment": "Exact decimal text, including sign, exponent and trailing zeroes; never a JSON number.",
       "type": "string",
-      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?$"
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?$(?![\\s\\S])"
     },
     "nullableDecimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
     "recordId": {
       "$comment": "The semantic validator also enforces the signed Java long maximum of 9223372036854775807.",
       "type": "string",
-      "pattern": "^[1-9][0-9]{0,18}$"
+      "pattern": "^[1-9][0-9]{0,18}$(?![\\s\\S])"
     },
     "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
     "ready": {
