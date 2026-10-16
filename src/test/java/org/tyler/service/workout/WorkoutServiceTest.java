@@ -5,7 +5,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.dao.workout.IWorkoutDAO;
 import org.tyler.exceptionHandler.exception.SQLReadException;
-import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.model.workout.Workout;
@@ -132,14 +131,14 @@ class WorkoutServiceTest {
         Workout original = workout("Squat", "4X12", "20", "2026-09-26");
         long id = service.saveWorkout(original);
 
-        assertThrows(SQLDataValidationException.class, () -> service.updateWorkout(id, null));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class, () -> service.updateWorkout(id, null));
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout(" ", "4X12", "20", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, new Workout("Squat", "4X12", null, "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout("Squat", "4X12", "-1", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.updateWorkout(id, workout("Squat", "4X12", "20", "2026-02-30")));
 
         assertEquals(Map.of(id, original), service.getAllWorkouts());
@@ -151,14 +150,14 @@ class WorkoutServiceTest {
         assertTrue(service.getAllWorkouts().isEmpty());
         assertTrue(service.getWorkoutById(9999).isEmpty());
 
-        assertThrows(SQLDataValidationException.class, () -> service.saveWorkout(null));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class, () -> service.saveWorkout(null));
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout(" ", "4X12", "20", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(new Workout("Squat", "4X12", null, "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout("Squat", "4X12", "-1", "2026-09-26")));
-        assertThrows(SQLDataValidationException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.saveWorkout(workout("Squat", "4X12", "20", "2026-02-30")));
         assertThrows(IllegalArgumentException.class,
                 () -> workout("Squat", "4x12", "20", "2026-09-26"));

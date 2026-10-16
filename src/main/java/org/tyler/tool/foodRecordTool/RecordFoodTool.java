@@ -7,11 +7,8 @@ import com.openai.models.responses.FunctionTool;
 import org.springframework.stereotype.Component;
 import org.tyler.service.food.IFoodService;
 import org.tyler.model.food.Food;
-import org.tyler.model.food.GenericInfo;
-import org.tyler.model.food.MacroNutrients;
 import org.tyler.tool.ITool;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +16,8 @@ import java.util.Map;
 /**
  * Converts a user's food description into a structured {@link Food} record.
  *
- * <p>Deserializes the model's JSON arguments, validates the resulting
- * {@link Food}, saves it through {@link IFoodService},
- * and returns the saved record to the model.
+ * <p>Deserializes the model's JSON arguments, delegates domain validation and saving
+ * to {@link IFoodService}, and serializes the saved food value for the model.
  */
 @Component
 public class RecordFoodTool implements ITool {
@@ -55,48 +51,12 @@ public class RecordFoodTool implements ITool {
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to parse food arguments: " + e.getMessage(), e);
         }
-        validate(food);
         // Preserve the food-only tool response while the service exposes persisted identity.
         Food saved = foodService.insertFood(food).food();
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(saved);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize food record", e);
-        }
-    }
-
-    private static void validate(Food food) {
-        GenericInfo info = food.genericInfo();
-        if (info == null) {
-            throw new IllegalArgumentException("Missing field: genericInfo");
-        }
-        MacroNutrients macros = food.macroNutrients();
-        if (macros == null) {
-            throw new IllegalArgumentException("Missing field: macroNutrients");
-        }
-        requireText(info.foodName(), "foodName");
-        requireText(info.unit(), "unit");
-        requireText(info.date(), "date");
-        requireNumber(info.amount(), "amount");
-        requireNumber(info.calories(), "calories");
-        requireNumber(macros.protein(), "protein");
-        requireNumber(macros.carbs(), "carbs");
-        requireNumber(macros.fat(), "fat");
-        requireNumber(macros.fiber(), "fiber");
-    }
-
-    private static void requireText(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Missing field: " + field);
-        }
-    }
-
-    private static void requireNumber(BigDecimal value, String field) {
-        if (value == null) {
-            throw new IllegalArgumentException("Missing field: " + field);
-        }
-        if (value.signum() < 0) {
-            throw new IllegalArgumentException("Field " + field + " must not be negative");
         }
     }
 

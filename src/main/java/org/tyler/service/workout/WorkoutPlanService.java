@@ -8,10 +8,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.tyler.model.workout.Workout;
 import org.tyler.model.workout.WorkoutPlan;
 import org.tyler.model.workout.WorkoutPlanDay;
+import org.tyler.validation.DomainValidation;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -76,14 +76,11 @@ public class WorkoutPlanService implements IWorkoutPlanService {
     }
 
     private static LocalDate parseStartDate(String value) {
-        if (value == null) {
-            throw new IllegalArgumentException("startDate must not be null");
+        LocalDate date = DomainValidation.parseDate(value, "startDate");
+        if (date.isAfter(LocalDate.MAX.minusDays(6))) {
+            throw new IllegalArgumentException("startDate must allow seven representable calendar days");
         }
-        try {
-            return LocalDate.parse(value);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("startDate must use the format YYYY-MM-DD", e);
-        }
+        return date;
     }
 
     private static Goal parseGoal(String value) {
