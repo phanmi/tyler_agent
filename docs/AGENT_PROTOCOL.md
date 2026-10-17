@@ -2,9 +2,9 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the Step 3 contract for a Java-owned Python worker. It specifies messages and shared conformance fixtures; it does not implement a worker, bridge, codec, or process supervisor. Step 4 implements and tests codecs in both languages, Step 5 implements lifecycle, and Step 6 implements service handlers.
+This is the version 1 contract established in Step 3. Step 4 now provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). The prototype is not connected to application chat. Step 5 implements process supervision and Step 6 implements service handlers.
 
-The current committed compatibility baseline is `4ee8cbe`, including the merged architecture and agent-test correction, recorded on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained only in dated execution records.
+Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
 ## Contract artifacts and authority
 
@@ -80,9 +80,9 @@ Null components render as `null` (for example `UserInfo[user=null, other=null]`)
 
 ### Decimal values and identity
 
-Food quantities/nutrition, workout weights, and profile age cross the pipe as decimal **strings**, or null where allowed. The lexical grammar is `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`. Parse with `BigDecimal`/`Decimal`, never binary floating point. Keep significant digits, trailing zeros/scale, exponent value, and sign according to Java `BigDecimal` semantics; Java should encode its `BigDecimal.toString()` representation. In particular, Java normalizes negative zero (`-0.00` becomes `0.00`); Python must match that normalization in returned model-visible output. Negative values are transport-valid and remain subject to existing domain validation. The transport does not introduce rounding, units, or new numeric ranges.
+Food quantities/nutrition, workout weights, and profile age cross the pipe as plain decimal **strings**, or null where allowed. The lexical grammar is `-?(0|[1-9][0-9]*)(\.[0-9]+)?`; scientific notation is rejected as `INVALID_MESSAGE`. Parse with `BigDecimal`/`Decimal`, never binary floating point. Preserve exact fractions and trailing zeros. Java should encode with `BigDecimal.toPlainString()`; Python should use fixed-point decimal formatting. Java normalizes negative zero (`-0.00` becomes `0.00`); Python must match that normalization in returned model-visible output.
 
-Before dispatch, decimal tokens must be representable by Java `BigDecimal`, including its scale range; the schema's lexical pattern alone cannot establish that. Preserve previously accepted model input coercions in the Python adapter before encoding a domain command. Python emits JSON **numbers**, not quoted decimals, in the model-visible food/plan JSON string, using decimal-aware serialization. JSON results are compared by field names, value types, exact numeric value/scale where observable, and preserved nulls; whitespace is not a new business contract.
+The absolute value must be at most **2,000,000,000**, inclusive. Larger magnitudes fail semantic validation with `INVALID_VALUE`. Negative values within that bound remain transport-valid so shared domain services own nonnegative validation. No fractional rounding is introduced. This intentionally narrows the previous exponent/full-scale transport contract, as requested on 2026-10-17, to simplify the prototype. Record IDs retain their separate existing range. Application storage and HTTP validation are unchanged; adapters must encode supported values as plain decimals. Python emits JSON **numbers**, not quoted decimals, in model-visible food/plan output, using decimal-aware serialization.
 
 The generated food `id` is a decimal string representing `1` through `9223372036854775807`. Leading zeros, signs, zero, and more than 19 digits fail the schema (`INVALID_MESSAGE`). A lexically valid value above the signed-long maximum fails the codec's full-range check (`INVALID_VALUE`). Do not convert IDs through a floating-point JSON parser. Public tool output still omits this ID. Version 1 introduces no ID-based mutation command.
 
@@ -121,7 +121,7 @@ An already dispatched Java write may finish or fail. Do not label it rolled back
 
 ## Failures and HTTP compatibility
 
-`error` contains exactly `category`, `code`, `message`, and `writeOutcome`. `message` is a safe nonempty diagnostic string, without keys, raw prompts, tool payloads, SQL, paths containing sensitive information, or stack traces. No exception class name is loaded dynamically from the protocol. Java maps allowlisted codes explicitly and retains original local exceptions/causes in its request ledger when available; Python preserves category/code when forwarding an operation failure.
+`error` contains exactly `category`, `code`, `message`, and `writeOutcome`. Senders must use a safe nonempty diagnostic `message`, without keys, raw prompts, tool payloads, SQL, paths containing sensitive information, or stack traces. Schema validation only establishes its shape, not its safety. Java therefore ignores worker-provided detail when constructing exceptions, including causes, and uses Java-owned messages selected by the validated code. Raw remote detail must never reach advice logs or HTTP responses. No exception class name is loaded dynamically from the protocol. Java retains original local exceptions/causes in its request ledger when available; Python preserves category/code when forwarding an operation failure.
 
 `writeOutcome` describes the operation for an `operation_result`, and all tool operations for a terminal `failed`:
 
@@ -133,11 +133,11 @@ Java computes the effective outcome from its own ledger, never downgrading uncer
 
 | Category | Codes | Java mapping and HTTP behavior |
 |---|---|---|
-| `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with the designated safe validation message. |
+| `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | Remote failures map to `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with Java-owned `Invalid agent request` / `Invalid agent record data`. |
 | `authentication` | `API_KEY_MISSING`, `PROVIDER_AUTH` | `OpenAIKeyException`; HTTP 401. Preserve `OpenAI API key is empty; chat is unavailable` and `This API key is invalid or unavailable`, respectively. Provider unauthorized and permission-denied failures both use the latter. |
 | `provider` | `PROVIDER_FAILURE` | Unexpected provider/transport/rate-limit/server failure; HTTP 500 with `Internal server error. Please try again later`. Preserve the existing HTTP mapping, not the provider's 429/5xx status. |
 | `storage` | `SQL_READ`, `SQL_WRITE`, `SQL_ACCESS` | Existing SQL read/write/Spring data-access mapping; HTTP 500 with `Database operation failed. Please try again later`. |
-| `storage` | `FILE_READ`, `FILE_WRITE` | Existing file exceptions; HTTP 500 with `Failed to read file: ` / `Failed to write file: ` plus the designated safe message. The payload message must not include that prefix twice. |
+| `storage` | `FILE_READ`, `FILE_WRITE` | Remote failures map to existing file exceptions; HTTP 500 with `Failed to read file: Agent file read failed` / `Failed to write file: Agent file write failed`. Worker detail is not appended. |
 | `worker` | `UNKNOWN_TOOL`, `SERIALIZATION_FAILURE`, `HISTORY_FAILURE`, `WORKER_UNAVAILABLE`, `WORKER_BUSY`, `INTERNAL_FAILURE` | Existing unexpected-failure HTTP 500 mapping. `HISTORY_FAILURE` is synthesized by Java after worker completion, not emitted by Python. |
 | `timeout` | `DEADLINE_EXCEEDED` | Java adapter failure, HTTP 500 with the existing generic internal-error body if the connection remains open. No 504 contract change in this migration. |
 | `cancelled` | `REQUEST_CANCELLED` | Java adapter failure with the same HTTP 500 body if a response can still be sent; disconnected clients receive no response. No new public cancellation endpoint or 499 status. |
@@ -149,9 +149,15 @@ The bridge emits only domain/SQL/file/internal failures for its operations. Pyth
 
 ### Rejection precedence
 
-First enforce byte count (`MESSAGE_TOO_LARGE`), framing/strict decoding/JSON rules (`INVALID_FRAME`), then an explicitly present incompatible `protocolVersion` (`UNSUPPORTED_VERSION`). An unknown string operation on an operation message is `UNKNOWN_OPERATION`; other schema failures are `INVALID_MESSAGE`. Then check session, direction, semantic values (ID range, nonblank model/key, timeout relationship, representable decimals), and state/correlation. Semantic value failures are `INVALID_VALUE`. A blank credential from a valid Java request is caught locally as `API_KEY_MISSING`, before encoding; a blank credential arriving on the private wire is a sender defect. Multiple simultaneous violations are diagnosed by this order. Domain validation runs only after protocol acceptance.
+First enforce byte count (`MESSAGE_TOO_LARGE`), framing/strict decoding/JSON rules (`INVALID_FRAME`), then an explicitly present incompatible `protocolVersion` (`UNSUPPORTED_VERSION`). An unknown string operation on an operation message is `UNKNOWN_OPERATION`; other schema failures are `INVALID_MESSAGE`. Then check session, direction, semantic values (ID range, nonblank model/key, timeout relationship, bounded decimal values), and state/correlation. Semantic value failures are `INVALID_VALUE`. A blank credential from a valid Java request is caught locally as `API_KEY_MISSING`, before encoding; a blank credential arriving on the private wire is a sender defect. Multiple simultaneous violations are diagnosed by this order. Domain validation runs only after protocol acceptance.
+
+Both codecs' `decode` methods and incremental frame readers validate framing and shape only. Receivers must check session and direction, then call semantic validation before state/correlation checks or dispatch. Outbound `encode` still validates semantic values to prevent sending invalid local messages. Sequence tests inject raw serialized peer bytes through the frame reader so the outbound encoder cannot mask overlapping-invalidity cases. The shared `precedence_*` cases cover wrong sessions/directions combined with blank models, decimal values above the limit, and out-of-range IDs; controls confirm semantic checks still run for the correct session and direction. Applicable Java-to-worker cases also run through real subprocess pipes.
 
 ## Credentials, logging, and history
+
+Python's local `ProtocolError` exposes a stable `code` and a developer-facing `detail`; its string form is `CODE: explanation`. Examples include `INVALID_VALUE: payload.model must not be blank` and `INVALID_FRAME: Invalid JSON syntax at line 1, column 6`. Schema failures identify the trusted schema rule/path and missing required field names. Frame errors distinguish empty input, BOM/CRLF, invalid UTF-8, duplicate keys, malformed JSON, and incomplete termination.
+
+Details use code-owned explanations, schema metadata, and parser line/column numbers. Never include raw parser/schema exception messages, peer-supplied field names, payload values, or remote error detail. The worker logs the safe code and explanation to stderr. These local diagnostics do not change protocol codes, rejection precedence, or the Java-owned public HTTP messages.
 
 - Only Java reads/stores the API key. Send its current snapshot in `run.payload.apiKey` through private pipes; never environment variables, command arguments, fixture data, or logs. Fixture keys are conspicuous synthetic values and must never be sent to a provider.
 - Keep credentials and conversation data scoped to the run. Drop references on terminal cleanup and dispose of clients when replaced or the worker exits; do not promise memory zeroization in managed runtimes.
@@ -184,7 +190,7 @@ Framing fixtures provide `chunksBase64` or a bounded generator descriptor. Conca
 
 Sequence fixtures refer to message-case IDs through `ref`. An optional `set` map replaces existing fields at JSON Pointer paths; it is a fixture instruction, never a wire message. A `from` field identifies direction. Local events (`deadline`, `operation_settled`, `history_settled`, `pipe_eof`, `cancel_grace_elapsed`) model supervisor observations. Each step lists expected acceptance/rejection/ignore behavior and the resulting Java supervisor state. `historyAppend` counts attempts caused by that step; `dispatchCount` and `replayCount` count cumulative service dispatches and replays within the case. `operation_settled` records a local outcome after the worker no longer awaits a result; it must not send a late result back to resume tools. These fixtures specify an oracle; static inspection does not prove a live supervisor implements it.
 
-Step 4 must add parameterized Java and Python tests loading these same fixtures, without duplicating fixture data:
+Step 4's parameterized Java and Python tests load these same fixtures without duplicating fixture data. Keep the following checks passing as implementation continues:
 
 1. Validate message shape and semantic rules, preserving decimal strings, full-range IDs, expanded dates, explicit nulls, multiline text, and Unicode.
 2. Exercise incremental byte readers with split UTF-8, combined frames, malformed/truncated input, duplicate keys, invalid versions, and exactly-at/over-size boundaries.
@@ -192,4 +198,4 @@ Step 4 must add parameterized Java and Python tests loading these same fixtures,
 4. Check fixture direction/sequence expectations in a pure protocol-state harness. Step 5/8 then connect those expectations to real process/service execution, timing, cancellation, and actual database state.
 5. Verify the documented HTTP mapping at the Java boundary, including legacy file errors and worker/provider failures. No live API keys or provider calls are needed.
 
-Steps 4, 5, and 8 remain incomplete until their respective executable gates pass. Step 3 verification is limited to contract consistency, schema/fixture checks, and documentation validation.
+Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Steps 5 and 8 still require real supervisor/service integration, timing, and database outcomes; pure fixture scenarios do not prove those behaviors. The original Step 3 static checks remain historical evidence.

@@ -1,6 +1,6 @@
 # Backend coding and design standards
 
-[Developer guide](DEVELOPMENT.md)
+[Developer guide](DEVELOPMENT.md) · [Python agent standards](PYTHON_AGENT_STANDARDS.md)
 
 This is an editable baseline for backend development and review. It defines rules by architectural responsibility, without assigning behavior to particular application classes. Feature contracts and current implementation details belong in feature documentation and issue acceptance criteria. This document does not authorize a broad refactor.
 
@@ -45,6 +45,7 @@ An optional DAL beneath a service requires a documented responsibility involving
 
 ### Agent implementation language
 
+- Apply the [Python agent coding and design standards](PYTHON_AGENT_STANDARDS.md) alongside this document for Python agent development and review. They define Python-specific typing, protocol, lifecycle, security, testing, and verification requirements.
 - All agent functionality must be written in Python. This includes model/provider SDK integration, prompts, model-facing context assembly, orchestration and tool-call loops, tool definitions, argument parsing and dispatch, and model-facing result serialization.
 - Java retains HTTP adapters, worker process lifecycle, protocol transport and operation dispatch, shared domain services and validators, persistence and transactions, sandboxed file access, and persisted settings and history. Reading stored history or credentials for a request does not make Java responsible for constructing model messages or prompts.
 - Python tools delegate application operations through the allowlisted Java bridge. They must not access application databases directly, reimplement domain rules or transaction logic, bypass the file sandbox, or create a second owner for persisted settings or history.
@@ -63,7 +64,7 @@ Do not introduce a DAL that only forwards the same methods to a DAO. Keep a serv
 
 ## 3. Packages, naming, and formatting
 
-- Keep Java production code under `src/main/java` and Java tests under `src/test/java`, using the project's package namespace. Put Python agent production code under `agent-python/src/tyler_agent/` and tests, fixtures, and test support under the dedicated `agent-python/tests/` directory when that project is introduced.
+- Keep Java production code under `src/main/java` and Java tests under `src/test/java`, using the project's package namespace. Put Python agent production code under `agent-python/src/tyler_agent/` and tests, fixtures, and test support under the dedicated `agent-python/tests/` directory. Keep shared Java/Python contract fixtures under `contracts/agent/` rather than duplicating them per language.
 - Group Java controllers, services, DAOs, and models by feature within their existing layer packages. Group Python agent modules and tool adapters by responsibility and feature; do not add new Java tool packages.
 - Match the naming of the package being edited; do not rename packages incidentally. Prefer lowercase package names for new features.
 - Use `PascalCase` for types and `UPPER_SNAKE_CASE` for constants. Use `camelCase` for Java fields and methods, and `snake_case` for Python modules, functions, and variables.

@@ -24,6 +24,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>1.5.9</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
@@ -54,6 +59,21 @@
 
     <build>
         <finalName>tyler-agent-${project.version}</finalName>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource>
+                <directory>contracts/agent/v1</directory>
+                <targetPath>agent-protocol</targetPath>
+                <includes><include>message.schema.json</include></includes>
+            </resource>
+        </resources>
+        <testResources>
+            <testResource><directory>src/test/resources</directory></testResource>
+            <testResource>
+                <directory>contracts/agent/v1/fixtures</directory>
+                <targetPath>agent-protocol/fixtures</targetPath>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

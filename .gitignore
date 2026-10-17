@@ -76,6 +76,15 @@ logs/
 frontend/node_modules/
 frontend/dist/
 frontend/out/
+### Python agent development and packaging ###
+agent-python/.venv/
+agent-python/.pytest_cache/
+agent-python/.mypy_cache/
+agent-python/.ruff_cache/
+agent-python/build/
+agent-python/dist/
+**/__pycache__/
+*.pyc
 # Temporary: out2 contains Phase 8 packaging output locked by Cyrene; remove it and this rule after restarting.
 frontend/out2/
 
