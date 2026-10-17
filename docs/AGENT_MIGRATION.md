@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-17):** Steps 2–4 are complete. This numeric-validation simplification starts from committed `251dda9`, which contains the prior protocol review corrections. The prototype now uses plain decimal values bounded to two billion, as requested; the dated execution records explain this intentional narrowing and verification. The application still runs the Java agent; Step 5 process supervision remains next. Earlier checkout and CI observations remain historical evidence.
+**Current state (refreshed 2026-10-17):** Steps 2–4 are complete. The shared-validation refactor starts from committed `96db0a3`, which includes the prior protocol corrections, numeric simplification, diagnostics, and maintainability refactor. The prototype now uses plain decimal values bounded to two billion, as requested; the dated execution records explain this intentional narrowing and verification. The application still runs the Java agent; Step 5 process supervision remains next. Earlier checkout and CI observations remain historical evidence.
 
 ## Current implementation baseline
 
@@ -17,10 +17,10 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
 | CI | [CI workflow](../.github/workflows/ci.yml) runs Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. [Run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** for `4ee8cbe`, as reported in the review. This supersedes the earlier reported 256-case CI baseline. |
-| Step 4 implementation | [Python project and commands](../agent-python/README.md), [Python codec](../agent-python/src/tyler_agent/protocol.py), and [Java protocol infrastructure](../src/main/java/org/tyler/service/agent/protocol) implement framing/validation and pure sequence observation. The worker is a readiness/shutdown prototype; valid runs fail explicitly as unavailable. No model call or service operation is implemented. |
-| Latest local verification | On `251dda9` plus the numeric simplification, diagnostics, and maintainability follow-ups below, **439 backend tests** and **225 Python tests** passed, including the rebuilt, relocated worker. Ruff formatting/lint and strict mypy passed for eleven source/test files. |
+| Step 4 implementation | [Python project and commands](../agent-python/README.md), [Python codec](../agent-python/src/tyler_agent/protocol/protocol.py), and [Java protocol infrastructure](../src/main/java/org/tyler/service/agent/protocol) implement framing/validation and pure sequence observation. The worker is a readiness/shutdown prototype; valid runs fail explicitly as unavailable. No model call or service operation is implemented. |
+| Latest local verification | On `96db0a3` plus the shared-validation and protocol-package refactors below, **231 Python tests** passed, including the rebuilt, relocated worker. Ruff formatting/lint and strict mypy passed for fourteen source/test files. The **439 backend tests** passed during the shared-validation refactor; they were not rerun for the Python module move. |
 
-Step 4 and its protocol review corrections are included in the committed baseline `251dda9`; the latest local verification includes this follow-up's changes on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure work. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
+Step 4 and its protocol review corrections are included in the committed baseline `96db0a3`; the latest local verification includes this follow-up's changes on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure work. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
 
 ## Progress
 
@@ -504,3 +504,26 @@ The shared fixtures remain unchanged by this refactor. Added ten session cases f
 For each executed step, add a dated entry with the changed files, behavior/contract decisions, exact commands or reproducible options, results, limitations, and commit/PR reference when available. Record unsuccessful attempts and their resolution when they affect reproducibility. Mark a step complete only after its gate passes; keep deferred work explicit.
 
 Keep the developer guide linked to this tracker rather than duplicating the execution history. Later implementation changes should update both this status and the relevant application documentation.
+
+
+### 2026-10-17 — Centralize Python protocol validation
+
+**Changes:** Added [validation.py](../agent-python/src/tyler_agent/protocol/validation.py) as the shared owner of schema, version, operation, numeric, session, direction, and frame validation. The codec delegates validation while retaining JSON serialization and framing. Both the worker and session observer use the same received-message validator, preserving shape → session → direction → semantics precedence. Complete and incremental frames share the size check. Existing codec validation entry points and exception imports remain compatible; lifecycle guards stay with their state owners. No domain rules or wire contracts changed.
+
+**Verification:** Locked offline Ruff formatting/lint and strict mypy passed for 13 source/test files. Development pytest passed **218 tests**, including six new shared-validator cases for overlapping failures and both sender directions. Rebuilt the Windows worker with PyInstaller; pytest with `--worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe` passed **231 tests**, including 13 relocated executable smoke cases. Full offline Maven `test` passed **439 tests**, with zero failures/errors/skips, using the previously documented forked compilation and explicit Mockito agent. Logs: `target/python-validation-package.log`, `target/python-validation-packaged.log`, and `target/java-shared-validation.log`. Temporary pytest data stayed under `target/`.
+
+**Limits:** Local evidence only; no live provider, application database, frontend checks, or remote CI run. Step 5 remains next.
+
+
+### 2026-10-17 — Group reusable Python utilities in a library package
+
+**Changes:** Moved the codec/frame reader and shared validation into `tyler_agent/library/protocol.py` and `tyler_agent/library/validation.py`. Updated production/test imports and documentation links; the Python README now describes the source layout. Worker lifecycle, session state, and application resource lookup remain at the package root. Tests remain in `agent-python/tests/`. At this intermediate step, internal imports used `tyler_agent.library` (superseded by the protocol-package layout below); wire behavior and executable entry points are unchanged.
+
+**Verification:** Locked offline Ruff lint/format checks and strict mypy passed for 14 files. Development pytest passed **218 tests**. Rebuilt the Windows worker with PyInstaller and ran pytest with `--worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe`: **231 tests passed**, including the 13 relocated executable cases. Logs: `target/python-library-package.log` and `target/python-library-packaged.log`. Checked for old module imports and stale source links; none remain. Diff whitespace check passed. Java tests were not rerun for this module-only relocation; the preceding 439-test result remains the latest backend evidence. No live provider or application database was used.
+
+
+### 2026-10-17 — Name the transport package by responsibility
+
+**Changes:** Renamed the intermediate `library/` package to `protocol/` at the user's request. The codec and validator now live at `tyler_agent.protocol.protocol` and `tyler_agent.protocol.validation`. Updated production/test imports, README layout, and source links. Worker, session, resources, and the executable entry point remain at the root. No behavior or wire-contract changes.
+
+**Verification:** Locked offline Ruff lint/format checks and strict mypy passed for 14 files; development pytest passed **218 tests**. After a PyInstaller rebuild, pytest including the relocated Windows executable passed **231 tests**. Logs: `target/python-protocol-package-build.log` and `target/python-protocol-package-tests.log`. No old library imports remain in production/tests; diff whitespace check passed. Java tests were not rerun for this Python package rename.

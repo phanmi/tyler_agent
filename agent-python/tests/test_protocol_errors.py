@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from conftest import sequence_message
 
-from tyler_agent.protocol import FrameReader, MessageCodec, ProtocolError
+from tyler_agent.protocol.protocol import FrameReader, MessageCodec, ProtocolError
 
 CODEC = MessageCodec()
 SECRET = "synthetic-private-key-prompt-history-file"

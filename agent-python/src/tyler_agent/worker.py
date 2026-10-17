@@ -2,13 +2,13 @@
 
 import logging
 import os
-import re
 import sys
 from collections.abc import Callable
 from io import BufferedReader
 from typing import BinaryIO, cast
 
-from tyler_agent.protocol import FrameReader, Message, MessageCodec, ProtocolError
+from tyler_agent.protocol.protocol import FrameReader, Message, MessageCodec, ProtocolError
+from tyler_agent.protocol.validation import validate_session_id
 from tyler_agent.resources import release_version
 
 log = logging.getLogger(__name__)
@@ -18,10 +18,7 @@ type MessageSender = Callable[[str, str | None, Message], None]
 
 def serve(source: BufferedReader, sink: BinaryIO, session_id: str) -> int:
     """Announce readiness, reject unavailable runs explicitly, and exit on shutdown/EOF."""
-    if not re.fullmatch("[a-f0-9]{32}", session_id):
-        raise ProtocolError(
-            "SESSION_MISMATCH", "Session identifier does not match the worker session"
-        )
+    validate_session_id(session_id)
     codec = MessageCodec()
     reader = FrameReader(codec)
     requests: set[str] = set()
@@ -44,23 +41,12 @@ def serve(source: BufferedReader, sink: BinaryIO, session_id: str) -> int:
     log.info("Worker ready: protocolVersion=1")
     while chunk := source.read1(65536):
         for message in reader.feed(chunk):
-            _validate_received_message(codec, message, session_id)
+            codec.validator.validate_received(message, session_id, "java")
             if not _dispatch_message(message, requests, send):
                 return 0
     reader.finish()
     log.info("Worker input closed")
     return 0
-
-
-def _validate_received_message(codec: MessageCodec, message: Message, session_id: str) -> None:
-    """Peer identity and direction precede payload values on the private wire."""
-    if message["sessionId"] != session_id:
-        raise ProtocolError(
-            "SESSION_MISMATCH", "Session identifier does not match the worker session"
-        )
-    if message["type"] not in {"run", "cancel", "operation_result", "shutdown"}:
-        raise ProtocolError("WRONG_DIRECTION", "Message type is not allowed from this sender")
-    codec.validate_semantics(message)
 
 
 def _dispatch_message(message: Message, requests: set[str], send: MessageSender) -> bool:

@@ -6,18 +6,8 @@ outcomes so fixture conformance can be checked without a subprocess or database.
 
 from typing import Any
 
-from tyler_agent.protocol import Message, MessageCodec, ProtocolError
+from tyler_agent.protocol.protocol import Message, MessageCodec, ProtocolError
 
-DIRECTIONS = {
-    "ready": "python",
-    "run": "java",
-    "operation_request": "python",
-    "operation_result": "java",
-    "completed": "python",
-    "failed": "python",
-    "cancel": "java",
-    "shutdown": "java",
-}
 WRITES = {"food.insert", "workout_plan.generate_save", "file.write"}
 
 
@@ -74,7 +64,7 @@ class ProtocolSession:
     def accept(self, message: Message, sender: str) -> Message:
         """Validate first, apply shared request guards, then handle one message kind."""
         try:
-            self._validate_received_message(message, sender)
+            self.codec.validator.validate_received(message, self.session_id, sender)
         except ProtocolError as error:
             return self._reject(error.code)
 
@@ -92,17 +82,6 @@ class ProtocolSession:
             "failed": self._accept_failed,
         }
         return handlers[message["type"]](message)
-
-    def _validate_received_message(self, message: Message, sender: str) -> None:
-        """Keep schema, session, direction, and semantic rejection precedence explicit."""
-        self.codec.validate_shape(message)
-        if message["sessionId"] != self.session_id:
-            raise ProtocolError(
-                "SESSION_MISMATCH", "Session identifier does not match the worker session"
-            )
-        if DIRECTIONS[message["type"]] != sender:
-            raise ProtocolError("WRONG_DIRECTION", "Message type is not allowed from this sender")
-        self.codec.validate_semantics(message)
 
     def _ignore_inactive_message(self, message: Message) -> Message | None:
         """Control messages can start a run; late request messages must not change its ledger."""

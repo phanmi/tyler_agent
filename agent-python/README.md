@@ -4,6 +4,26 @@
 
 Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. The application still uses the Java agent. Java process supervision, service handlers, and the Python model/tool loop are later migration steps.
 
+## Source layout
+
+```text
+src/tyler_agent/
+  __init__.py
+  __main__.py          # Executable entry point
+  worker.py            # Worker lifecycle and message dispatch
+  session.py           # Protocol state and correlation observer
+  resources.py         # Application resource and release-version lookup
+  protocol/
+    __init__.py
+    protocol.py        # JSON codec and bounded frame reader
+    validation.py      # Shared wire validation and safe diagnostics
+tests/                 # All Python tests and test helpers
+```
+
+Import shared utilities through `tyler_agent.protocol.protocol` or
+`tyler_agent.protocol.validation`. Keep lifecycle and application orchestration
+outside `protocol/`; keep transport and wire validation together in this package.
+
 ## Install the development environment
 
 Use **uv 0.13.1**. If Python is already available, install that exact version with:

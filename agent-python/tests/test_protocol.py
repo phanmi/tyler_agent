@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from conftest import cases, frame_chunks, sequence_message
 
-from tyler_agent.protocol import FrameReader, MessageCodec, ProtocolError
+from tyler_agent.protocol.protocol import FrameReader, MessageCodec, ProtocolError
 from tyler_agent.session import ProtocolSession
 
 CODEC = MessageCodec()

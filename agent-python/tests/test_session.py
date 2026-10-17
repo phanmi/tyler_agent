@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from conftest import sequence_message
 
-from tyler_agent.protocol import MessageCodec
+from tyler_agent.protocol.protocol import MessageCodec
 from tyler_agent.session import ProtocolSession
 
 
