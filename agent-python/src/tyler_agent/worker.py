@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+from collections.abc import Callable
 from io import BufferedReader
 from typing import BinaryIO, cast
 
@@ -12,11 +13,15 @@ from tyler_agent.resources import release_version
 
 log = logging.getLogger(__name__)
 
+type MessageSender = Callable[[str, str | None, Message], None]
+
 
 def serve(source: BufferedReader, sink: BinaryIO, session_id: str) -> int:
     """Announce readiness, reject unavailable runs explicitly, and exit on shutdown/EOF."""
     if not re.fullmatch("[a-f0-9]{32}", session_id):
-        raise ProtocolError("SESSION_MISMATCH")
+        raise ProtocolError(
+            "SESSION_MISMATCH", "Session identifier does not match the worker session"
+        )
     codec = MessageCodec()
     reader = FrameReader(codec)
     requests: set[str] = set()
@@ -39,42 +44,61 @@ def serve(source: BufferedReader, sink: BinaryIO, session_id: str) -> int:
     log.info("Worker ready: protocolVersion=1")
     while chunk := source.read1(65536):
         for message in reader.feed(chunk):
-            if message["sessionId"] != session_id:
-                raise ProtocolError("SESSION_MISMATCH")
-            kind = message["type"]
-            if kind not in {"run", "cancel", "operation_result", "shutdown"}:
-                raise ProtocolError("WRONG_DIRECTION")
-            # Peer identity and direction take precedence over payload values on the private wire.
-            codec.validate_semantics(message)
-            if kind == "shutdown":
-                log.info("Worker shutdown accepted")
+            _validate_received_message(codec, message, session_id)
+            if not _dispatch_message(message, requests, send):
                 return 0
-            if kind == "run":
-                request_id = message["requestId"]
-                if request_id in requests:
-                    raise ProtocolError("DUPLICATE_MESSAGE")
-                if len(requests) >= 10000:
-                    raise ProtocolError("INVALID_SEQUENCE")
-                requests.add(request_id)
-                send(
-                    "failed",
-                    request_id,
-                    {
-                        "error": {
-                            "category": "worker",
-                            "code": "WORKER_UNAVAILABLE",
-                            "message": "Agent execution is not implemented in this prototype",
-                            "writeOutcome": "none",
-                        }
-                    },
-                )
-            elif kind == "cancel" and message["requestId"] in requests:
-                continue  # A cancel may cross the already-sent failure.
-            else:
-                raise ProtocolError("REQUEST_NOT_ACTIVE")
     reader.finish()
     log.info("Worker input closed")
     return 0
+
+
+def _validate_received_message(codec: MessageCodec, message: Message, session_id: str) -> None:
+    """Peer identity and direction precede payload values on the private wire."""
+    if message["sessionId"] != session_id:
+        raise ProtocolError(
+            "SESSION_MISMATCH", "Session identifier does not match the worker session"
+        )
+    if message["type"] not in {"run", "cancel", "operation_result", "shutdown"}:
+        raise ProtocolError("WRONG_DIRECTION", "Message type is not allowed from this sender")
+    codec.validate_semantics(message)
+
+
+def _dispatch_message(message: Message, requests: set[str], send: MessageSender) -> bool:
+    """Return whether to keep reading; the prototype never executes application operations."""
+    kind = message["type"]
+    if kind == "shutdown":
+        log.info("Worker shutdown accepted")
+        return False
+    if kind == "run":
+        _reject_unavailable_run(message["requestId"], requests, send)
+        return True
+    if kind == "cancel" and message["requestId"] in requests:
+        return True  # A cancel may cross the already-sent failure.
+    raise ProtocolError("REQUEST_NOT_ACTIVE", "Message does not belong to an active request")
+
+
+def _register_request(request_id: str, requests: set[str]) -> None:
+    if request_id in requests:
+        raise ProtocolError("DUPLICATE_MESSAGE", "Request identifier has already been used")
+    if len(requests) >= 10000:
+        raise ProtocolError("INVALID_SEQUENCE", "Worker request history limit reached")
+    requests.add(request_id)
+
+
+def _reject_unavailable_run(request_id: str, requests: set[str], send: MessageSender) -> None:
+    _register_request(request_id, requests)
+    send(
+        "failed",
+        request_id,
+        {
+            "error": {
+                "category": "worker",
+                "code": "WORKER_UNAVAILABLE",
+                "message": "Agent execution is not implemented in this prototype",
+                "writeOutcome": "none",
+            }
+        },
+    )
 
 
 def main() -> int:
@@ -91,7 +115,7 @@ def main() -> int:
             os.environ.get("TYLER_AGENT_SESSION_ID", ""),
         )
     except ProtocolError as error:
-        log.error("Worker protocol failure: code=%s", error.code)
+        log.error("Worker protocol failure: code=%s detail=%s", error.code, error.detail)
         return 2
     except (OSError, ValueError):
         log.error("Worker resource or pipe failure")

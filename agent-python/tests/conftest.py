@@ -1,5 +1,6 @@
 """Shared contract loading and optional packaged-worker selection."""
 
+import base64
 import copy
 import json
 from pathlib import Path
@@ -31,6 +32,19 @@ def sequence_message(step: dict[str, Any]) -> dict[str, Any]:
         assert keys[-1] in target
         target[keys[-1]] = value
     return message
+
+
+def frame_chunks(case: dict[str, Any]) -> list[bytes]:
+    """Build shared byte fixtures and generated size boundaries independently of the codec."""
+    if "generator" in case:
+        generator = case["generator"]
+        message = copy.deepcopy(generator["message"])
+        base_size = len(json.dumps(message, separators=(",", ":")).encode())
+        message["payload"]["reply"] = "x" * (generator["frameBytes"] - base_size)
+        frame = json.dumps(message, separators=(",", ":")).encode()
+        assert len(frame) == generator["frameBytes"]
+        return [frame, b"\n"]
+    return [base64.b64decode(value, validate=True) for value in case["chunksBase64"]]
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

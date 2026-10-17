@@ -1,12 +1,10 @@
 """The committed cross-language fixtures are the conformance oracle, not copied examples."""
 
-import base64
-import copy
 import json
 from typing import Any
 
 import pytest
-from conftest import cases, sequence_message
+from conftest import cases, frame_chunks, sequence_message
 
 from tyler_agent.protocol import FrameReader, MessageCodec, ProtocolError
 from tyler_agent.session import ProtocolSession
@@ -22,35 +20,30 @@ def test_message_contract(case: dict[str, Any]) -> None:
         with pytest.raises(ProtocolError) as failure:
             CODEC.validate_shape(message)
         assert failure.value.code == expected["reason"]
-    else:
-        CODEC.validate_shape(message)
-        if expected.get("semantic", {}).get("valid") is False:
-            assert CODEC.decode(json.dumps(message).encode()) == message
-            with pytest.raises(ProtocolError) as failure:
-                CODEC.validate_semantics(message)
-            assert failure.value.code == expected["semantic"]["reason"]
-            with pytest.raises(ProtocolError) as outbound_failure:
-                CODEC.encode(message)
-            assert outbound_failure.value.code == expected["semantic"]["reason"]
-        else:
-            encoded = CODEC.encode(message)
-            assert CODEC.decode(encoded[:-1]) == message
-            assert encoded[-1:] == b"\n"
-            assert b"\n" not in encoded[:-1]
+        return
+    CODEC.validate_shape(message)
+    if expected.get("semantic", {}).get("valid") is False:
+        _assert_semantic_rejection(message, expected["semantic"]["reason"])
+        return
+    encoded = CODEC.encode(message)
+    assert CODEC.decode(encoded[:-1]) == message
+    assert encoded[-1:] == b"\n"
+    assert b"\n" not in encoded[:-1]
+
+
+def _assert_semantic_rejection(message: dict[str, Any], reason: str) -> None:
+    assert CODEC.decode(json.dumps(message).encode()) == message
+    with pytest.raises(ProtocolError) as failure:
+        CODEC.validate_semantics(message)
+    assert failure.value.code == reason
+    with pytest.raises(ProtocolError) as outbound_failure:
+        CODEC.encode(message)
+    assert outbound_failure.value.code == reason
 
 
 @pytest.mark.parametrize("case", cases("framing"), ids=lambda item: item["id"])
 def test_incremental_frames(case: dict[str, Any]) -> None:
-    if "generator" in case:
-        generator = case["generator"]
-        message = copy.deepcopy(generator["message"])
-        base_size = len(json.dumps(message, separators=(",", ":")).encode())
-        message["payload"]["reply"] = "x" * (generator["frameBytes"] - base_size)
-        frame = json.dumps(message, separators=(",", ":")).encode()
-        assert len(frame) == generator["frameBytes"]
-        chunks = [frame, b"\n"]
-    else:
-        chunks = [base64.b64decode(value, validate=True) for value in case["chunksBase64"]]
+    chunks = frame_chunks(case)
     reader = FrameReader(CODEC)
     expected = case["expected"]
     decoded: list[dict[str, Any]] = []
@@ -65,13 +58,13 @@ def test_incremental_frames(case: dict[str, Any]) -> None:
         with pytest.raises(ProtocolError) as failure:
             read()
         assert failure.value.code == expected["reason"]
-    else:
-        read()
-        if "messages" in expected:
-            assert decoded == expected["messages"]
-        if "messageCount" in expected:
-            assert len(decoded) == expected["messageCount"]
-            assert len(decoded[0]["payload"]["reply"].encode()) == expected["replyBytes"]
+        return
+    read()
+    if "messages" in expected:
+        assert decoded == expected["messages"]
+    if "messageCount" in expected:
+        assert len(decoded) == expected["messageCount"]
+        assert len(decoded[0]["payload"]["reply"].encode()) == expected["replyBytes"]
 
 
 @pytest.mark.parametrize("case", cases("sequences"), ids=lambda item: item["id"])
@@ -98,6 +91,7 @@ def test_protocol_sequence(case: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize("raw", [b'{"text":"secret-token","x":', b"\xffsecret-token\n"])
 def test_parser_diagnostics_do_not_expose_input(raw: bytes) -> None:
-    with pytest.raises(ProtocolError, match="^INVALID_FRAME$") as failure:
+    with pytest.raises(ProtocolError, match="^INVALID_FRAME:") as failure:
         CODEC.decode(raw)
     assert failure.value.__cause__ is None
+    assert "secret-token" not in str(failure.value)

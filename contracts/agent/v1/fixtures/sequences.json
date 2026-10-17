@@ -1549,14 +1549,14 @@
     },
     {
       "id": "precedence_direction_before_decimal_range",
-      "description": "A request from the wrong sender is rejected before an unrepresentable decimal.",
+      "description": "A request from the wrong sender is rejected before an decimal above the limit.",
       "initialState": "STARTING",
       "steps": [
         {
           "ref": "food_request",
           "from": "java",
           "set": {
-            "/payload/input/food/genericInfo/calories": "1E+2147483649"
+            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
           },
           "expected": {
             "action": "reject",
@@ -1616,14 +1616,14 @@
     },
     {
       "id": "precedence_decimal_after_valid_session_and_direction",
-      "description": "The correct session and direction still reject unrepresentable decimals before dispatch.",
+      "description": "The correct session and direction still reject decimal above the limits before dispatch.",
       "initialState": "STARTING",
       "steps": [
         {
           "ref": "food_request",
           "from": "python",
           "set": {
-            "/payload/input/food/genericInfo/calories": "1E+2147483649"
+            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
           },
           "expected": {
             "action": "reject",

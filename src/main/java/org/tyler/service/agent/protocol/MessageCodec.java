@@ -23,6 +23,7 @@ import java.util.Set;
 /** Strict version 1 transport codec; domain validation remains in the application services. */
 public final class MessageCodec {
     public static final int MAX_FRAME_BYTES = 16_777_216;
+    private static final BigDecimal MAX_DECIMAL_VALUE = BigDecimal.valueOf(2_000_000_000L);
     private static final Set<String> DECIMALS = Set.of("amount", "calories", "protein", "carbs",
             "fat", "fiber", "weight", "Age");
     private static final Set<String> OPERATIONS = Set.of("food.insert", "workout_plan.generate_save",
@@ -78,8 +79,9 @@ public final class MessageCodec {
             value.properties().forEach(entry -> {
                 JsonNode item = entry.getValue();
                 try {
-                    if (item.isTextual() && DECIMALS.contains(entry.getKey())) {
-                        new BigDecimal(item.textValue());
+                    if (item.isTextual() && DECIMALS.contains(entry.getKey())
+                            && new BigDecimal(item.textValue()).abs().compareTo(MAX_DECIMAL_VALUE) > 0) {
+                        throw new ProtocolException("INVALID_VALUE");
                     }
                     if (entry.getKey().equals("id") && item.isTextual()
                             && new BigInteger(item.textValue()).compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {

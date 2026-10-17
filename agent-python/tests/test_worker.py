@@ -172,10 +172,12 @@ def test_rejection_precedence_on_real_pipe(
         ready(process)
         output, errors = process.communicate(json.dumps(message).encode() + b"\n", timeout=10)
         assert output == b"" and process.returncode == 2
-        assert (
-            errors.splitlines()[-1]
-            == ("ERROR Worker protocol failure: code=" + step["expected"]["reason"]).encode()
+        assert errors.splitlines()[-1].startswith(
+            (
+                "ERROR Worker protocol failure: code=" + step["expected"]["reason"] + " detail="
+            ).encode()
         )
+        assert not errors.splitlines()[-1].endswith(b"detail=")
         assert b"SYNTHETIC_FIXTURE_KEY" not in errors
         assert b"Help me plan" not in errors
     finally:
@@ -184,3 +186,24 @@ def test_rejection_precedence_on_real_pipe(
 
 def test_release_version_comes_from_shared_file() -> None:
     assert f"-Drevision={release_version()}" in (ROOT / ".mvn/maven.config").read_text("utf-8")
+
+
+@pytest.mark.parametrize("followup,exit_code", [("run", 2), ("cancel", 0)])
+def test_request_identity_after_unavailable_reply(
+    worker_command: list[str], tmp_path: Path, followup: str, exit_code: int
+) -> None:
+    process = start(worker_command, tmp_path)
+    run = json.dumps(sequence_message({"ref": "run"})).encode() + b"\n"
+    next_message = json.dumps(sequence_message({"ref": followup})).encode() + b"\n"
+    try:
+        ready(process)
+        output, errors = process.communicate(run + next_message, timeout=10)
+        assert process.returncode == exit_code
+        replies = [json.loads(line) for line in output.splitlines()]
+        assert len(replies) == 1
+        assert replies[0]["payload"]["error"]["code"] == "WORKER_UNAVAILABLE"
+        if followup == "run":
+            assert b"DUPLICATE_MESSAGE" in errors
+        assert b"SYNTHETIC_FIXTURE_KEY" not in errors
+    finally:
+        stop(process)
