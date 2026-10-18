@@ -1478,6 +1478,185 @@
           }
         }
       ]
+    },
+    {
+      "id": "precedence_session_before_blank_model",
+      "description": "A wrong session takes precedence over a blank model.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/sessionId": "ffffffffffffffffffffffffffffffff",
+            "/payload/model": "   "
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "SESSION_MISMATCH",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_direction_before_blank_model",
+      "description": "A run from the wrong sender is rejected before its blank model.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "run",
+          "from": "python",
+          "set": {
+            "/payload/model": "   "
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "WRONG_DIRECTION",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_session_before_direction_and_value",
+      "description": "Session rejection precedes both direction and semantic rejection.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "run",
+          "from": "python",
+          "set": {
+            "/sessionId": "ffffffffffffffffffffffffffffffff",
+            "/payload/model": "   "
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "SESSION_MISMATCH",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_direction_before_decimal_range",
+      "description": "A request from the wrong sender is rejected before an decimal above the limit.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "food_request",
+          "from": "java",
+          "set": {
+            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "WRONG_DIRECTION",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_session_before_id_range",
+      "description": "Session rejection precedes the full-range identifier check.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "food_result",
+          "from": "java",
+          "set": {
+            "/sessionId": "ffffffffffffffffffffffffffffffff",
+            "/payload/result/id": "9223372036854775808"
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "SESSION_MISMATCH",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_value_after_valid_session_and_direction",
+      "description": "The correct session and direction still reject blank models before sequence checks.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "run",
+          "from": "java",
+          "set": {
+            "/payload/model": "   "
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "INVALID_VALUE",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_decimal_after_valid_session_and_direction",
+      "description": "The correct session and direction still reject decimal above the limits before dispatch.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "food_request",
+          "from": "python",
+          "set": {
+            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "INVALID_VALUE",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "precedence_id_after_valid_session_and_direction",
+      "description": "The correct session and direction still reject out-of-range identifiers.",
+      "initialState": "STARTING",
+      "steps": [
+        {
+          "ref": "food_result",
+          "from": "java",
+          "set": {
+            "/payload/result/id": "9223372036854775808"
+          },
+          "expected": {
+            "action": "reject",
+            "state": "STOPPING",
+            "reason": "INVALID_VALUE",
+            "dispatchCount": 0,
+            "historyAppend": 0,
+            "writeOutcome": "none"
+          }
+        }
+      ]
     }
   ]
 }

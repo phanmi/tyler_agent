@@ -6,7 +6,9 @@ This page covers building, running, and maintaining Tyler. For the everyday app 
 
 For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
 
-For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines the planned private Java/Python communication and shared fixtures; runtime implementation is tracked separately.
+Python agent contributors and reviewers must also follow the [Python agent coding and design standards](PYTHON_AGENT_STANDARDS.md). Setup and verification commands are in the [Python development guide](../agent-python/README.md).
+
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines the planned private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, and each side's reaction, distinguishing the tested observers from the planned runtime integration.
 
 ## Contents
 
@@ -284,6 +286,8 @@ npm run build
 Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover backend startup and release-version handling. TypeScript checking is a separate command because the Vite build does not run it.
 
 ### Agent migration behavior baseline
+
+The [Python worker development guide](../agent-python/README.md) covers Step 4's pinned environment, required checks, shared Java/Python protocol fixtures, and Windows packaging/smoke tests. The application still uses the Java agent until the later lifecycle/integration steps are complete.
 
 Run the agent characterization tests before changing its implementation:
 

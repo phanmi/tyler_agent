@@ -176,7 +176,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -212,7 +212,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -753,7 +753,7 @@
     },
     {
       "id": "food_exact_decimals",
-      "description": "Large exact decimals, trailing zeros, exponent spelling and negative zero survive transport.",
+      "description": "Plain decimals preserve exact fractions, trailing zeros and negative zero.",
       "message": {
         "protocolVersion": 1,
         "type": "operation_request",
@@ -766,9 +766,9 @@
             "food": {
               "genericInfo": {
                 "foodName": "Oats",
-                "amount": "9007199254740993.123456789012345678900",
+                "amount": "123.123456789012345678900",
                 "unit": "g",
-                "calories": "1.2300e+2",
+                "calories": "123.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -804,7 +804,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -983,7 +983,7 @@
                 "foodName": "Oats",
                 "amount": "-1",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1019,7 +1019,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1146,8 +1146,8 @@
       }
     },
     {
-      "id": "food_unrepresentable_decimal",
-      "description": "A lexical decimal with an unsupported Java BigDecimal exponent fails semantic validation.",
+      "id": "food_decimal_above_limit",
+      "description": "Plain decimal boundary: 2000000000.000000000000000000001",
       "message": {
         "protocolVersion": 1,
         "type": "operation_request",
@@ -1160,9 +1160,9 @@
             "food": {
               "genericInfo": {
                 "foodName": "Oats",
-                "amount": "1E+2147483648",
+                "amount": "2000000000.000000000000000000001",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1746,7 +1746,7 @@
                 "foodName": "Oats",
                 "amount": 1.25,
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1781,7 +1781,7 @@
                 "foodName": "Oats",
                 "amount": "NaN",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1816,7 +1816,7 @@
                 "foodName": "Oats",
                 "amount": "01.2",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1851,7 +1851,7 @@
                 "foodName": "Oats",
                 "amount": "+1.2",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1886,7 +1886,7 @@
                 "foodName": "Oats",
                 "amount": "1E",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1923,7 +1923,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1960,7 +1960,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -1997,7 +1997,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -2034,7 +2034,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -2071,7 +2071,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2",
+                "calories": "389.00",
                 "date": "2026-10-16"
               },
               "macroNutrients": {
@@ -2106,7 +2106,7 @@
                 "foodName": "Oats",
                 "amount": "100.00",
                 "unit": "g",
-                "calories": "3.8900E+2"
+                "calories": "389.00"
               },
               "macroNutrients": {
                 "protein": "16.900",
@@ -2329,6 +2329,352 @@
           "maxToolRounds": 5,
           "timeoutMs": 1000.5,
           "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "food_decimal_upper_limit",
+      "description": "Plain decimal boundary: 2000000000.000",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "2000000000.000",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_decimal_lower_limit",
+      "description": "Plain decimal boundary: -2000000000.000",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "-2000000000.000",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "food_decimal_small_fraction",
+      "description": "Plain decimal boundary: 0.000000000000000000001",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "0.000000000000000000001",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true
+      }
+    },
+    {
+      "id": "invalid_request_id_newline",
+      "description": "An anchored protocol token cannot end with a newline.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1\n",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_session_id_newline",
+      "description": "An anchored protocol token cannot end with a newline.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "run",
+        "sessionId": "0123456789abcdef0123456789abcdef\n",
+        "requestId": "req-1",
+        "payload": {
+          "message": "Help me plan this week.",
+          "history": [
+            {
+              "role": "user",
+              "content": "I have gym access."
+            },
+            {
+              "role": "assistant",
+              "content": "What would you like to plan?"
+            }
+          ],
+          "model": "test-model",
+          "apiKey": "SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER",
+          "maxToolRounds": 5,
+          "timeoutMs": 300000,
+          "operationTimeoutMs": 60000
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_decimal_newline",
+      "description": "An anchored protocol token cannot end with a newline.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00\n",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_record_id_newline",
+      "description": "An anchored protocol token cannot end with a newline.",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_result",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "outcome": "success",
+          "result": {
+            "id": "42\n",
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "100.00",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "food_decimal_below_limit",
+      "description": "Reject unsupported numeric input: -2000000000.000000000000000000001",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "-2000000000.000000000000000000001",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": true,
+        "semantic": {
+          "valid": false,
+          "reason": "INVALID_VALUE"
+        }
+      }
+    },
+    {
+      "id": "invalid_scientific_positive",
+      "description": "Reject unsupported numeric input: 1e2",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "1e2",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "schemaValid": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "invalid_scientific_negative",
+      "description": "Reject unsupported numeric input: 1E-2",
+      "message": {
+        "protocolVersion": 1,
+        "type": "operation_request",
+        "sessionId": "0123456789abcdef0123456789abcdef",
+        "requestId": "req-1",
+        "payload": {
+          "operationId": "op-1",
+          "operation": "food.insert",
+          "input": {
+            "food": {
+              "genericInfo": {
+                "foodName": "Oats",
+                "amount": "1E-2",
+                "unit": "g",
+                "calories": "389.00",
+                "date": "2026-10-16"
+              },
+              "macroNutrients": {
+                "protein": "16.900",
+                "carbs": "66.300",
+                "fat": "6.900",
+                "fiber": "10.600"
+              }
+            }
+          }
         }
       },
       "expected": {
