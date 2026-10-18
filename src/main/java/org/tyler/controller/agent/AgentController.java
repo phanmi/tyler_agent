@@ -36,14 +36,12 @@ public class AgentController implements IAgentController {
         }
         String message = request.message().trim();
         log.info("Received chat request with {} characters", message.length());
-        log.debug("User message: {}", message);
 
         long start = System.currentTimeMillis();
         String reply = agentService.ask(message);
         long elapsed = System.currentTimeMillis() - start;
 
         log.info("Chat completed: reply length {} characters, elapsed {} ms", reply.length(), elapsed);
-        log.debug("Reply: {}", reply);
         return new ChatResponse(reply);
     }
 

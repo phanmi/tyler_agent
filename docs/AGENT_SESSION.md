@@ -6,11 +6,45 @@ This guide explains the session model, the meaning of each state and message typ
 
 ## What is implemented today?
 
-Java's [ProtocolSession](../src/main/java/org/tyler/service/agent/protocol/ProtocolSession.java) and Python's [ProtocolSession](../agent-python/src/tyler_agent/session.py) are **pure state observers**. Given a message or local event, they return a decision and update an in-memory ledger. They do not start processes, call services, write history, cancel transactions, or send HTTP responses. Shared fixtures test both implementations against the same expected decisions.
+Java's [ProtocolSession](../src/main/java/org/tyler/service/agent/protocol/ProtocolSession.java) and Python's [ProtocolSession](../agent-python/src/tyler_agent/session.py) are **pure state observers**. Given a message or local event, they return a decision and update an in-memory ledger. Shared fixtures test both implementations against the same expected decisions. The opt-in Java [PythonWorker](../src/main/java/org/tyler/service/agent/python/PythonWorker.java) now owns real processes and uses the Java observer under a lock; the observer itself still performs no I/O.
 
 The runnable Python [worker](../agent-python/src/tyler_agent/worker.py) currently sends `ready`, accepts `shutdown`, and responds to a valid `run` with `failed / WORKER_UNAVAILABLE`. It uses the shared validator, but does not instantiate the session observer or execute a model/tool loop. A cancel for an already registered run is ignored because its failure was already sent; unexpected operation results are rejected. Malformed input or protocol violations produce a safe stderr diagnostic and exit code 2. Normal shutdown or clean input EOF exits with code 0; truncated input is a protocol error.
 
-Application chat still uses the legacy Java agent. The Java supervisor, operation bridge, and Python model loop belong to subsequent migration steps. The tables and successful-run diagram below describe the tested protocol model and the behavior those components must implement; they do not claim that the complete runtime is connected.
+Application chat uses the legacy Java agent by default. Step 5 now connects `PythonAgentService` behind the same HTTP contract when explicitly selected. Its real subprocess supervisor, bounded conversation queue, deadlines, history ownership, and Python parent watchdog are implemented and tested. The operation bridge and Python model loop remain Steps 6–7. The successful-run diagram is exercised with fake workers/operation handlers; the production Python prototype still returns `WORKER_UNAVAILABLE` for valid runs.
+
+## Opt-in configuration and lifecycle ownership
+
+Keep `agent.implementation=java` for usable chat until the model-loop migration is complete. For lifecycle development, build the [Python bundle](../agent-python/README.md#build-and-smoke-test-the-windows-bundle) and set:
+
+```yaml
+agent:
+  implementation: python
+  python:
+    command:
+      - E:/path/to/tyler-agent-worker/tyler-agent-worker.exe
+    run-timeout: 5m
+    operation-timeout: 1m
+```
+
+The default command resolves `agent-python/dist/tyler-agent-worker/tyler-agent-worker.exe` on Windows (no `.exe` on other platforms) relative to the backend working directory. Use an absolute path outside repository development. For an installed development environment, the command list can instead contain the absolute `.venv` Python executable followed by `-m` and `tyler_agent`. Each list entry is one argument; there is no shell parsing. Never put credentials in this list. Invalid implementation selection fails startup, with no silent fallback.
+
+The run and operation timeouts must be between 1,000 and 3,600,000 ms, with the operation timeout no longer than the run timeout. Production bounds remain 30 seconds for worker readiness, 16 queued actions, 30 seconds for queue wait, and 5 seconds of shutdown/cancellation grace. Worker readiness also remains subject to the desktop's existing overall startup deadline. Java recycles an idle worker after 10,000 runs.
+
+| Owner | Implemented responsibility |
+|---|---|
+| `PythonAgentConfiguration` | Select exactly one `IAgentService`; create/start the worker before `ApplicationReadyEvent`. The existing `TYLER_READY <nonce> <port>` reporter is unchanged. Startup reads no API key. |
+| `ConversationLane` | One FIFO lane for chat and history operations. Reject excess work with `WORKER_BUSY`; expire queued work without executing it. Nested history calls on the owner thread execute directly. |
+| `PythonAgentService` | Read the current key and history after dequeue, send a per-request snapshot, and append exactly one successful exchange. Missing keys retain HTTP 401. History failure never replays tools. |
+| `CoordinatedChatHistoryService` | Serialize clear/read/append with chat. A clear queued during a run executes after its history append, so that older run cannot later repopulate cleared history. History requests share the queue capacity/deadline. |
+| `PythonWorker` | Own the process, session ledger, monotonic timers, callback execution, startup/shutdown, and cancellation. A new request can start a replacement worker after a failure, but the failed request is never retried. |
+| `WorkerPipe` | Read stdout and write stdin independently; bound incomplete frames and the four-frame output queue. Drain stderr in fixed-size chunks and log only the byte count, never arbitrary worker text. |
+| Python `ParentMonitor` | Exit when the Java owner dies even if Python's main thread is blocked. Windows uses a held process handle; POSIX checks direct-parent identity. Normal worker EOF/shutdown closes the monitor. |
+
+Cancellation currently comes from run/operation deadlines, interruption of a waiting Java caller, or application shutdown. The HTTP routes are unchanged: no new cancellation endpoint or promise that every browser disconnect interrupts the servlet thread is introduced. Once completion is accepted, history persistence owns the terminal outcome. This supervisor retires a cancelled worker after its acknowledgement or grace deadline; a later request uses a fresh process only after outstanding Java work has settled.
+
+Callbacks use a separate executor from both the conversation lane and the pipe reader. A timed-out or disconnected write is never interrupted or assumed rolled back. New runs fail with `WORKER_UNAVAILABLE` while a previously dispatched callback remains unresolved. Its eventual outcome is recorded without delivering a late result to restart tools. Failure after dispatch is conservatively unknown for writes; an exception type alone does not prove rollback. Step 6 must establish any stronger outcome guarantees through the real service handlers.
+
+Only OS runtime essentials (`SystemRoot`, temporary-directory variables, and the Linux loader path when configured) are inherited by the child. Java supplies non-secret session/parent identifiers and disables Python user-site packages. Credentials travel only in `run`, not environment variables or command arguments. Logs use safe identifiers/codes; the controller and legacy adapter also avoid logging raw chat/tool content. Specific exception advice runs before generic advice to retain the existing error categories and response shapes.
 
 ## Session identity and ownership
 
@@ -85,7 +119,7 @@ The observer's `observe(...)` method records events supplied by the Java owner. 
 |---|---|---|
 | `deadline` | An active `RUNNING` request has not accepted a terminal message. | Enter `CANCELLING`, report status 500. If terminal handling already started, ignore the event. No operation is automatically rolled back. |
 | `cancel_grace_elapsed` | `CANCELLING` has exceeded its allowed grace. | Enter `STOPPING` and return `terminateWorker: true`. An observation in another state is `INVALID_SEQUENCE`. |
-| `pipe_eof` | The connection closes. | Enter `CLOSED`; the observer reports status 500 and retains unresolved work. The future supervisor must distinguish normal shutdown from loss of an active request when resolving HTTP calls. |
+| `pipe_eof` | The connection closes. | Enter `CLOSED`; the observer reports status 500 and retains unresolved work. The supervisor distinguishes normal shutdown from loss of an active request when resolving waiting calls. |
 | `operation_settled` | Java learns the outcome of the matching pending operation after normal delivery is no longer appropriate. | Clear the pending operation; record `none`, `committed`, or `unknown`; return `sendResult: false`. Settle a terminal run when possible without reopening `CLOSED`/`STOPPING`. An unmatched ID is `OPERATION_NOT_PENDING`. |
 | `history_settled` | Java's one history append after `completed` finishes. | Clear awaiting-history and settle the run. `failure` adds `HISTORY_FAILURE`/500; successful history permits success delivery. No tool replay occurs. Without a pending history append, reject `INVALID_SEQUENCE`. |
 
@@ -105,13 +139,13 @@ Both observers return the same decision shape. It is an internal result, not a w
 | `laneBlocked` | A pending operation remains while cancelling, stopping, or closed. Its settlement must be observed before replacing/reusing the conversation lane. |
 | `replayCount` | Always zero: failures do not authorize replay. |
 | `httpStatus`, `code` | Optional local failure outcome, including history failure. The observer does not produce an HTTP response. |
-| `terminateWorker`, `sendResult` | Optional instructions for the future owner: terminate after grace, or avoid sending a late operation result. |
+| `terminateWorker`, `sendResult` | Optional instructions for the supervisor: terminate after grace, or avoid sending a late operation result. |
 
 ## Example: successful run with one operation
 
 ```mermaid
 sequenceDiagram
-    participant J as Java supervisor (planned)
+    participant J as Java supervisor
     participant P as Python worker
     participant S as Java domain service
     participant H as Java history service
@@ -145,7 +179,7 @@ The order is: byte limit → frame/UTF-8/JSON checks → version → operation a
 | Shared wire validation | `MessageValidator` | `protocol/validation.py` |
 | Session state and effect decisions | `ProtocolSession` | `session.py` |
 | Safe errors | `ProtocolException`; `ProtocolFailures` maps validated error codes to Java-owned exception messages | `ProtocolError` with code-owned diagnostic detail |
-| Process entry point | Future supervisor | `__main__.py`, `worker.py` prototype |
+| Process entry point | `PythonAgentService`, `PythonWorker` when selected | `__main__.py`, `worker.py`, `lifecycle.py` |
 
 The Java validator has separate `validateShape`, `validateSemantics`, `validateMessage` (shape plus values), and `validateReceived` (shape, identity/direction, then values) entry points. The codec keeps its existing validation methods as delegates. Complete and incremental input share `validateFrameSize`. Lifecycle guards remain with the session because they depend on its mutable ledger.
 
@@ -162,4 +196,4 @@ Each Java production class in the protocol package has a corresponding test clas
 - `ProtocolExceptionTest`: stable code/message and absence of raw parser causes.
 - `ProtocolFailuresTest`: exception/HTTP mapping, worker-detail redaction, and invalid failure inputs.
 
-`ProtocolContractTest` additionally runs every shared sequence against Java; Python runs the same fixture sequences. The pure tests establish state/decision compatibility. Real supervisor timing, database outcomes, process termination, and application integration still require the later migration tests.
+`ProtocolContractTest` additionally runs every shared sequence against Java; Python runs the same fixture sequences. The pure tests establish state/decision compatibility. Step 5's tests under `src/test/java/org/tyler/service/agent/python/` additionally exercise real subprocess callbacks, timeouts, shutdown, key/history ordering, HTTP compatibility, the actual backend readiness handshake, and forceful Java exit during simulated blocked provider work. Python tests cover the watchdog and real pipe EOF. Real domain-service dispatch, database outcomes, and the model loop remain later migration gates.

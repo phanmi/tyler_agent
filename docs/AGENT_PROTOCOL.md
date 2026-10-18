@@ -2,7 +2,7 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the version 1 contract established in Step 3. Step 4 now provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). The prototype is not connected to application chat. Step 5 implements process supervision and Step 6 implements service handlers.
+This is the version 1 contract established in Step 3. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the opt-in Java process supervisor and parent watchdog. The default implementation remains Java; the Python prototype returns `WORKER_UNAVAILABLE` for valid runs. Step 6 implements service handlers and Step 7 implements the model loop.
 
 Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
@@ -117,7 +117,7 @@ Java records cancellation first and atomically disables new operation dispatch, 
 
 An already dispatched Java write may finish or fail. Do not label it rolled back because a cancel, deadline, EOF, or worker exit occurred. Observe the service outcome or keep it unknown. Cancellation does not interrupt a database transaction merely to meet a worker shutdown timer. A timeout covers waiting for a result, not proof that the operation stopped.
 
-`shutdown` is accepted in any nonclosed state, once or repeatedly. It disables new runs/operations, cancels an active run if any, closes provider resources, and exits within the grace period. No terminal frame is required on shutdown; Java resolves any active call locally. Worker EOF/parent death must trigger the same cleanup even while a provider request is pending. Parent-death detection, bounded termination, and actual Windows process cleanup are Step 5/9 tests.
+`shutdown` is accepted in any nonclosed state, once or repeatedly. It disables new runs/operations, cancels an active run if any, closes provider resources, and exits within the grace period. No terminal frame is required on shutdown; Java resolves any active call locally. Worker EOF/parent death must trigger the same cleanup even while a provider request is pending. Step 5 tests parent-death detection and bounded Windows process cleanup with simulated blocked provider work. Step 9 still covers clean-machine installer/process-tree behavior.
 
 ## Failures and HTTP compatibility
 
@@ -163,7 +163,7 @@ Details use code-owned explanations, schema metadata, and parser line/column num
 - Keep credentials and conversation data scoped to the run. Drop references on terminal cleanup and dispose of clients when replaced or the worker exits; do not promise memory zeroization in managed runtimes.
 - Keep prompts, history, food/profile data, file contents, and raw frames out of logs at all levels, including parser errors. Log only type, safe IDs, code/category, duration, size, and effect state. Log exception details at one owning boundary with redaction.
 - Java must redact/drain worker stderr without forwarding arbitrary content directly to the renderer. Do not merge stdout and stderr, persist frame dumps, or treat logging as protocol messages.
-- Java retains history normalization and persistence. `completed` does not itself mean history is durable. Failed/cancelled calls do not append exchanges; a history failure after tool writes does not retry them. Clearing history and simultaneous chat requests must be serialized at the Java history ownership boundary so older completion cannot repopulate a cleared conversation unintentionally; the chosen queue/history policy must be tested in Step 5/8.
+- Java retains history normalization and persistence. `completed` does not itself mean history is durable. Failed/cancelled calls do not append exchanges; a history failure after tool writes does not retry them. Clearing history and simultaneous chat requests must be serialized at the Java history ownership boundary so older completion cannot repopulate a cleared conversation unintentionally; Step 5 tests the shared conversation lane, with full service/model integration retained for Step 8.
 
 ## Fixture use and later executable checks
 
@@ -195,7 +195,7 @@ Step 4's parameterized Java and Python tests load these same fixtures without du
 1. Validate message shape and semantic rules, preserving decimal strings, full-range IDs, expanded dates, explicit nulls, multiline text, and Unicode.
 2. Exercise incremental byte readers with split UTF-8, combined frames, malformed/truncated input, duplicate keys, invalid versions, and exactly-at/over-size boundaries.
 3. Validate error-code/category pairs and rejection precedence. Neither schema engine may silently coerce types or remove fields.
-4. Check fixture direction/sequence expectations in a pure protocol-state harness. Step 5/8 then connect those expectations to real process/service execution, timing, cancellation, and actual database state.
+4. Check fixture direction/sequence expectations in a pure protocol-state harness. Step 5 connects those expectations to real process lifecycle and fake callbacks; Step 8 adds real service execution and database state.
 5. Verify the documented HTTP mapping at the Java boundary, including legacy file errors and worker/provider failures. No live API keys or provider calls are needed.
 
-Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Steps 5 and 8 still require real supervisor/service integration, timing, and database outcomes; pure fixture scenarios do not prove those behaviors. The original Step 3 static checks remain historical evidence.
+Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Step 5 adds real supervisor/process, queue, timeout, readiness, and Windows parent-exit tests with fake operations/provider work. Steps 6–8 still require real service/model integration and database outcomes; pure fixture scenarios do not prove those behaviors. The original Step 3 static checks remain historical evidence.

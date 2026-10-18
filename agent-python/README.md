@@ -2,7 +2,7 @@
 
 [Migration tracker](../docs/AGENT_MIGRATION.md) | [Protocol contract](../docs/AGENT_PROTOCOL.md) | [Backend standards](../docs/BACKEND_STANDARDS.md) | [Python agent standards](../docs/PYTHON_AGENT_STANDARDS.md)
 
-Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. The application still uses the Java agent. Java process supervision, service handlers, and the Python model/tool loop are later migration steps.
+Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. The application still uses the Java agent by default; service handlers and the Python model/tool loop remain later steps. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#opt-in-configuration-and-lifecycle-ownership) before opting in.
 
 ## Source layout
 
@@ -13,6 +13,7 @@ src/tyler_agent/
   worker.py            # Worker lifecycle and message dispatch
   session.py           # Protocol state and correlation observer
   resources.py         # Application resource and release-version lookup
+  lifecycle.py         # Parent-process monitoring independent of blocked work
   protocol/
     __init__.py
     protocol.py        # JSON codec and bounded frame reader
@@ -86,6 +87,12 @@ mvn "-Dtest=MessageCodecTest,FrameReaderTest,MessageValidatorTest,ProtocolSessio
 mvn test
 ```
 
+Run `uv sync --locked` first: the full Maven suite now launches the real Python
+development worker from `agent-python/.venv/`, alongside fake workers. Integration
+tests use temporary data and loopback HTTP for the existing backend readiness
+handshake. They also verify that forcefully terminating Java stops Python during
+simulated pending provider work. No live provider credentials are needed.
+
 The [migration tracker](../docs/AGENT_MIGRATION.md#execution-record) records local Windows Maven/Mockito runner options. No API key, network model call, application database, or user workspace is required by these tests.
 
 ## Worker behavior
@@ -112,7 +119,7 @@ Distribute the **entire** `dist/tyler-agent-worker/` directory. Its executable, 
 
 The packaged smoke tests copy the bundle into a different temporary directory, run with an empty `PATH`, omit `PYTHONHOME`/`PYTHONPATH` and credentials, and verify readiness, shutdown, EOF, malformed input, and explicit unavailable-run failure. Both the development module and relocated executable run the same smoke cases. Tests have bounded waits and terminate leftover child processes in cleanup.
 
-This proves the prototype uses its bundled runtime on the tested Windows host. Clean-machine installation, signing, Electron integration, parent-death handling, active-provider cancellation, and release CI belong to later migration gates.
+This proves the prototype uses its bundled runtime on the tested Windows host. Step 5 separately tests parent-death handling and shutdown during simulated blocked provider work. Clean-machine installation, signing, Electron integration, real provider-loop cancellation, and release CI remain later migration gates.
 
 ## Reproduce an isolated install from the lockfile
 

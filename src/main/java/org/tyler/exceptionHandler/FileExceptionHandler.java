@@ -2,6 +2,7 @@ package org.tyler.exceptionHandler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +13,8 @@ import org.tyler.exceptionHandler.exception.FileWriteException;
 /**
  * Handles file read and write failures.
  */
+// Specific failures must be resolved before the generic Exception advice.
+@Order(0)
 @RestControllerAdvice
 public class FileExceptionHandler implements IExceptionHandler {
 

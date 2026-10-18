@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.model.chat.ChatMessage;
 import org.tyler.service.chatHistory.IChatHistoryService;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java", matchIfMissing = true)
 public class AgentService implements IAgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
@@ -55,7 +57,7 @@ public class AgentService implements IAgentService {
         // Combine recent history and the current message to preserve conversation context.
         List<ResponseInputItem> inputItems = buildHistoryInput(message);
 
-        log.debug("Calling OpenAI with message: {} ({} history entries)", message, Math.max(0, inputItems.size() - 1));
+        log.debug("Calling OpenAI with {} history entries", Math.max(0, inputItems.size() - 1));
         long start = System.currentTimeMillis();
         try {
             Response response = client.responses().create(createParamsWithInput(inputItems));
@@ -69,7 +71,6 @@ public class AgentService implements IAgentService {
                 log.info("OpenAI tool round {} completed in {} ms", rounds, System.currentTimeMillis() - roundStart);
             }
             String reply = extractText(response);
-            log.debug("Final OpenAI reply: {}", reply);
 
             // Save the user message and assistant reply together after receiving the reply,
             // avoiding an incomplete exchange if one of two separate writes were to fail.
@@ -147,12 +148,10 @@ public class AgentService implements IAgentService {
     private String execute(String name, String argumentsJson) {
         for (ITool tool : tools) {
             if (tool.name().equals(name)) {
-                log.debug("Executing tool {} with arguments: {}", name, argumentsJson);
                 long start = System.currentTimeMillis();
                 String result = tool.execute(argumentsJson);
                 long elapsed = System.currentTimeMillis() - start;
                 log.info("Tool {} completed in {} ms", name, elapsed);
-                log.debug("Tool {} result: {}", name, result);
                 return result;
             }
         }
