@@ -58,6 +58,12 @@ The release version comes from `../.mvn/maven.config`. Hatch reads it for packag
 
 ## Required checks
 
+The [CI workflow](../.github/workflows/ci.yml) runs the checks below in the existing
+**Build and test** job for pull requests and pushes to `main`. It reads the Python
+version from `.python-version`, installs pinned uv, and syncs locked development
+dependencies. Python failures fail that job. Windows packaged-worker checks remain
+separate from this Ubuntu test run.
+
 Run from `agent-python/`:
 
 ```powershell
@@ -72,7 +78,7 @@ Use `uv run --locked ruff format src tests` to apply formatting. Production modu
 From the repository root, run the Java conformance/error-mapping tests and the full backend suite:
 
 ```powershell
-mvn "-Dtest=ProtocolContractTest,ProtocolFailuresTest" test
+mvn "-Dtest=MessageCodecTest,FrameReaderTest,MessageValidatorTest,ProtocolSessionTest,ProtocolExceptionTest,ProtocolFailuresTest,ProtocolContractTest" test
 mvn test
 ```
 

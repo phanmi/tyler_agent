@@ -72,6 +72,20 @@ class ProtocolFailuresTest {
         assertEquals("INVALID_MESSAGE", error.code());
     }
 
+    @Test
+    void rejectsASuccessMessageWithoutAnError() {
+        ProtocolException error = assertThrowsExactly(ProtocolException.class,
+                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("food_result"), CODEC));
+        assertEquals("INVALID_MESSAGE", error.code());
+    }
+
+    @Test
+    void validatesValuesBeforeLookingForAnError() {
+        ProtocolException error = assertThrowsExactly(ProtocolException.class,
+                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("run_blank_model"), CODEC));
+        assertEquals("INVALID_VALUE", error.code());
+    }
+
     private static ObjectNode failure(String category, String code) {
         ObjectNode message = MAPPER.createObjectNode().put("protocolVersion", 1).put("type", "failed")
                 .put("sessionId", "0123456789abcdef0123456789abcdef").put("requestId", "req-1");

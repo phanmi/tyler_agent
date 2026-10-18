@@ -112,7 +112,7 @@ uv run --locked pytest tests
 
 Use the [Python development guide](../agent-python/README.md#required-checks) for Java conformance commands and [bundle build and smoke checks](../agent-python/README.md#build-and-smoke-test-the-windows-bundle). Shared contracts or execution changes require relevant Java, Python, and cross-process checks. Packaging changes also require the applicable build and smoke tests. Documentation-only changes need content and link checks, not runtime tests.
 
-These are review requirements, not a claim that every check already runs in CI. Inspect the current [CI workflow](../.github/workflows/ci.yml) and migration gates; distinguish local evidence, CI results, and checks that remain unverified. Report actual commands, results, and limitations. Never claim a mocked result or an unexecuted check proves integration behavior.
+The [CI workflow](../.github/workflows/ci.yml) runs locked Python dependency installation, formatting, lint, type checking, and the full development test suite as part of the existing Build and test job. Python test failures MUST fail CI; do not use optional execution or ignored failures to bypass this gate. Packaged-app checks and other migration gates still need their own evidence. Distinguish local evidence from CI results and report actual commands, results, and limitations. Never claim a mocked result or an unexecuted check proves integration behavior.
 
 Before requesting review:
 

@@ -34,9 +34,7 @@ public final class FrameReader {
     }
 
     private void append(byte[] chunk, int start, int length) {
-        if ((long) pending.size() + length > MessageCodec.MAX_FRAME_BYTES) {
-            throw new ProtocolException("MESSAGE_TOO_LARGE");
-        }
+        MessageValidator.validateFrameSize((long) pending.size() + length);
         pending.write(chunk, start, length);
     }
 

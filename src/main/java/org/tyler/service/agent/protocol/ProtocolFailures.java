@@ -16,8 +16,7 @@ public final class ProtocolFailures {
 
     /** Map an accepted failure by code only; worker detail must never reach advice logs or HTTP. */
     public static RuntimeException translate(JsonNode message, MessageCodec codec) {
-        codec.validateShape(message);
-        codec.validateSemantics(message);
+        codec.validator().validateMessage(message);
         JsonNode error = message.path("payload").path("error");
         if (error.isMissingNode()) {
             throw new ProtocolException("INVALID_MESSAGE");

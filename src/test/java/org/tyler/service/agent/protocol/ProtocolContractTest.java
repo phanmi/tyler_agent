@@ -3,99 +3,25 @@ package org.tyler.service.agent.protocol;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Executes the same committed message, byte, and sequence cases as the Python suite. */
+/** Shared sequence fixtures keep the Java and Python session models in agreement. */
 class ProtocolContractTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final MessageCodec CODEC = new MessageCodec();
 
-    private static Stream<JsonNode> cases(String name) throws IOException {
-        try (var input = ProtocolContractTest.class.getResourceAsStream("/agent-protocol/fixtures/" + name + ".json")) {
-            assertNotNull(input);
-            return StreamSupport.stream(MAPPER.readTree(input).path("cases").spliterator(), false);
-        }
-    }
-
-    static Stream<JsonNode> messages() throws IOException { return cases("messages"); }
-    static Stream<JsonNode> framing() throws IOException { return cases("framing"); }
-    static Stream<JsonNode> sequences() throws IOException { return cases("sequences"); }
-
-    @ParameterizedTest
-    @MethodSource("messages")
-    void validatesMessageShapeSemanticsAndRoundTrip(JsonNode fixture) {
-        JsonNode message = fixture.path("message"), expected = fixture.path("expected");
-        if (!expected.path("schemaValid").asBoolean()) {
-            assertEquals(expected.path("reason").asText(), assertThrowsExactly(ProtocolException.class,
-                    () -> CODEC.validateShape(message)).code(), fixture.path("id").asText());
-        } else {
-            CODEC.validateShape(message);
-            if (expected.has("semantic") && !expected.path("semantic").path("valid").asBoolean()) {
-                byte[] frame = assertDoesNotThrow(() -> MAPPER.writeValueAsBytes(message));
-                assertEquals(message, CODEC.decode(frame), "Decoding must defer semantic checks to the receiver");
-                assertEquals(expected.path("semantic").path("reason").asText(), assertThrowsExactly(ProtocolException.class,
-                        () -> CODEC.validateSemantics(message)).code());
-                assertEquals(expected.path("semantic").path("reason").asText(), assertThrowsExactly(ProtocolException.class,
-                        () -> CODEC.encode(message)).code(), "Outbound encoding must still validate semantic values");
-            } else {
-                byte[] encoded = CODEC.encode(message);
-                assertEquals('\n', encoded[encoded.length - 1]);
-                assertEquals(message, CODEC.decode(Arrays.copyOf(encoded, encoded.length - 1)));
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("framing")
-    void validatesIncrementalFraming(JsonNode fixture) throws Exception {
-        List<byte[]> chunks = new ArrayList<>();
-        JsonNode expected = fixture.path("expected");
-        if (fixture.has("generator")) {
-            JsonNode generator = fixture.path("generator");
-            ObjectNode message = generator.path("message").deepCopy();
-            int emptySize = MAPPER.writeValueAsBytes(message).length;
-            ((ObjectNode) message.path("payload")).put("reply", "x".repeat(generator.path("frameBytes").asInt() - emptySize));
-            byte[] bytes = MAPPER.writeValueAsBytes(message);
-            assertEquals(generator.path("frameBytes").asInt(), bytes.length);
-            chunks.add(bytes);
-            chunks.add(new byte[]{'\n'});
-        } else {
-            fixture.path("chunksBase64").forEach(value -> chunks.add(Base64.getDecoder().decode(value.asText())));
-        }
-        FrameReader reader = new FrameReader(CODEC);
-        List<JsonNode> decoded = new ArrayList<>();
-        org.junit.jupiter.api.function.Executable read = () -> {
-            for (byte[] chunk : chunks) decoded.addAll(reader.feed(chunk));
-            if (fixture.path("endOfInput").asBoolean()) reader.finish();
-        };
-        if (!expected.path("accepted").asBoolean()) {
-            assertEquals(expected.path("reason").asText(), assertThrowsExactly(ProtocolException.class, read).code(),
-                    fixture.path("id").asText());
-        } else {
-            assertDoesNotThrow(read);
-            if (expected.has("messages")) assertEquals(expected.path("messages"), MAPPER.valueToTree(decoded));
-            if (expected.has("messageCount")) {
-                assertEquals(expected.path("messageCount").asInt(), decoded.size());
-                assertEquals(expected.path("replyBytes").asInt(), decoded.getFirst().path("payload").path("reply")
-                        .asText().getBytes(StandardCharsets.UTF_8).length);
-            }
-        }
-    }
+    static Stream<JsonNode> messages() throws IOException { return ProtocolTestFixtures.cases("messages"); }
+    static Stream<JsonNode> sequences() throws IOException { return ProtocolTestFixtures.cases("sequences"); }
 
     @ParameterizedTest
     @MethodSource("sequences")
@@ -133,11 +59,4 @@ class ProtocolContractTest {
         }
     }
 
-    @Test
-    void parserDiagnosticsNeverRetainSensitiveFrames() {
-        ProtocolException failure = assertThrowsExactly(ProtocolException.class,
-                () -> CODEC.decode("{\"apiKey\":\"synthetic-secret\"".getBytes(StandardCharsets.UTF_8)));
-        assertEquals("INVALID_FRAME", failure.getMessage());
-        assertNull(failure.getCause());
-    }
 }

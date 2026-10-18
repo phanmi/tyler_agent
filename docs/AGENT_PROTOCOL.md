@@ -1,6 +1,6 @@
 # Java and Python agent protocol version 1
 
-[Migration tracker](AGENT_MIGRATION.md) | [Backend standards](BACKEND_STANDARDS.md)
+[Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
 This is the version 1 contract established in Step 3. Step 4 now provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). The prototype is not connected to application chat. Step 5 implements process supervision and Step 6 implements service handlers.
 
