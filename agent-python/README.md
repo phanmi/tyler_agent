@@ -69,9 +69,13 @@ Run from `agent-python/`:
 ```powershell
 uv run --locked ruff format --check src tests
 uv run --locked ruff check src tests
-uv run --locked mypy
+uv run --locked mypy --platform linux
+uv run --locked mypy --platform win32
 uv run --locked pytest tests
 ```
+
+The two mypy targets check Linux CI and Windows desktop APIs independently; they
+do not replace runtime tests on those platforms.
 
 Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v1/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
 

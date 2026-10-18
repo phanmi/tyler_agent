@@ -89,7 +89,8 @@ def _reject_unavailable_run(request_id: str, requests: set[str], send: MessageSe
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(levelname)s %(message)s")
-    if os.name == "nt":
+    # sys.platform also lets type checkers exclude Windows-only APIs on other platforms.
+    if sys.platform == "win32":
         import msvcrt
 
         msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)

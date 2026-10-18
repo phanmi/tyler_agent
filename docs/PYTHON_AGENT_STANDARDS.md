@@ -106,9 +106,12 @@ For Python behavior changes, run these checks from `agent-python/` using the con
 uv sync --locked
 uv run --locked ruff format --check src tests
 uv run --locked ruff check src tests
-uv run --locked mypy
+uv run --locked mypy --platform linux
+uv run --locked mypy --platform win32
 uv run --locked pytest tests
 ```
+
+Check both supported type-checking targets regardless of the development host. Guard platform-specific APIs with conditions the type checker can narrow, such as `sys.platform`; do not suppress missing attributes to bypass platform errors. Targeted type checking does not establish runtime behavior on another operating system.
 
 Use the [Python development guide](../agent-python/README.md#required-checks) for Java conformance commands and [bundle build and smoke checks](../agent-python/README.md#build-and-smoke-test-the-windows-bundle). Shared contracts or execution changes require relevant Java, Python, and cross-process checks. Packaging changes also require the applicable build and smoke tests. Documentation-only changes need content and link checks, not runtime tests.
 

@@ -34,7 +34,8 @@ jobs:
         run: |
           uv run --locked ruff format --check src tests
           uv run --locked ruff check src tests
-          uv run --locked mypy
+          uv run --locked mypy --platform linux
+          uv run --locked mypy --platform win32
 
       - name: Run Python tests
         working-directory: agent-python
