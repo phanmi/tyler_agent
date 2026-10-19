@@ -2,7 +2,7 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the version 1 contract established in Step 3. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the opt-in Java process supervisor and parent watchdog. The default implementation remains Java; the Python prototype returns `WORKER_UNAVAILABLE` for valid runs. Step 6 now provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 still implements the Python model loop.
+This is the version 1 contract established in Step 3. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the opt-in Java process supervisor and parent watchdog. The default implementation remains Java. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same opt-in boundary.
 
 Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
@@ -145,7 +145,7 @@ Java computes the effective outcome from its own ledger, never downgrading uncer
 
 Every HTTP error body retains `{ "error": "..." }`, as defined by the existing Java exception handler contract. No protocol fields are added to public responses. Preserve actual existing file-adapter parsing errors as `FILE_READ`/`FILE_WRITE` (500); sandbox argument rejection remains `INVALID_ARGUMENT` (400). Existing Java exceptions remain authoritative for a locally failed operation. Do not attempt to reconstruct arbitrary remote exception stacks or claim original Java throwable identity across the process boundary.
 
-The bridge emits only domain/SQL/file/internal failures for its operations. Python emits provider/authentication/adapter/internal failures or forwards an operation failure unchanged, aggregating `writeOutcome` without reducing uncertainty. Startup/frame/protocol failures without a safe active request ID are handled locally and close the worker; do not invent a request ID to send `failed`.
+The bridge emits only domain/SQL/file/internal failures for its operations. Python emits provider/authentication/adapter/internal failures or forwards an operation failure with its category, code, and safe message unchanged, replacing only `writeOutcome` with the aggregate for the run without reducing uncertainty. Startup/frame/protocol failures without a safe active request ID are handled locally and close the worker; do not invent a request ID to send `failed`.
 
 ### Rejection precedence
 
@@ -198,4 +198,4 @@ Step 4's parameterized Java and Python tests load these same fixtures without du
 4. Check fixture direction/sequence expectations in a pure protocol-state harness. Step 5 connects those expectations to real process lifecycle and fake callbacks; Step 6 adds shared services, isolated database checks, and a real subprocess callback. Step 8 adds full HTTP/Python model-loop persistence and interruption scenarios.
 5. Verify the documented HTTP mapping at the Java boundary, including legacy file errors and worker/provider failures. No live API keys or provider calls are needed.
 
-Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Step 5 adds real supervisor/process, queue, timeout, readiness, and Windows parent-exit tests with fake operations/provider work. Step 6 adds real shared-service validation, sandbox checks, and isolated persistence outcomes. Steps 7–8 still require the Python model loop and full cross-language integration; pure fixture scenarios do not prove those behaviors. The original Step 3 static checks remain historical evidence.
+Step 4's codec, pure-sequence, HTTP-mapping, and prototype smoke gates pass as recorded in the migration tracker. Step 5 adds real supervisor/process, queue, timeout, readiness, and Windows parent-exit tests with fake operations/provider work. Step 6 adds real shared-service validation, sandbox checks, and isolated persistence outcomes. Step 7 adds Python orchestration, adapter/SDK parity tests with fake providers, and real pipe execution tests. Step 8 still requires the complete HTTP/Python/service persistence and interruption path; isolated fixture and adapter tests do not establish that gate. The original Step 3 static checks remain historical evidence.

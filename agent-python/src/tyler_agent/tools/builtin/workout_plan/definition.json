@@ -1,0 +1,38 @@
+{
+  "type": "function",
+  "name": "generateWorkoutPlan",
+  "description": "Generate and save a seven-day workout plan when the user asks to schedule workouts. Use general_fitness as the goal and bodyweight as the equipment when the user has no preference. Use getCurrentTime to determine today's date when needed. The plan includes strength, cardio, and recovery days. Save its exercises to the workout database without overwriting existing workouts. Weight 0 is a placeholder until the user chooses a training load.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "startDate": {
+        "type": "string",
+        "description": "First plan date in YYYY-MM-DD format."
+      },
+      "goal": {
+        "type": "string",
+        "description": "Training goal; use general_fitness when unspecified.",
+        "enum": [
+          "general_fitness",
+          "strength",
+          "muscle_gain"
+        ]
+      },
+      "equipment": {
+        "type": "string",
+        "description": "Available equipment; use bodyweight when unspecified.",
+        "enum": [
+          "bodyweight",
+          "gym"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "startDate",
+      "goal",
+      "equipment"
+    ]
+  },
+  "strict": true
+}

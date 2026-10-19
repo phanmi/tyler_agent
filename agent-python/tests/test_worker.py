@@ -37,6 +37,17 @@ def envelope(kind: str, payload: dict[str, Any], request_id: str | None = None) 
 def worker_command(worker_executable: str | None, tmp_path: Path) -> list[str]:
     if worker_executable:
         original = Path(worker_executable)
+        definitions = original.parent / "_internal/tyler_agent/tools/builtin"
+        sources = ROOT / "agent-python/src/tyler_agent/tools/builtin"
+        expected = {
+            path.parent.name: json.loads(path.read_text("utf-8"))
+            for path in sources.glob("*/definition.json")
+        }
+        actual = {
+            path.parent.name: json.loads(path.read_text("utf-8"))
+            for path in definitions.glob("*/definition.json")
+        }
+        assert actual == expected
         destination = tmp_path / "relocated worker"
         shutil.copytree(original.parent, destination)
         return [str(destination / original.name)]
@@ -99,7 +110,9 @@ def test_ready_without_credentials_then_shutdown(worker_command: list[str], tmp_
         stop(process)
 
 
-def test_run_is_explicitly_unavailable(worker_command: list[str], tmp_path: Path) -> None:
+def test_invalid_run_rejected_before_provider_creation(
+    worker_command: list[str], tmp_path: Path
+) -> None:
     process = start(worker_command, tmp_path)
     try:
         ready(process)
@@ -108,7 +121,7 @@ def test_run_is_explicitly_unavailable(worker_command: list[str], tmp_path: Path
             {
                 "message": "secret-user-content",
                 "history": [],
-                "model": "test-model",
+                "model": " ",
                 "apiKey": "synthetic-secret",
                 "maxToolRounds": 5,
                 "timeoutMs": 300000,
@@ -119,11 +132,8 @@ def test_run_is_explicitly_unavailable(worker_command: list[str], tmp_path: Path
         output, errors = process.communicate(
             run + envelope("shutdown", {"reason": "application_exit"}), timeout=10
         )
-        failure = json.loads(output)
-        assert failure["type"] == "failed" and failure["requestId"] == "req-1"
-        assert failure["payload"]["error"]["code"] == "WORKER_UNAVAILABLE"
-        assert failure["payload"]["error"]["writeOutcome"] == "none"
-        assert process.returncode == 0
+        assert output == b"" and process.returncode == 2
+        assert b"INVALID_VALUE" in errors
         assert b"synthetic-secret" not in errors and b"secret-user-content" not in errors
     finally:
         stop(process)
@@ -188,24 +198,3 @@ def test_rejection_precedence_on_real_pipe(
 
 def test_release_version_comes_from_shared_file() -> None:
     assert f"-Drevision={release_version()}" in (ROOT / ".mvn/maven.config").read_text("utf-8")
-
-
-@pytest.mark.parametrize("followup,exit_code", [("run", 2), ("cancel", 0)])
-def test_request_identity_after_unavailable_reply(
-    worker_command: list[str], tmp_path: Path, followup: str, exit_code: int
-) -> None:
-    process = start(worker_command, tmp_path)
-    run = json.dumps(sequence_message({"ref": "run"})).encode() + b"\n"
-    next_message = json.dumps(sequence_message({"ref": followup})).encode() + b"\n"
-    try:
-        ready(process)
-        output, errors = process.communicate(run + next_message, timeout=10)
-        assert process.returncode == exit_code
-        replies = [json.loads(line) for line in output.splitlines()]
-        assert len(replies) == 1
-        assert replies[0]["payload"]["error"]["code"] == "WORKER_UNAVAILABLE"
-        if followup == "run":
-            assert b"DUPLICATE_MESSAGE" in errors
-        assert b"SYNTHETIC_FIXTURE_KEY" not in errors
-    finally:
-        stop(process)

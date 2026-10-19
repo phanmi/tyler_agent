@@ -2,7 +2,7 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Protocol contract](AGENT_PROTOCOL.md) | [Session lifecycle](AGENT_SESSION.md)
 
-Step 6 implements Java's allowlisted service access. The bridge is wired only when `agent.implementation=python`; Java remains the default until the later rollout gate. Python's model loop and tool adapters are Step 7, so the current worker still rejects valid runs as unavailable. This page inventories the adapter behavior that Step 7 must preserve; it does not claim those Python adapters are implemented.
+Step 6 implements Java's allowlisted service access; Step 7 implements the Python model loop and six tool adapters. The bridge is wired only when `agent.implementation=python`; Java remains the default until the later rollout gate. This page inventories the preserved adapter behavior and extension boundaries. The complete HTTP/Python/database integration gate remains Step 8.
 
 ## Dispatch and ownership
 
@@ -35,7 +35,16 @@ The six implementations live in [bridge/handler](../src/main/java/org/tyler/serv
 
 ## Legacy adapter inventory for Step 7
 
-The source links below remain the authority for exact descriptions and model-facing schemas. Step 7 must port those contracts and add Python parity tests; it must not copy domain validation out of Java.
+The source links below remain the migration reference for exact descriptions and model-facing schemas. Each Python [builtin tool package](../agent-python/src/tyler_agent/tools/builtin) owns its adapter and `definition.json`; shared [argument parsing](../agent-python/src/tyler_agent/tools/parsing.py) and [result rendering](../agent-python/src/tyler_agent/tools/rendering.py) preserve existing compatibility rules. `PythonToolContractTest` compares all six complete definitions against Java and verifies shared output goldens; Python tests consume the same goldens. Domain validation stays in Java.
+
+### Adding a Python tool
+
+1. Add a package under `agent-python/src/tyler_agent/tools/builtin/<tool_name>/`, containing `__init__.py`, `adapter.py`, and `definition.json`. Keep one tool's name, description, and full model schema in its own definition file.
+2. Implement `async def execute(raw: str, operation: Operation) -> str` in `adapter.py`. The injected `operation` is scoped to the current run. Keep handlers free of mutable request state; call Java for domain/storage work and preserve adapter parsing/formatting at this boundary.
+3. Add dedicated tests under `agent-python/tests/`. Existing tools retain Java parity checks during migration; new operations also require coordinated protocol/schema/fixture and Java-handler changes. Adding a Python tool cannot expand Java's operation allowlist.
+4. Run Python checks and rebuild/smoke-test the worker. Discovery and PyInstaller collect the bundled packages automatically; no central handler map, import list, or combined JSON catalog needs editing.
+
+Discovery reads only the trusted bundled namespace, never a model-supplied module path. Packages are sorted by folder name for deterministic definition order. Missing definitions/adapters, invalid schemas or handler signatures, duplicate names, and an empty catalog fail startup before readiness. The worker validates one catalog and reuses it across requests; each request binds its own Java operation capability, and providers receive defensive copies of definitions. The package `__init__.py` only exports the public facade. `test_tool_registry.py` covers extension, invalid registration, discovery, and isolation; relocated-bundle checks verify dynamic imports and all definition resources.
 
 | Legacy adapter | Parsing behavior before the service operation | Model-visible result |
 |---|---|---|
@@ -65,3 +74,17 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 `BridgePersistenceTest` uses the production Spring handler configuration, temporary SQLite databases, and the real sandbox/services. It covers a child-JVM worker callback inserting food, independent IDs and deletion, plan rollback after partial inserts, repeated saves preserving edits, and file restrictions. `ServiceBoundaryTest` checks compiled bridge dependencies for DAO/DAL, JDBC, provider SDK, and legacy-tool references, and prevents the dispatcher from depending on feature services, models, or sandbox implementations. `PythonAgentConfigurationTest` proves exactly one real dispatcher is wired to the shared dependency instances.
 
 The full existing service suite still tests read-only preview, rollback without compensating deletes, and duplicate handling. Full HTTP → Python model loop → Java service persistence and interruption parity remain Step 8; a deterministic JVM worker fixture does not establish that later integration gate.
+
+## Python execution and operational limits
+
+[run_agent](../agent-python/src/tyler_agent/agent.py) builds the initial request from Java's supplied history and current message, using the supplied model and all six tool definitions. Calls execute sequentially in response order. Each output uses its original `call_id`, and each continuation uses `previous_response_id`. After five tool rounds, the last response's text/refusals are concatenated without separators; further calls are not executed. Empty output remains an empty successful reply. Java alone appends the successful exchange.
+
+[ResponsesProvider](../agent-python/src/tyler_agent/provider.py) owns SDK conversion and safe error classification. A new asynchronous client belongs to each run and closes after success, failure, or cancellation. It uses the Java credential snapshot, the explicit OpenAI endpoint, zero SDK retries, and a request timeout of the smaller of 60 seconds and the run deadline. No key is read or client created during readiness. Authentication/permission errors become `PROVIDER_AUTH`; other SDK failures become `PROVIDER_FAILURE`, retaining local causes without logging or serializing provider detail. This follows the [Responses function-calling contract](https://developers.openai.com/api/docs/guides/function-calling).
+
+The Python worker does not replay operations or fall back to Java. New operational bounds are 100 function calls and 1,000 output items per provider response, plus the existing 16 MiB text/frame bound and five-round limit. Oversized provider output fails before that response's tools execute. These are explicit resource limits for the opt-in Python implementation. The existing run and operation deadlines also apply.
+
+An operation failure retains Java's validated category, code, and safe message. The terminal `failed` payload replaces the operation's `writeOutcome` with the aggregate for the whole run: a successful write followed by a failed read reports `committed`, even when that read reports `none`. Uncertainty still takes precedence. The original Java cause remains in the supervisor ledger; it is not serialized to Python.
+
+Model arguments must be one complete JSON value; trailing non-whitespace after a value is rejected. This deliberately tightens Jackson's permissive trailing-token behavior for malformed arguments. Model numeric input is parsed exactly; valid scientific numeric arguments are converted to plain wire decimals within the existing two-billion protocol bound. Negative domain numbers, missing domain fields, and invalid calendar dates still reach Java validation. Numeric file path/content coercion uses decimal text without binary-floating-point rounding; ordinary text, booleans, empty content, and container-to-empty-text behavior remain compatible. These edge-case decisions do not change the advertised string-based file schemas or application domain rules.
+
+`test_agent.py`, `test_tools.py`, and `test_provider.py` cover orchestration, adapter parity, actual SDK requests over an in-memory HTTP transport, and disabled retry behavior. `test_runtime.py` controls cancellation, callback ordering, timeouts, and terminal messages. `test_worker_execution.py` exercises the real entry point and pipes with an injected fake provider. Production has no fake-provider environment switch or configurable test endpoint.
