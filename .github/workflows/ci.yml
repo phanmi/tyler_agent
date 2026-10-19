@@ -135,7 +135,12 @@ jobs:
           exit $LASTEXITCODE
       - name: Exercise relocated packaged application
         working-directory: frontend
-        run: npm run test:desktop
+        shell: pwsh
+        run: |
+          npm run test:runtime
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run test:desktop
+          exit $LASTEXITCODE
       - name: Preserve smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -143,6 +148,8 @@ jobs:
           name: windows-smoke-evidence
           path: |
             target/desktop-smoke-*/report.json
+            target/desktop-smoke-*/runtime-preflight.log
+            target/java-runtime-*/result.json
             target/desktop-smoke-*/*/desktop.log
           if-no-files-found: ignore
       - name: Upload verified Windows artifacts

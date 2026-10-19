@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
-const { spawn } = require('node:child_process')
+const { spawn, spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -19,6 +19,16 @@ async function until(check, label, timeout = 45000) {
     throw new Error(`Timed out: ${label}`)
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+
+// A terminated backend or startup dialog is a failure, not a reason to keep polling readiness.
+function backendReady(log, child, name) {
+    const failure = /SMOKE_DIALOG ([^\r\n]+)/.exec(log)?.[1]
+    if (failure) throw new Error(`Backend startup failed (${name}): ${failure}`)
+    if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(`Application exited before readiness (${name}): code=${child.exitCode} signal=${child.signalCode}`)
+    }
+    return /\[backend\] Ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(log)?.[1]
+}
 
 // Explicit traversal avoids Node 22's recursive cp directory-name conversion on Windows.
 function copyTree(source, destination) {
@@ -98,7 +108,7 @@ async function launch(executable, directory, name, args = []) {
         return {
             child, debug, data, log: () => log, pids,
             async ready() {
-                return until(() => /\[backend\] Ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(log)?.[1], `backend ready (${name})`)
+                return until(() => backendReady(log, child, name), `backend ready (${name})`)
             },
             async quit() {
                 // Disconnect before exit so Node's inspector cannot keep the app alive.
@@ -146,6 +156,16 @@ async function run() {
     assert.equal(sha(path.join(resources, `tyler-agent-${manifest.releaseVersion}.jar`)), manifest.jarSha256)
     const report = { platform: os.release(), artifact, manifest, executableSha256: sha(executable),
         appAsarSha256: sha(path.join(resources, 'app.asar')), cases: [] }
+    fs.writeFileSync(path.join(root, 'report.json'), JSON.stringify(report, null, 2))
+    const java = path.join(resources, 'runtime/bin/java.exe')
+    assert.equal(sha(java), manifest.javaLauncherSha256, 'Packaged Java launcher must match the build manifest')
+    // Diagnose native runtime failures before starting Electron or waiting on Spring readiness.
+    const runtime = spawnSync(java, ['-version'], {
+        env: smokeEnvironment(root), encoding: 'utf8', windowsHide: true, timeout: 10000,
+    })
+    const runtimeLog = path.join(root, 'runtime-preflight.log')
+    fs.writeFileSync(runtimeLog, `${runtime.stdout || ''}${runtime.stderr || ''}${runtime.error?.message || ''}`)
+    assert.equal(runtime.status, 0, `Bundled Java failed from the Unicode path; see ${runtimeLog}`)
     async function scenario(name, action, args) {
         const app = await launch(executable, root, name, args)
         try {
@@ -154,6 +174,9 @@ async function run() {
             report.cases.push(name)
             fs.writeFileSync(path.join(root, 'report.json'), JSON.stringify(report, null, 2))
             console.log(`PASS ${name}`)
+        } catch (error) {
+            console.error(`FAIL ${name}; diagnostics: ${path.join(app.data, 'desktop.log')}`)
+            throw error
         } finally { app.cleanup() }
     }
     await scenario('production-ready-quit', async (app) => {
@@ -221,4 +244,5 @@ async function run() {
     console.log(`Smoke evidence: ${root}`)
 }
 
-run().catch((error) => { console.error(error); process.exitCode = 1 })
+if (require.main === module) run().catch((error) => { console.error(error); process.exitCode = 1 })
+module.exports = { backendReady }

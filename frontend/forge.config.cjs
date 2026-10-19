@@ -11,7 +11,7 @@ module.exports = {
   },
   hooks: {
     prePackage: async (config) => {
-      const resources = prepareDesktop()
+      const resources = await prepareDesktop()
       config.packagerConfig.extraResource = [resources.runtime, resources.jar, resources.worker, resources.manifest]
     },
   },
