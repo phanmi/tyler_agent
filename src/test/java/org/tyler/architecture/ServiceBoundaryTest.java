@@ -17,11 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServiceBoundaryTest {
 
     @Test
-    void controllersAndToolsCannotReferenceStorageTypes() throws Exception {
+    void controllersToolsAndBridgeCannotReferenceStorageTypes() throws Exception {
         Path classes = Path.of(TylerAgentApplication.class.getProtectionDomain()
                 .getCodeSource().getLocation().toURI());
         List<String> violations = new ArrayList<>();
-        for (String layer : List.of("controller", "tool")) {
+        for (String layer : List.of("controller", "tool", "service/agent/bridge")) {
             Path directory = classes.resolve("org/tyler/" + layer);
             try (var paths = Files.walk(directory)) {
                 List<Path> classFiles = paths.filter(path -> path.toString().endsWith(".class")).toList();
@@ -32,6 +32,16 @@ class ServiceBoundaryTest {
                             String value = text.stringValue().replace('.', '/');
                             if (value.contains("org/tyler/dao/") || value.contains("org/tyler/dal/")) {
                                 violations.add(classes.relativize(classFile) + ": " + text.stringValue());
+                            }
+                            if (layer.equals("service/agent/bridge") && (value.contains("org/tyler/tool/")
+                                    || value.contains("com/openai/") || value.contains("java/sql/")
+                                    || value.contains("org/springframework/jdbc/"))) {
+                                violations.add(classes.relativize(classFile) + ": " + text.stringValue());
+                            }
+                            if (classFile.getFileName().toString().equals("ServiceOperationDispatcher.class")
+                                    && ((value.contains("org/tyler/service/") && !value.contains("org/tyler/service/agent/"))
+                                    || value.contains("org/tyler/filesandbox/") || value.contains("org/tyler/model/"))) {
+                                violations.add("Dispatcher must route through handlers: " + text.stringValue());
                             }
                         }
                     }

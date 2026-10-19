@@ -1,13 +1,13 @@
 package org.tyler.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.tyler.service.agent.python.ConversationLane;
 import org.tyler.service.agent.python.CoordinatedChatHistoryService;
@@ -25,6 +25,7 @@ import java.util.List;
 /** Opt-in migration wiring; no worker or credential access is needed for the default Java path. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@Import(OperationBridgeConfiguration.class)
 public class PythonAgentConfiguration {
     @Bean
     public PythonAgentSettings pythonAgentSettings(Environment environment) {
@@ -40,13 +41,6 @@ public class PythonAgentConfiguration {
 
     @Bean(destroyMethod = "close")
     public ConversationLane conversationLane(PythonAgentSettings settings) { return new ConversationLane(settings); }
-
-    @Bean
-    @ConditionalOnMissingBean(IOperationDispatcher.class)
-    public IOperationDispatcher pendingOperationDispatcher() {
-        // Step 6 supplies actual services. Never turn unavailable operations into successful results.
-        return (operation, input) -> { throw new IllegalStateException("Agent operation bridge is not implemented"); };
-    }
 
     @Bean(initMethod = "start", destroyMethod = "close")
     public PythonWorker pythonWorker(PythonAgentSettings settings, IOperationDispatcher dispatcher) {

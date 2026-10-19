@@ -2,7 +2,7 @@
 
 [Migration tracker](../docs/AGENT_MIGRATION.md) | [Protocol contract](../docs/AGENT_PROTOCOL.md) | [Backend standards](../docs/BACKEND_STANDARDS.md) | [Python agent standards](../docs/PYTHON_AGENT_STANDARDS.md)
 
-Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. The application still uses the Java agent by default; service handlers and the Python model/tool loop remain later steps. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#opt-in-configuration-and-lifecycle-ownership) before opting in.
+Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). The application still uses the Java agent by default; the Python model/tool loop remains Step 7. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#opt-in-configuration-and-lifecycle-ownership) before opting in.
 
 ## Source layout
 
