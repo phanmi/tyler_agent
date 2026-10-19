@@ -2,7 +2,7 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Protocol contract](AGENT_PROTOCOL.md) | [Session lifecycle](AGENT_SESSION.md)
 
-Step 6 implements Java's allowlisted service access; Step 7 implements the Python model loop and six tool adapters. The bridge is wired only when `agent.implementation=python`; Java remains the default until the later rollout gate. This page inventories the preserved adapter behavior and extension boundaries. The complete HTTP/Python/database integration gate remains Step 8.
+Step 6 implements Java's allowlisted service access; Step 7 implements the Python model loop and six tool adapters. Step 8 verifies the complete HTTP/Python/database path with a fake provider and temporary storage. The bridge is wired only when `agent.implementation=python`; Java remains the default until the later rollout gate. This page inventories the preserved adapter behavior, extension boundaries, and integration evidence.
 
 ## Dispatch and ownership
 
@@ -73,7 +73,9 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 
 `BridgePersistenceTest` uses the production Spring handler configuration, temporary SQLite databases, and the real sandbox/services. It covers a child-JVM worker callback inserting food, independent IDs and deletion, plan rollback after partial inserts, repeated saves preserving edits, and file restrictions. `ServiceBoundaryTest` checks compiled bridge dependencies for DAO/DAL, JDBC, provider SDK, and legacy-tool references, and prevents the dispatcher from depending on feature services, models, or sandbox implementations. `PythonAgentConfigurationTest` proves exactly one real dispatcher is wired to the shared dependency instances.
 
-The full existing service suite still tests read-only preview, rollback without compensating deletes, and duplicate handling. Full HTTP → Python model loop → Java service persistence and interruption parity remain Step 8; a deterministic JVM worker fixture does not establish that later integration gate.
+`AgentPersistenceIntegrationTest` establishes the Step 8 HTTP → Java → real Python subprocess → Java service boundary using a real loopback server and temporary SQLite/history files. Only the model is replaced by the test-only `persistence_worker.py` provider; the production worker entry point, runtime, adapters, protocol, handler registry, services, and DAOs execute normally. The suite covers food append/identity/calendar deletion, read-only preview, repeat plan saves preserving edits/IDs, actual rollback after partial inserts, HTTP failure classification, history completion, concurrent requests, deadline cancellation, late results, worker death, and shutdown. A test dispatcher barrier delays a real service result after completion; a SQLite trigger injects a real insert failure. Neither replaces persistence with mocked success or delete-based cleanup.
+
+Run `uv sync --locked --group dev` in `agent-python/` first, then `mvn -Dtest=AgentPersistenceIntegrationTest test` from the repository root. The normal `mvn test` / CI `mvn --batch-mode clean verify` selection includes this class automatically. Missing Python setup fails the test instead of skipping it. No live provider or user workspace is used. This is development-interpreter integration evidence; clean-machine desktop packaging and live-provider rollout remain later gates.
 
 ## Python execution and operational limits
 
