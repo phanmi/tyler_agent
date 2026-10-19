@@ -41,6 +41,47 @@ class Harness:
         await self.runtime.accept(message("operation_result", value, request["requestId"]))
 
 
+def test_failed_read_after_successful_write_reports_run_commit() -> None:
+    async def scenario() -> None:
+        provider = FakeProvider(
+            [
+                ModelResponse(
+                    "r",
+                    (
+                        call("writeFile", '{"path":"x","content":"saved"}', "write"),
+                        call("readFile", '{"path":"missing"}', "read"),
+                        call(),
+                    ),
+                    "",
+                )
+            ]
+        )
+        h = Harness(provider)
+        try:
+            await h.runtime.accept(message("run", payload()))
+            write = await h.next()
+            assert write["payload"]["operation"] == "file.write"
+            await h.result(write, {"path": "x"})
+            read = await h.next()
+            assert read["payload"]["operation"] == "file.read"
+            error = dict(
+                category="storage",
+                code="FILE_READ",
+                message="Java-safe detail",
+                writeOutcome="none",
+            )
+            await h.result(read, error=error)
+            terminal = await h.next()
+            assert terminal == message("failed", {"error": error | {"writeOutcome": "committed"}})
+            assert error["writeOutcome"] == "none"
+            assert h.messages.empty() and provider.closed == 1
+            assert len(provider.requests) == 1
+        finally:
+            await h.runtime.close()
+
+    asyncio.run(scenario())
+
+
 def test_completed_and_each_run_uses_new_key_history_and_client_scope() -> None:
     async def scenario() -> None:
         provider = FakeProvider([ModelResponse("r1", (), "one"), ModelResponse("r2", (), "two")])

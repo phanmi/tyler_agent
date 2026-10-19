@@ -16,8 +16,17 @@ src/tyler_agent/
   provider.py          # Request-owned Responses SDK client and safe failures
   failures.py          # Classified run errors
   tools/
-    __init__.py        # Six adapters behind the Java operation capability
-    definitions.json   # Names, descriptions and complete model schemas
+    __init__.py        # Public facade only
+    contracts.py       # Typed handler and operation contracts
+    discovery.py       # Discover trusted bundled tool packages
+    registry.py        # Validated catalog and request-scoped dispatch
+    builtin/
+      file_read/       # Each tool owns __init__.py, adapter.py, definition.json
+      file_write/
+      food_record/
+      time_current/
+      user_info/
+      workout_plan/
     parsing.py         # Legacy argument shapes/coercion
     rendering.py       # Exact model-facing food/plan/profile output
   session.py           # Protocol state and correlation observer
@@ -33,6 +42,12 @@ tests/                 # All Python tests and test helpers
 Import shared utilities through `tyler_agent.protocol.protocol` or
 `tyler_agent.protocol.validation`. Keep lifecycle and application orchestration
 outside `protocol/`; keep transport and wire validation together in this package.
+
+To add a tool, follow [Adding a Python tool](../docs/AGENT_OPERATIONS.md#adding-a-python-tool).
+Keep its adapter and model schema together in a new builtin package. Discovery,
+registration, and packaging do not require a central list of tools. The catalog is
+validated before worker readiness and reused without retaining request credentials
+or operation capabilities.
 
 ## Install the development environment
 

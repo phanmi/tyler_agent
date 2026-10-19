@@ -1,0 +1,79 @@
+{
+  "type": "function",
+  "name": "recordFood",
+  "description": "Parse a single food item the user consumed into a structured record. Use this when the user tells you what they ate. Estimate the nutrition values (calories, protein, carbs, fat, fiber) from the food name and amount when they are not explicitly given.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "genericInfo": {
+        "type": "object",
+        "properties": {
+          "foodName": {
+            "type": "string",
+            "description": "Name of the food consumed."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount consumed."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit of the amount, such as g, ml, piece, serving."
+          },
+          "calories": {
+            "type": "number",
+            "description": "Calories in kcal."
+          },
+          "date": {
+            "type": "string",
+            "description": "Date the food was consumed, in YYYY-MM-DD format."
+          }
+        },
+        "additionalProperties": false,
+        "description": "General info about the consumed food.",
+        "required": [
+          "foodName",
+          "amount",
+          "unit",
+          "calories",
+          "date"
+        ]
+      },
+      "macroNutrients": {
+        "type": "object",
+        "properties": {
+          "protein": {
+            "type": "number",
+            "description": "Protein in grams."
+          },
+          "carbs": {
+            "type": "number",
+            "description": "Carbohydrates in grams."
+          },
+          "fat": {
+            "type": "number",
+            "description": "Fat in grams."
+          },
+          "fiber": {
+            "type": "number",
+            "description": "Dietary fiber in grams."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Macronutrient breakdown.",
+        "required": [
+          "protein",
+          "carbs",
+          "fat",
+          "fiber"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "genericInfo",
+      "macroNutrients"
+    ]
+  },
+  "strict": true
+}

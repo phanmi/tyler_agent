@@ -1,0 +1,11 @@
+{
+  "type": "function",
+  "name": "GetUserInfo",
+  "description": "Get the saved information about the current user, including basic profile information, additional information, and expectations from the AI.this allows the AI to understand who the user is and what to expect. ",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "strict": true
+}

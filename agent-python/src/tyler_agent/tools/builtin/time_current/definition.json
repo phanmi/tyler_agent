@@ -1,0 +1,11 @@
+{
+  "type": "function",
+  "name": "getCurrentTime",
+  "description": "Get the current date and time in the server's local timezone. Use this when the user asks what time it is now.",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "strict": true
+}

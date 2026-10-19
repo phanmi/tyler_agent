@@ -21,11 +21,11 @@ class AgentFailure(Exception):
 
 
 class OperationFailure(AgentFailure):
-    """Forward Java's validated failure unchanged; Java retains its original local cause."""
+    """Preserve Java's failure details with the run outcome; Java retains its local cause."""
 
     def __init__(self, error: Message) -> None:
         super().__init__(error["category"], error["code"])
         self.error = dict(error)
 
     def payload(self, write_outcome: str) -> Message:
-        return dict(self.error)
+        return self.error | {"writeOutcome": write_outcome}

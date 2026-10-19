@@ -21,6 +21,8 @@ import org.tyler.tool.userTool.GetUserInfoTool;
 import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,8 +35,13 @@ class PythonToolContractTest {
 
     @Test
     void allSixPythonDefinitionsMatchCompleteJavaSchemasAndDescriptions() throws Exception {
-        JsonNode definitions = MAPPER.readTree(Path.of(
-                "agent-python/src/tyler_agent/tools/definitions.json").toFile());
+        List<JsonNode> definitions = new ArrayList<>();
+        try (var paths = Files.list(Path.of("agent-python/src/tyler_agent/tools/builtin"))) {
+            for (Path folder : paths.filter(Files::isDirectory)
+                    .filter(path -> !path.getFileName().toString().startsWith("_")).sorted().toList()) {
+                definitions.add(MAPPER.readTree(folder.resolve("definition.json").toFile()));
+            }
+        }
         List<ITool> tools = List.of(new RecordFoodTool(mock(IFoodService.class)),
                 new GenerateWorkoutPlanTool(mock(IWorkoutPlanService.class)),
                 new GetUserInfoTool(mock(IUserInfoService.class)),
@@ -43,7 +50,7 @@ class PythonToolContractTest {
         assertEquals(tools.size(), definitions.size());
         for (ITool tool : tools) {
             JsonNode expected = ObjectMappers.jsonMapper().valueToTree(tool.toFunctionTool());
-            JsonNode actual = definitions.findParents("name").stream()
+            JsonNode actual = definitions.stream()
                     .filter(value -> value.path("name").asText().equals(tool.name())).findFirst().orElseThrow();
             assertEquals(expected, actual, tool.name());
         }

@@ -26,6 +26,10 @@ class ScriptedProvider:
                 (ToolCall("original", "writeFile", '{"path":"test.txt","content":"text"}'),),
                 "",
             )
+        if self.mode == "write_then_read" and self.count == 2:
+            return ModelResponse(
+                "r2", (ToolCall("read", "readFile", '{"path":"missing.txt"}'),), ""
+            )
         if self.mode == "failure":
             raise AgentFailure("provider", "PROVIDER_FAILURE")
         if self.mode == "blocked":

@@ -138,7 +138,9 @@ def test_java_failure_stops_later_calls_and_retains_classification(
     provider = FakeProvider([ModelResponse("r", (call(), call("generateWorkoutPlan"), call()), "")])
     with pytest.raises(OperationFailure) as caught:
         asyncio.run(run_agent(payload(), provider, ToolAdapters(operation)))
-    assert caught.value is failure and caught.value.payload("none") == error_payload
+    assert caught.value is failure
+    assert caught.value.payload("none") == error_payload | {"writeOutcome": "none"}
+    assert error_payload["writeOutcome"] == failure.error["writeOutcome"] == "unknown"
     assert seen == ["time.current", "workout_plan.generate_save"]
     assert len(provider.requests) == 1
 

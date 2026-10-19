@@ -145,7 +145,7 @@ Java computes the effective outcome from its own ledger, never downgrading uncer
 
 Every HTTP error body retains `{ "error": "..." }`, as defined by the existing Java exception handler contract. No protocol fields are added to public responses. Preserve actual existing file-adapter parsing errors as `FILE_READ`/`FILE_WRITE` (500); sandbox argument rejection remains `INVALID_ARGUMENT` (400). Existing Java exceptions remain authoritative for a locally failed operation. Do not attempt to reconstruct arbitrary remote exception stacks or claim original Java throwable identity across the process boundary.
 
-The bridge emits only domain/SQL/file/internal failures for its operations. Python emits provider/authentication/adapter/internal failures or forwards an operation failure unchanged, aggregating `writeOutcome` without reducing uncertainty. Startup/frame/protocol failures without a safe active request ID are handled locally and close the worker; do not invent a request ID to send `failed`.
+The bridge emits only domain/SQL/file/internal failures for its operations. Python emits provider/authentication/adapter/internal failures or forwards an operation failure with its category, code, and safe message unchanged, replacing only `writeOutcome` with the aggregate for the run without reducing uncertainty. Startup/frame/protocol failures without a safe active request ID are handled locally and close the worker; do not invent a request ID to send `failed`.
 
 ### Rejection precedence
 

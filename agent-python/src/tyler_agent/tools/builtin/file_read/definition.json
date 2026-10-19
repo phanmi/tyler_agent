@@ -1,0 +1,19 @@
+{
+  "type": "function",
+  "name": "readFile",
+  "description": "Read the content of a file inside the agent workspace. Use this to load previously saved text, such as the user's prompts, the assistant's responses, notes, or any other stored content. The 'path' parameter is relative to the workspace root.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "File path relative to the workspace root, e.g. prompts/2026-09-07.txt"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "path"
+    ]
+  },
+  "strict": true
+}

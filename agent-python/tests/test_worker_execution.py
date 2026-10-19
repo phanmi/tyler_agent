@@ -69,6 +69,49 @@ def test_actual_pipe_tool_callback_then_terminal(mode: str, terminal: str, tmp_p
         stop(process)
 
 
+def test_actual_pipe_failed_read_preserves_earlier_write_outcome(tmp_path: Path) -> None:
+    process = launch("write_then_read", tmp_path)
+    try:
+        ready(process)
+        send(process, "run", payload())
+        write = receive(process)["payload"]
+        assert write["operation"] == "file.write"
+        send(
+            process,
+            "operation_result",
+            {
+                "operationId": write["operationId"],
+                "operation": "file.write",
+                "outcome": "success",
+                "result": {"path": "test.txt"},
+            },
+        )
+        read = receive(process)["payload"]
+        assert read["operation"] == "file.read"
+        error = dict(
+            category="storage", code="FILE_READ", message="Java-safe detail", writeOutcome="none"
+        )
+        send(
+            process,
+            "operation_result",
+            {
+                "operationId": read["operationId"],
+                "operation": "file.read",
+                "outcome": "failure",
+                "error": error,
+            },
+        )
+        response = receive(process)
+        assert response["type"] == "failed" and response["requestId"] == "req-1"
+        assert response["payload"]["error"] == error | {"writeOutcome": "committed"}
+        send(process, "shutdown", {"reason": "application_exit"}, None)
+        output, errors = process.communicate(timeout=10)
+        assert output == b"" and process.returncode == 0
+        assert b"SYNTHETIC" not in errors
+    finally:
+        stop(process)
+
+
 @pytest.mark.parametrize("followup,code", [("run", 2), ("cancel", 0)])
 def test_request_identity_after_completion(followup: str, code: int, tmp_path: Path) -> None:
     process = launch("reply", tmp_path)

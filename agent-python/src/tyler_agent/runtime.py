@@ -12,6 +12,8 @@ from tyler_agent.protocol.protocol import Message, ProtocolError
 from tyler_agent.provider import Provider, open_provider
 from tyler_agent.session import WRITES
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.discovery import discover_tools
+from tyler_agent.tools.registry import ToolCatalog
 
 log = logging.getLogger(__name__)
 MAX_REQUESTS = 10_000
@@ -41,6 +43,8 @@ class WorkerRuntime:
     def __init__(self, send: Sender, provider_factory: ProviderFactory = open_provider) -> None:
         self._send = send
         self._provider_factory = provider_factory
+        # Load bundled adapters/resources before readiness, without creating a provider.
+        self._tools = ToolCatalog(discover_tools())
         self._requests: set[str] = set()
         self._active: Run | None = None
         self._closing = False
@@ -98,7 +102,7 @@ class WorkerRuntime:
                     async def operation(name: str, value: Message) -> Message:
                         return await self._operation(run, name, value)
 
-                    reply = await run_agent(payload, provider, ToolAdapters(operation))
+                    reply = await run_agent(payload, provider, ToolAdapters(operation, self._tools))
             if not self._closing:
                 self._send("completed", run.request_id, {"reply": reply})
                 log.info("Agent run completed")

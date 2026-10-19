@@ -37,10 +37,17 @@ def envelope(kind: str, payload: dict[str, Any], request_id: str | None = None) 
 def worker_command(worker_executable: str | None, tmp_path: Path) -> list[str]:
     if worker_executable:
         original = Path(worker_executable)
-        definitions = original.parent / "_internal/tyler_agent/tools/definitions.json"
-        assert json.loads(definitions.read_text("utf-8")) == json.loads(
-            (ROOT / "agent-python/src/tyler_agent/tools/definitions.json").read_text("utf-8")
-        )
+        definitions = original.parent / "_internal/tyler_agent/tools/builtin"
+        sources = ROOT / "agent-python/src/tyler_agent/tools/builtin"
+        expected = {
+            path.parent.name: json.loads(path.read_text("utf-8"))
+            for path in sources.glob("*/definition.json")
+        }
+        actual = {
+            path.parent.name: json.loads(path.read_text("utf-8"))
+            for path in definitions.glob("*/definition.json")
+        }
+        assert actual == expected
         destination = tmp_path / "relocated worker"
         shutil.copytree(original.parent, destination)
         return [str(destination / original.name)]
