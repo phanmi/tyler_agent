@@ -10,13 +10,9 @@ const READY_TIMEOUT_MS = 30000
 
 function resolveJavaPath(packaged = false, resourcesPath = '') {
     if (packaged) {
-        const candidates = [
-            path.join(resourcesPath, 'runtime', 'bin', 'java.exe'),
-            path.join(resourcesPath, 'bin', 'java.exe'),
-        ]
-        for (const candidate of candidates) {
-            if (fs.existsSync(candidate)) return candidate
-        }
+        const bundled = path.join(resourcesPath, 'runtime', 'bin', 'java.exe')
+        if (!fs.existsSync(bundled)) throw new Error('Bundled Java runtime is missing. Reinstall Tyler.')
+        return bundled
     }
 
     const bundled = path.join(__dirname, '..', '..', 'resources', 'runtime', 'bin', 'java.exe')
@@ -36,10 +32,19 @@ function resolveJavaPath(packaged = false, resourcesPath = '') {
 }
 
 function resolveJarPath(packaged = false, resourcesPath = '') {
-    if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
     const jarName = `tyler-agent-${releaseVersion}.jar`
     if (packaged) return path.join(resourcesPath, jarName)
+    if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
     return path.join(__dirname, '..', '..', 'target', jarName)
+}
+
+// Java owns the worker. Paths remain separate argv entries, including spaces and Unicode.
+function backendArguments(packaged = false, resourcesPath = '') {
+    const args = ['-jar', resolveJarPath(packaged, resourcesPath), '--server.address=127.0.0.1', '--server.port=0']
+    if (packaged) {
+        args.push(`--agent.python.command[0]=${path.join(resourcesPath, 'tyler-agent-worker', 'tyler-agent-worker.exe')}`)
+    }
+    return args
 }
 
 // Start one backend and accept a port only from its own ready message.
@@ -48,6 +53,10 @@ function startBackendProcess(command, args, options = {}) {
     const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS
 
     return new Promise((resolve, reject) => {
+        if (options.signal?.aborted) {
+            reject(new Error('Backend startup cancelled'))
+            return
+        }
         let child
         try {
             child = spawn(command, args, {
@@ -63,6 +72,8 @@ function startBackendProcess(command, args, options = {}) {
 
         let settled = false
         let ready = false
+        const abort = () => fail(new Error('Backend startup cancelled'))
+        options.signal?.addEventListener('abort', abort, { once: true })
         const timer = setTimeout(() => {
             fail(new Error(`Backend did not become ready within ${timeoutMs / 1000} seconds`))
         }, timeoutMs)
@@ -71,6 +82,7 @@ function startBackendProcess(command, args, options = {}) {
             if (settled) return
             settled = true
             clearTimeout(timer)
+            options.signal?.removeEventListener('abort', abort)
             child.kill()
             reject(error)
         }
@@ -87,6 +99,7 @@ function startBackendProcess(command, args, options = {}) {
             ready = true
             settled = true
             clearTimeout(timer)
+            options.signal?.removeEventListener('abort', abort)
             resolve({ child, baseUrl: `http://127.0.0.1:${port}`, port })
         })
 
@@ -94,13 +107,16 @@ function startBackendProcess(command, args, options = {}) {
         child.stderr.on('data', (data) => options.onStderr?.(data))
         child.on('error', (error) => fail(error))
         child.on('exit', (code, signal) => {
+            lines.close()
             if (!ready) {
                 fail(new Error(`Backend exited before it was ready: code=${code} signal=${signal}`))
             } else {
                 options.onExit?.(code, signal)
             }
         })
+        options.onSpawn?.(child)
+        if (options.signal?.aborted) abort()
     })
 }
 
-module.exports = { resolveJavaPath, resolveJarPath, startBackendProcess }
+module.exports = { resolveJavaPath, resolveJarPath, backendArguments, startBackendProcess }

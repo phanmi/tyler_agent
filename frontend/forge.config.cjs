@@ -1,20 +1,19 @@
 // Electron Forge configuration: application packaging and the Squirrel.Windows installer.
-const releaseVersion = require('./package.json').version
-const jarName = `tyler-agent-${releaseVersion}.jar`
+const { prepareDesktop } = require('./scripts/prepare-desktop.cjs')
 
 module.exports = {
   packagerConfig: {
     name: 'Tyler',
     executableName: 'Tyler',
     asar: true,
-    // extraResource entries are copied to process.resourcesPath outside the ASAR archive.
-    // Directories are copied recursively; main.cjs checks both preserved and flattened layouts,
-    // so java.exe can be found under resources/runtime/ or resources/.
-    // Individual files retain their names, including the versioned backend JAR.
-    extraResource: [
-      '../resources/runtime',
-      `../target/${jarName}`,
-    ],
+    // Executables and native libraries must remain ordinary files outside ASAR.
+    ignore: [/^\/(tests|src|scripts|out2)(\/|$)/, /^\/.*\.(?:ts|tsx|log)$/],
+  },
+  hooks: {
+    prePackage: async (config) => {
+      const resources = prepareDesktop()
+      config.packagerConfig.extraResource = [resources.runtime, resources.jar, resources.worker, resources.manifest]
+    },
   },
   makers: [
     {
