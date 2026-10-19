@@ -10,7 +10,7 @@ analysis = Analysis(
     datas=[
         (str(root / "contracts/agent/v1/message.schema.json"), "contracts/agent/v1"),
         (str(root / ".mvn/maven.config"), ".mvn"),
-    ] + collect_data_files("jsonschema_specifications"),
+    ] + collect_data_files("jsonschema_specifications") + collect_data_files("tyler_agent"),
     hiddenimports=[],
 )
 archive = PYZ(analysis.pure)
