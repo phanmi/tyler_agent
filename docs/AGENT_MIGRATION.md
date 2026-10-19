@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-19):** Steps 2–7 are complete. Committed `acf063e` includes Step 7; the tool-package/catalog refactor and terminal write-outcome correction below are recorded as working-tree changes on that head. Python now assembles context, calls the Responses API, executes all six adapters through the Java bridge, chains responses, and returns classified completion/failure messages. Java owns process supervision, shared services, persistence, credentials, and history. `agent.implementation=java` remains the default until the integration and rollout gates pass. See the [operation guide](AGENT_OPERATIONS.md) and [session lifecycle guide](AGENT_SESSION.md) for implemented behavior and limits. Earlier checkout and CI observations remain dated historical evidence.
+**Current state (refreshed 2026-10-19):** Steps 2–8 are complete. Committed `639dd25` includes Step 7, the tool-package/catalog refactor, and the terminal write-outcome correction. Step 8 integration tests and documentation are working-tree changes on that head. Python now assembles context, calls the Responses API, executes all six adapters through the Java bridge, chains responses, and returns classified completion/failure messages. Java owns process supervision, shared services, persistence, credentials, and history. `agent.implementation=java` remains the default until the remaining packaging and rollout gates pass. See the [operation guide](AGENT_OPERATIONS.md) and [session lifecycle guide](AGENT_SESSION.md) for implemented behavior and limits. Earlier checkout and CI observations remain dated historical evidence.
 
 ## Current implementation baseline
 
@@ -18,22 +18,22 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
 | CI | [CI workflow](../.github/workflows/ci.yml) now configures locked Python dependency installation, Ruff format/lint, strict mypy for Linux and Windows targets, and `pytest tests` in the existing Build and test job before Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. [Run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** for `4ee8cbe`, as reported in the review. This supersedes the earlier reported 256-case CI baseline. |
 | Python execution | [Worker and development commands](../agent-python/README.md), [runtime](../agent-python/src/tyler_agent/runtime.py), [agent loop](../agent-python/src/tyler_agent/agent.py), [provider](../agent-python/src/tyler_agent/provider.py), and [adapters](../agent-python/src/tyler_agent/tools) implement Step 7. Readiness needs no key; a valid run uses its supplied credential snapshot and executes through the Java operation bridge. |
-| Latest local verification | On `acf063e` plus the tool-package refactor and terminal write-outcome correction, **375 Python cases** passed (364 development and 11 relocated-bundle cases). Ruff format/lint and strict mypy for Linux and Windows passed for 49 source/test files. The preceding tool-package review passed **3 affected Java contract/readiness tests**; Java was not rerun for the Python-only outcome correction. The last full backend result remains the dated Step 7 run of **710 tests**. Remote CI was not run here. |
+| Latest local verification | On `639dd25` plus Step 8 changes, the full backend suite passed **727 tests**, including **17 new real HTTP/Python/service integration cases**. Python development tests passed **364 cases**; Ruff format/lint and strict mypy for Linux and Windows passed for 50 source/test files. The final integration selection was rerun after strengthening the provider history assertion. The earlier **375-case** development/relocated-bundle result remains historical; no bundle rebuild or remote CI run was performed for these test/documentation changes. |
 
-Steps 2–7 and their preceding review corrections are included in committed baseline `acf063e`; the latest local verification includes the tool-package refactor and terminal write-outcome correction on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this Python/backend migration work. Step 1 remains partial until its remaining inventory and frontend evidence gates are satisfied. Step 8 must still verify the complete HTTP/Python/service persistence path; clean-machine Windows installer checks remain Step 9.
+Steps 2–7 and their preceding review corrections are included in committed baseline `639dd25`; the latest local verification includes Step 8 integration coverage on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend migration work. Step 1 remains partial until its remaining inventory and frontend evidence gates are satisfied. Step 8 establishes the complete development HTTP/Python/service persistence path; clean-machine Windows installer checks remain Step 9.
 
 ## Progress
 
 | Step | Work | Status | Completion evidence or remaining gate |
 |---|---|---|---|
-| 1 | Establish the migration baseline | Partially complete | Current baseline `acf063e` plus the tool-package refactor and terminal write-outcome correction is reconciled above. Finish the remaining contract/startup inventory and frontend verification evidence. |
-| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 710-case backend run. Earlier CI/local results remain dated below. |
+| 1 | Establish the migration baseline | Partially complete | Current baseline `639dd25` plus Step 8 coverage is reconciled above. Finish the remaining contract/startup inventory and frontend verification evidence. |
+| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 727-case backend run. Earlier CI/local results remain dated below. |
 | 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; shared fixtures contain 100 message cases, 24 framing cases, and 38 sequence scenarios after the numeric simplification. |
 | 4 | Create and package the Python worker skeleton | Complete | Locked Python environment, checks, Java/Python fixture conformance, and credential-free development/relocated Windows bundle smoke tests pass. See the Step 4 record. |
 | 5 | Implement Java worker lifecycle and adapter | Complete | Opt-in wiring, queue/history ownership, fake-worker callbacks/failures, real readiness, and Windows process-exit checks pass; see the dated Step 5 evidence below. |
 | 6 | Expose Java service operations | Complete | Six allowlisted handlers, shared validation, dependency/wiring checks, sandbox rejection, exact transport values, and real persistence tests pass; see the dated Step 6 record. |
 | 7 | Port the agent loop and tool adapters | Complete | Fake-provider parity matrix, all six schemas/output contracts, real pipe execution/cancellation, SDK no-retry checks, and rebuilt bundle tests pass; see the dated Step 7 record. |
-| 8 | Verify the complete persistence path | Not started | Real subprocess and temporary-database tests cover success, rollback, and interrupted writes. |
+| 8 | Verify the complete persistence path | Complete | 17 real HTTP/Python/service integration cases cover persistence, actual rollback, failures/history, interrupted writes, concurrency, cancellation, late results, and shutdown. See the dated Step 8 record. |
 | 9 | Integrate desktop packaging and CI | Not started | Clean-machine Windows smoke tests and required CI checks pass. |
 | 10 | Roll out Python and retire the Java agent | Not started | Default switched, rollback window completed, obsolete code and references removed. |
 
@@ -212,14 +212,14 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 **Definition of done**
 
-- [ ] Integration tests execute the real HTTP/Java/Python/Java-service path with a real subprocess and temporary SQLite databases, mocking only the external model provider where needed.
-- [ ] Food insertion preserves older records and stable IDs; independently saved equal entries remain addressable through existing read/delete paths.
-- [ ] Successful and sequential repeated plan saves preserve the existing duplicate policy, IDs, and manual edits; preview remains read-only.
-- [ ] An injected failure after one or more plan inserts leaves no partial plan and preserves pre-existing workouts, verified by database queries after rollback.
-- [ ] Validation, authentication, provider, storage, and history failures retain their documented response/completion behavior; successful history exchanges are saved once.
-- [ ] Worker failure before a write and after a committed write but before its result returns produces the expected database state with no automatic replay.
-- [ ] Cancellation, concurrent incoming requests, late results, and shutdown tests show no cross-request contamination, subsequent cancelled tool execution, or orphan worker.
-- [ ] Integration commands, environments, outcomes, and remaining limitations are recorded; mocked delete/cleanup assertions are not accepted as rollback evidence.
+- [x] Integration tests execute the real HTTP/Java/Python/Java-service path with a real subprocess and temporary SQLite databases, mocking only the external model provider where needed.
+- [x] Food insertion preserves older records and stable IDs; independently saved equal entries remain addressable through existing read/delete paths.
+- [x] Successful and sequential repeated plan saves preserve the existing duplicate policy, IDs, and manual edits; preview remains read-only.
+- [x] An injected failure after one or more plan inserts leaves no partial plan and preserves pre-existing workouts, verified by database queries after rollback.
+- [x] Validation, authentication, provider, storage, and history failures retain their documented response/completion behavior; successful history exchanges are saved once.
+- [x] Worker failure before a write and after a committed write but before its result returns produces the expected database state with no automatic replay.
+- [x] Cancellation, concurrent incoming requests, late results, and shutdown tests show no cross-request contamination, subsequent cancelled tool execution, or orphan worker.
+- [x] Integration commands, environments, outcomes, and remaining limitations are recorded; mocked delete/cleanup assertions are not accepted as rollback evidence.
 
 ### Step 9 Integrate desktop packaging and CI
 
@@ -492,9 +492,9 @@ The shared fixtures remain unchanged by this refactor. Added ten session cases f
 
 ## Next work and decisions
 
-- Continue from `acf063e` plus the tool-package refactor recorded below. Keep Step 1's remaining inventory/frontend evidence visible; this task does not certify rollout readiness.
-- Next unimplemented roadmap step: Step 8, the complete HTTP/Java/Python/Java-service persistence and interruption tests. Use the implemented Python provider injection boundary and the production Java handler registry with temporary databases. Preserve shared validation, history ownership, and conservative uncertain-write reporting.
-- Step 7 implements the Python loop and six adapters. Keep Java selected by default until the remaining integration, packaging, and rollout gates pass; fake-provider parity is not live-provider or complete persistence-path evidence.
+- Continue from `639dd25` plus the Step 8 integration work recorded below. Keep Step 1's remaining inventory/frontend evidence visible; this task does not certify rollout readiness.
+- Next unimplemented roadmap step: Step 9, desktop packaging and CI/release integration. Preserve the passing Step 8 HTTP/Python/service tests, shared validation, history ownership, and conservative uncertain-write reporting.
+- Steps 7–8 implement the Python loop and six adapters and verify the complete development persistence path. Keep Java selected by default until the remaining packaging and rollout gates pass; fake-provider integration does not establish live-provider or clean-machine installer behavior.
 - Use the pinned Python/uv environment, shared conformance suites, and packaging commands. Run `uv sync --locked` before Maven: lifecycle tests launch real Python from the development environment.
 - Preserve the tested queue, history-clear ordering, deadlines, parent watchdog, no-replay policy, and private-pipe ownership while adding handlers/model work.
 - Keep installer, Electron packaging, clean-machine Windows, and release CI gates pending for Step 9. Local checks are not remote CI evidence.
@@ -767,3 +767,35 @@ PyInstaller collects the builtin modules and individual JSON resources automatic
 - `uv run --locked --offline pytest tests --worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe --basetemp ../target/pytest-write-outcome-packaged -q`: **375 passed**, comprising 364 development cases and 11 additional relocated-bundle cases. Log: `target/write-outcome-packaged.log`.
 
 **Limits:** Local Windows results, with approved loopback access for asyncio and fake providers only. Java, frontend, remote CI, and live-provider checks were not rerun for this Python-only correction. The new operation-failure regressions use simulated Java replies over the runtime and real pipes; they do not claim complete service/database integration, which remains Step 8. Java remains the default.
+
+
+### 2026-10-19 — Step 8 completed: full HTTP/Python/service persistence integration
+
+**Baseline and scope:** Started from clean committed `639dd25`, including the preceding Step 7 review corrections. Added integration tests and documentation under the backend and Python standards. No production service, model, protocol, schema, frontend, dependency, or default implementation change was needed. All agent/model simulation stays in Python test support.
+
+**Execution boundary:** `AgentPersistenceIntegrationTest` starts the actual Spring application on an ephemeral loopback HTTP port with `agent.implementation=python`. Each case uses its own temporary sandbox, real food/workout SQLite databases, key/history files, HTTP client, and Python subprocess. `PersistenceTestApplication` selects the test-only `agent-python/tests/support/persistence_worker.py` entry point, which injects a fake model through the production worker's existing provider factory. It checks the exact history/current-message context seen by the model. The production runtime, tool adapters, pipe protocol, Java supervisor/handler registry, shared services/validators, DAOs, and transaction manager all execute. The fixture is not a production switch or endpoint, and no live API request is made.
+
+`IntegrationOperationGate` wraps the real dispatcher only to count food operations and pause after a selected real operation returns but before its result reaches Python. Bounded latches control worker-death, cancellation, concurrent-request, and shutdown timing without arbitrary sleeps. A SQLite trigger in `src/test/resources/agent-integration/fail-plan.sql` raises an actual database failure once two plan rows have been inserted alongside an existing record. History write/read faults use real temporary filesystem state. None of these fault controls replaces application service or persistence results with mocks. Every application closes its context/client and verifies worker exit, with forceful cleanup if an assertion fails.
+
+**Acceptance evidence:**
+
+| Criterion | Integration evidence |
+|---|---|
+| Food append, identity, date lookup/deletion | `equalFoodEntriesAppendHaveStableIdsAndSupportCalendarDeletion` saves two equal entries through HTTP/Python, compares the tool output with the persisted food, retains the first ID, verifies distinct IDs, then deletes each independently through the existing ID/date HTTP routes. |
+| Preview and repeat plans preserve IDs/edits | `planPreviewIsReadOnlyAndRepeatedSavePreservesIdsAndManualEdits` compares the saved tool plan with HTTP preview, checks zero rows before saving, changes a saved record through HTTP, repeats the plan, and compares all database rows including IDs and the edited values. A later preview leaves the snapshot unchanged. |
+| Real atomic rollback | `planInsertFailureRollsBackEarlierInsertsAndPreservesPreexistingWorkouts` trips the SQLite trigger after two inserts, checks the SQL HTTP 500 response and empty history, then queries the database through a separate connection and compares every row with the pre-request snapshot. Removing the test trigger permits a successful save that retains the original record. No compensating delete is used or asserted. |
+| Failure classification and completion | Seven `failuresKeepHttpClassificationAndDoNotSaveHistory` cases cover missing food/plan fields, negative food quantities, invalid dates, provider authentication/failure, and real sandbox file-read failure. They check exact HTTP error bodies/statuses, unchanged storage, no failed exchange, and subsequent successful use. `missingKeyAndProviderFailureAfterWriteNeverReplayOrAppendFailedHistory` checks missing-key 401 before dispatch and a committed food write retained after provider failure. |
+| History once/recovery/failure | Successful exchanges are compared with the real history file. `historyWriteFailureKeepsCommittedFoodAndHistoryReadFailureKeepsLegacyRecovery` makes the history target a directory, verifies HTTP 500 without repeating a committed insert, then verifies the existing service's deliberate empty-history recovery for malformed JSON. This documents existing recovery rather than changing it to a new error policy. |
+| Worker failure before/after a write | Two `workerDeathBeforeWriteOrAfterCommitDoesNotReplay` cases kill the real Python PID while a nonwriting clock result or committed food result is held. They verify zero/one persisted food rows, no later food call, no failed history, old-worker exit, and a clean new request after settlement. |
+| Concurrent requests and late results | `concurrentHttpRequestsUseOrderedHistoryWithoutCrossRequestResults` queues a second HTTP request behind the held first result and checks exact model context, ordered history, and one insert. `deadlineCancelsRemainingToolsAndLateCommitResultCannotContaminateNextRun` cancels a two-write request while its first committed result is held, rejects new work until the pending operation settles, releases the late result, and verifies a new run has clean history with no second insert. |
+| Shutdown and process ownership | `shutdownDuringCommittedOperationStopsWorkerAndRemainingTools` closes the production supervisor while a committed result is held, checks HTTP failure, worker exit, durable food, empty history, and no remaining tool execution. Test teardown also verifies worker exit for every normal/failure case. |
+
+**Commands and results:**
+
+- Initial focused Maven `test` with `-Dtest=AgentPersistenceIntegrationTest`: **17 passed**, no failures/errors/skips. Log: `target/step8-integration.log`.
+- Full backend `mvn -o -Dmaven.compiler.fork=true test`, using the previously documented local Maven repository and explicit Mockito-agent options: **727 passed**, no failures/errors/skips. This includes the 17 new cases. Log: `target/step8-backend-all.log`.
+- Final focused Maven selection after adding exact provider-context assertions: **17 passed**, no failures/errors/skips. Log: `target/step8-integration-final.log`.
+- From `agent-python/`, `uv run --locked --offline ruff format --check src tests`, `ruff check src tests`, `mypy --platform linux`, and `mypy --platform win32`: passed for **50 source/test files**.
+- `uv run --locked --offline pytest tests --basetemp ../target/pytest-step8 -q`: **364 passed**. The new cross-language cases are executed by Maven, not pytest. Log: `target/step8-python.log`.
+
+**CI and limits:** `AgentPersistenceIntegrationTest` matches Maven's default test discovery and therefore runs in the existing CI `mvn --batch-mode clean verify` step, after the workflow installs the locked Python environment. No CI bypass or optional skip was added. These are local Windows/Java 26/Python 3.12 results with approved loopback access; no new remote CI or Linux runtime result is claimed. Frontend checks, a new worker bundle, live-provider tests, and clean-machine/Electron installer checks were not run for test/documentation-only changes. The earlier packaged-worker results remain historical. No concurrent deduplication, exactly-once delivery, or safe automatic replay is claimed. Java remains the default; Step 9 is next, with Step 1's remaining baseline evidence and later rollout gates still pending.
