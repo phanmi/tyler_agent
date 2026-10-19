@@ -2,6 +2,7 @@ package org.tyler.service.agent.protocol;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
@@ -27,14 +28,20 @@ public final class MessageValidator {
             "operation_request", "python", "operation_result", "java", "completed", "python",
             "failed", "python", "cancel", "java", "shutdown", "java");
     private final JsonSchema schema;
+    private final JsonSchema operationRequestSchema;
 
     public MessageValidator() {
         try (var input = MessageValidator.class.getResourceAsStream("/agent-protocol/message.schema.json")) {
             if (input == null) {
                 throw new IllegalStateException("Missing agent protocol schema");
             }
-            schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
-                    .getSchema(new ObjectMapper().readTree(input));
+            JsonNode document = new ObjectMapper().readTree(input);
+            var factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            schema = factory.getSchema(document);
+            var operationDocument = JsonNodeFactory.instance.objectNode()
+                    .put("$ref", "#/$defs/operationRequest");
+            operationDocument.set("$defs", document.path("$defs"));
+            operationRequestSchema = factory.getSchema(operationDocument);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load agent protocol schema", e);
         }
@@ -44,6 +51,24 @@ public final class MessageValidator {
     public void validateMessage(JsonNode message) {
         validateShape(message);
         validateSemantics(message);
+    }
+
+    /**
+     * Protect direct bridge callers using the same operation schema and decimal rules as the wire.
+     * Session, direction, and correlation are still checked by the supervisor before dispatch.
+     */
+    public void validateOperationInput(String operation, JsonNode input) {
+        if (operation != null && !OPERATIONS.contains(operation)) {
+            throw new ProtocolException("UNKNOWN_OPERATION");
+        }
+        var payload = JsonNodeFactory.instance.objectNode().put("operationId", "bridge")
+                .put("operation", operation);
+        payload.set("input", input);
+        if (!operationRequestSchema.validate(payload).isEmpty()) {
+            throw new ProtocolException("INVALID_MESSAGE");
+        }
+        validateUnicode(input);
+        validateNumbers(input);
     }
 
     /** Validate shape, session, direction, then values before any state change or dispatch. */

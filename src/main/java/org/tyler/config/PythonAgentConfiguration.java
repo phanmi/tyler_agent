@@ -1,7 +1,6 @@
 package org.tyler.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -15,11 +14,18 @@ import org.tyler.service.agent.python.IOperationDispatcher;
 import org.tyler.service.agent.python.PythonAgentService;
 import org.tyler.service.agent.python.PythonAgentSettings;
 import org.tyler.service.agent.python.PythonWorker;
+import org.tyler.service.agent.bridge.ServiceOperationDispatcher;
+import org.tyler.service.food.IFoodService;
+import org.tyler.service.workout.IWorkoutPlanService;
+import org.tyler.service.userInfo.IUserInfoService;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.service.apiKey.IApiKeyService;
 import org.tyler.service.chatHistory.ChatHistoryService;
 import org.tyler.service.chatHistory.IChatHistoryService;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.util.List;
 
 /** Opt-in migration wiring; no worker or credential access is needed for the default Java path. */
@@ -42,10 +48,10 @@ public class PythonAgentConfiguration {
     public ConversationLane conversationLane(PythonAgentSettings settings) { return new ConversationLane(settings); }
 
     @Bean
-    @ConditionalOnMissingBean(IOperationDispatcher.class)
-    public IOperationDispatcher pendingOperationDispatcher() {
-        // Step 6 supplies actual services. Never turn unavailable operations into successful results.
-        return (operation, input) -> { throw new IllegalStateException("Agent operation bridge is not implemented"); };
+    public IOperationDispatcher operationDispatcher(IFoodService food, IWorkoutPlanService plans,
+                                                   IUserInfoService profile, IFileSandboxRead reader,
+                                                   IFileSandboxWrite writer) {
+        return new ServiceOperationDispatcher(food, plans, profile, reader, writer, Clock.systemDefaultZone());
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")

@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-18):** Steps 2–5 are complete. Step 5 is committed in `d69837d`; the cause-retention, lifecycle-cleanup, and readability follow-up below is recorded as working-tree changes on that head. Java now owns an opt-in Python worker supervisor and bounded conversation lane; Python monitors its Java parent independently of blocked work. `agent.implementation=java` remains the default. Selecting `python` establishes real lifecycle/HTTP integration, but the prototype still returns `WORKER_UNAVAILABLE` for valid runs until Steps 6–7 add operation handlers and the model loop. The [session lifecycle guide](AGENT_SESSION.md) documents configuration, ownership, cancellation, and remaining boundaries. Earlier checkout and CI observations remain historical evidence.
+**Current state (refreshed 2026-10-18):** Steps 2–6 are complete. Step 5 and its review fixes are committed in `5cf84f0`; Step 6 below is recorded as working-tree changes on that head. Java now owns an opt-in Python worker supervisor and bounded conversation lane; Python monitors its Java parent independently of blocked work. `agent.implementation=java` remains the default. Selecting `python` establishes real lifecycle/HTTP integration, but the prototype still returns `WORKER_UNAVAILABLE` for valid runs until Step 7 adds the model loop. The [operation bridge](AGENT_OPERATIONS.md) now routes six private commands to existing Java services, the sandbox, and the server-local clock. The [session lifecycle guide](AGENT_SESSION.md) documents configuration, ownership, cancellation, and remaining boundaries. Earlier checkout and CI observations remain historical evidence.
 
 ## Current implementation baseline
 
@@ -17,21 +17,21 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
 | CI | [CI workflow](../.github/workflows/ci.yml) now configures locked Python dependency installation, Ruff format/lint, strict mypy for Linux and Windows targets, and `pytest tests` in the existing Build and test job before Java 26 `mvn --batch-mode clean verify`, then Node 22 `npm ci`, supporting tests, production build, type checking, and UI tests. [Run 38950225490](https://github.com/phanmi/tyler_agent/actions/runs/38950225490) passed all **261 backend tests** for `4ee8cbe`, as reported in the review. This supersedes the earlier reported 256-case CI baseline. |
-| Step 4 implementation | [Python project and commands](../agent-python/README.md), [Python codec](../agent-python/src/tyler_agent/protocol/protocol.py), and [Java protocol infrastructure](../src/main/java/org/tyler/service/agent/protocol) implement framing/validation and pure sequence observation. The worker is a readiness/shutdown prototype; valid runs fail explicitly as unavailable. No model call or service operation is implemented. |
-| Latest local verification | On `d69837d` plus the Step 5 review fixes, **619 backend tests** passed with no failures/errors/skips, including real Spring/Python readiness and forceful-parent-exit checks on Windows. **226 Python development tests** and **239 tests including the rebuilt relocated Windows worker** passed. Ruff format/lint and strict mypy for Linux and Windows targets passed for 17 source/test files. Remote CI was not run here. |
+| Step 4 implementation | [Python project and commands](../agent-python/README.md), [Python codec](../agent-python/src/tyler_agent/protocol/protocol.py), and [Java protocol infrastructure](../src/main/java/org/tyler/service/agent/protocol) implement framing/validation and pure sequence observation. The worker is a readiness/shutdown prototype; valid runs fail explicitly as unavailable. The Python prototype does not yet initiate model calls or service operations; the Java service bridge is implemented in Step 6. |
+| Latest local verification | On `5cf84f0` plus Step 6, **684 backend tests** passed with no failures/errors/skips, including real Spring/Python readiness and forceful-parent-exit checks on Windows. **226 Python development tests** passed. The latest Windows bundle result remains the dated Step 5 review run (**239 tests**); Python sources/resources were unchanged and packaging was not rebuilt for Step 6. Ruff format/lint and strict mypy for Linux and Windows targets passed for 17 source/test files. Remote CI was not run here. |
 
-Steps 2–5 and their protocol corrections are included in committed baseline `d69837d`; the latest local verification includes the review fixes on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure work. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
+Steps 2–5 and their review corrections are included in committed baseline `5cf84f0`; the latest local verification includes the Step 6 service bridge on that revision. The older agent-test correction remains committed in `4ee8cbe`. Frontend checks were not rerun for this backend/Python infrastructure work. Step 1 remains partial until its remaining inventory and frontend verification evidence gates are satisfied; a clean-machine Windows installer check remains Step 9.
 
 ## Progress
 
 | Step | Work | Status | Completion evidence or remaining gate |
 |---|---|---|---|
-| 1 | Establish the migration baseline | Partially complete | Source revision `2158f10`, included test correction, shared validation, and frontend/CI configuration reconciled above. Finish the contract/startup inventory and frontend verification evidence. |
-| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 619-case backend run. Earlier CI/local results remain dated below. |
+| 1 | Establish the migration baseline | Partially complete | Current baseline `5cf84f0` plus Step 6 is reconciled above. Finish the remaining contract/startup inventory and frontend verification evidence. |
+| 2 | Characterize the Java agent | Complete | The 35 agent and 14 factory cases still pass in the latest 684-case backend run. Earlier CI/local results remain dated below. |
 | 3 | Define the Java and Python protocol | Complete | Version 1 specification/schema; shared fixtures contain 100 message cases, 24 framing cases, and 38 sequence scenarios after the numeric simplification. |
 | 4 | Create and package the Python worker skeleton | Complete | Locked Python environment, checks, Java/Python fixture conformance, and credential-free development/relocated Windows bundle smoke tests pass. See the Step 4 record. |
 | 5 | Implement Java worker lifecycle and adapter | Complete | Opt-in wiring, queue/history ownership, fake-worker callbacks/failures, real readiness, and Windows process-exit checks pass; see the dated Step 5 evidence below. |
-| 6 | Expose Java service operations | Not started | Allowlisted handlers preserve service validation, result formats, and storage guarantees. |
+| 6 | Expose Java service operations | Complete | Six allowlisted handlers, shared validation, dependency/wiring checks, sandbox rejection, exact transport values, and real persistence tests pass; see the dated Step 6 record. |
 | 7 | Port the agent loop and tool adapters | Not started | Python passes the behavior baseline with a fake model provider. |
 | 8 | Verify the complete persistence path | Not started | Real subprocess and temporary-database tests cover success, rollback, and interrupted writes. |
 | 9 | Integrate desktop packaging and CI | Not started | Clean-machine Windows smoke tests and required CI checks pass. |
@@ -177,12 +177,12 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 **Definition of done**
 
-- [ ] Every existing tool has an explicit allowlisted operation mapping and service/sandbox destination; the bridge cannot invoke arbitrary methods, SQL, or paths.
-- [ ] Dependency/wiring checks prove handlers call the shared services or sandbox abstractions, without DAO/DAL access from agent adapters.
-- [ ] Existing adapter shape/parsing rules are inventoried and preserved when bypassing the legacy adapter. Bridge handlers call the existing services, including their shared validators; tests cover missing fields, malformed dates, negative values, and plan date bounds without duplicating those rules in Python.
-- [ ] Contract tests preserve tool-name capitalization, argument/result formats, decimal/date semantics, record IDs, and exception distinctions.
-- [ ] Tests reject malformed/unsupported operations before side effects and retain sandbox path restrictions and persistence safeguards.
-- [ ] Service tests still verify preview without writes, transactional plan saving, sequential duplicate handling, and preservation of pre-existing edits. No concurrent deduplication guarantee is added.
+- [x] Every existing tool has an explicit allowlisted operation mapping and service/sandbox destination; the bridge cannot invoke arbitrary methods, SQL, or paths.
+- [x] Dependency/wiring checks prove handlers call the shared services or sandbox abstractions, without DAO/DAL access from agent adapters.
+- [x] Existing adapter shape/parsing rules are inventoried and preserved when bypassing the legacy adapter. Bridge handlers call the existing services, including their shared validators; tests cover missing fields, malformed dates, negative values, and plan date bounds without duplicating those rules in Python.
+- [x] Contract tests preserve tool-name capitalization, argument/result formats, decimal/date semantics, record IDs, and exception distinctions.
+- [x] Tests reject malformed/unsupported operations before side effects and retain sandbox path restrictions and persistence safeguards.
+- [x] Service tests still verify preview without writes, transactional plan saving, sequential duplicate handling, and preservation of pre-existing edits. No concurrent deduplication guarantee is added.
 
 ### Step 7 Port the agent loop and tool adapters
 
@@ -492,9 +492,9 @@ The shared fixtures remain unchanged by this refactor. Added ten session cases f
 
 ## Next work and decisions
 
-- Continue from `4e8be42` plus the Step 5 changes recorded below. Keep Step 1's remaining inventory/frontend evidence visible; this task does not certify rollout readiness.
-- Next unimplemented roadmap step: Step 6, the allowlisted service operation bridge. Implement `IOperationDispatcher` using existing services/sandbox boundaries and confirm write outcomes rather than inferring rollback from exception types.
-- Step 7 implements the Python model loop; the current worker deliberately rejects valid runs as unavailable. Keep Java selected by default until parity and rollout gates pass.
+- Continue from `5cf84f0` plus the Step 6 changes recorded below. Keep Step 1's remaining inventory/frontend evidence visible; this task does not certify rollout readiness.
+- Next unimplemented roadmap step: Step 7, the Python agent loop and model-facing adapters. Use the implemented `IOperationDispatcher` bridge and the [legacy adapter inventory](AGENT_OPERATIONS.md#legacy-adapter-inventory-for-step-7). Preserve shared Java validation and conservative uncertain-write reporting.
+- Step 7 implements the Python model loop; the current worker deliberately rejects valid runs as unavailable even though the Java handlers are ready. Keep Java selected by default until parity and rollout gates pass.
 - Use the pinned Python/uv environment, shared conformance suites, and packaging commands. Run `uv sync --locked` before Maven: lifecycle tests launch real Python from the development environment.
 - Preserve the tested queue, history-clear ordering, deadlines, parent watchdog, no-replay policy, and private-pipe ownership while adding handlers/model work.
 - Keep installer, Electron packaging, clean-machine Windows, and release CI gates pending for Step 9. Local checks are not remote CI evidence.
@@ -616,3 +616,32 @@ Keep the developer guide linked to this tracker rather than duplicating the exec
 - Ruff formatting/lint and strict mypy for both Linux and Windows passed for **17 files**. The initial check identified one overlong test signature; Ruff formatting corrected it before the final checks.
 - Rebuilt the Windows worker with `uv run --locked --offline pyinstaller --noconfirm --distpath dist --workpath build worker.spec`; `pytest tests --worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe --basetemp ../target/pytest-step5-review-packaged` passed **239 tests**, including 13 relocated executable cases. Logs: `target/step5-review-build.log`, `target/step5-review-python.log`.
 - Diff whitespace and local documentation links checked. Tests used synthetic failures, temporary data, and no live provider or credentials. Frontend checks and remote CI were not run for this backend/Python follow-up.
+
+
+### 2026-10-18 — Step 6 completed: allowlisted service operations
+
+**Baseline and scope:** Started from committed `5cf84f0`, including the Step 5 cause-retention and lifecycle review fixes. Implemented Java service access only, following the backend and Python ownership standards. No new Java model/tool orchestration, Python model loop, UI behavior, schema, or storage engine was introduced. Java remains the default.
+
+**Implementation:** Added `ServiceOperationDispatcher` under `service/agent/bridge`, with six explicit operation handlers. Production Python wiring replaces the rejecting placeholder with this dispatcher. Handlers inject only shared service interfaces, sandbox capabilities, and a clock; no DAO/DAL, legacy tool, JDBC, or provider dependency is permitted. `MessageValidator.validateOperationInput` reuses the shared operation schema definitions and numeric/Unicode rules for standalone callers; supervisor session/direction/correlation checks still precede runtime dispatch. Decimal conversion uses `BigDecimal` and plain strings; IDs use lossless decimal strings. Shared service validation, transaction boundaries, original local causes, conservative write outcomes, and no-replay behavior are retained.
+
+**Contract inventory:** [Agent operation bridge](AGENT_OPERATIONS.md) records all six private operations and case-sensitive public names, service/sandbox destinations, raw-adapter parsing/coercion, domain-validation ownership, result rendering, date/decimal/ID rules, sandbox behavior, and Step 7 parity requirements. Updated the protocol/session/developer/Python guides to distinguish completed service access from the unimplemented Python loop.
+
+**Acceptance evidence:**
+
+| Step 6 criterion | Evidence |
+|---|---|
+| Six explicit allowlisted mappings | `ServiceOperationDispatcherTest` checks all six shared request/result fixtures and public tool names. Unsupported public-tool/private-operation names are rejected without dependency calls. |
+| Shared services; no storage bypass | `PythonAgentConfigurationTest` verifies exactly one real dispatcher and its injected sandbox destination; compiled `ServiceBoundaryTest` includes the bridge and rejects DAO/DAL, JDBC, legacy-tool, and provider references. Integration tests use production services/validators. |
+| Parsing inventory and shared domain rules | `AGENT_OPERATIONS.md` inventories existing adapter behavior; `BridgeValidationTest` compares real service errors behind legacy adapters and the bridge for null/blank required values, malformed dates, negative numbers, and plan upper-date bounds. Expanded ISO dates and the last representable week pass. |
+| Result/value/exception compatibility | Tests check decimal scale/fractions, negative zero, maximum signed-long IDs, nullable profile/day components, output field names, server-local time, legacy food/profile formatting, exact thrown storage exceptions, and original cause retention in the existing supervisor suite. |
+| Rejection before side effects; sandbox safety | Direct bridge tests reject malformed types, missing/extra fields, unknown operations, unsupported decimal syntax/range, and invalid Unicode before dependencies. Real sandbox tests reject traversal/absolute paths outside the workspace and blank paths, while preserving text and file-read failures. |
+| Preview, transaction, repeat, and edit behavior | The full existing plan service suite retains read-only preview and actual SQLite rollback tests. `BridgePersistenceTest` additionally forces failure after two plan inserts, verifies the pre-existing snapshot remains intact, then verifies successful/repeated saving preserves edited rows and IDs. A real child-JVM callback inserts food through the bridge into temporary SQLite; equal records have independent IDs and calendar deletion remains correct. |
+
+**Verification:**
+
+- Initial focused selection ran **179 tests**, with one failing assertion: the new test expected SQLite to retain `100.00` scale, but existing `NUMERIC` affinity reads `100`. Corrected the persistence assertion to compare numeric value; separate transport tests continue requiring exact scale. No persistence implementation/schema was changed to accommodate the test.
+- Final full offline Maven `test`: **684 passed**, zero failures/errors/skips. This includes 65 new cases, all prior 619 backend cases, shared protocol fixtures, real Spring/Python readiness, and process-exit coverage. Used the documented cached repository, forked compilation, explicit Mockito agent, and approved local loopback access. Logs: `target/step6-focused.log` (initial result) and `target/step6-all.log` (final pass).
+- Locked offline `ruff format --check src tests`, `ruff check src tests`, `mypy --platform linux`, and `mypy --platform win32` passed for **17 files**. `pytest tests --basetemp ../target/pytest-step6` passed **226 Python tests**, including the unchanged shared message/byte/sequence fixtures and actual worker subprocess checks. Log: `target/step6-python.log`.
+- Local documentation links and diff whitespace checked. All data and forced failures were synthetic or under JUnit/pytest temporary workspaces. No application database, credentials, or live provider was used.
+
+**Limits and next step:** Local Windows evidence only; remote CI and frontend checks were not run. The Python package/resources did not change, so its bundle was not rebuilt; the previous 239-case packaged result remains historical evidence. The Step 6 service callback uses a deterministic JVM worker fixture, not a Python model loop. Step 7 ports model-facing adapters, formatting, provider requests, and orchestration with a fake provider; Step 8 proves the complete HTTP/Python/service path and interrupted-write behavior. No concurrent deduplication or stronger blanket rollback-outcome classification is claimed.

@@ -13,6 +13,13 @@ import org.tyler.service.agent.python.WorkerTestSupport;
 import org.tyler.service.chatHistory.ChatHistoryService;
 import org.tyler.service.chatHistory.IChatHistoryService;
 import org.tyler.service.apiKey.IApiKeyService;
+import org.tyler.service.agent.python.IOperationDispatcher;
+import org.tyler.service.agent.bridge.ServiceOperationDispatcher;
+import org.tyler.service.food.IFoodService;
+import org.tyler.service.workout.IWorkoutPlanService;
+import org.tyler.service.userInfo.IUserInfoService;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +33,11 @@ class PythonAgentConfigurationTest {
             .withUserConfiguration(PythonAgentConfiguration.class, AgentService.class, AgentController.class)
             .withBean(IClientFactory.class, () -> mock(IClientFactory.class))
             .withBean(IApiKeyService.class, () -> keys)
+            .withBean(IFoodService.class, () -> mock(IFoodService.class))
+            .withBean(IWorkoutPlanService.class, () -> mock(IWorkoutPlanService.class))
+            .withBean(IUserInfoService.class, () -> mock(IUserInfoService.class))
+            .withBean(IFileSandboxRead.class, () -> mock(IFileSandboxRead.class))
+            .withBean(IFileSandboxWrite.class, () -> mock(IFileSandboxWrite.class))
             .withBean(ChatHistoryService.class, () -> mock(ChatHistoryService.class));
 
     @Test
@@ -49,6 +61,11 @@ class PythonAgentConfigurationTest {
             assertInstanceOf(PythonAgentService.class, context.getBean(IAgentService.class));
             assertInstanceOf(CoordinatedChatHistoryService.class, context.getBean(IChatHistoryService.class));
             assertTrue(context.getBean(PythonWorker.class).pid() > 0);
+            assertEquals(1, context.getBeansOfType(IOperationDispatcher.class).size());
+            var dispatcher = context.getBean(IOperationDispatcher.class);
+            assertInstanceOf(ServiceOperationDispatcher.class, dispatcher);
+            dispatcher.dispatch("file.write", WorkerTestSupport.fixture("file_write_request").path("payload").path("input"));
+            verify(context.getBean(IFileSandboxWrite.class)).write(eq("notes/session.txt"), anyString());
             verifyNoInteractions(keys);
         });
     }

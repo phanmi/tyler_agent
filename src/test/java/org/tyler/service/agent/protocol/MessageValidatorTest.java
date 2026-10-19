@@ -83,4 +83,20 @@ class MessageValidatorTest {
         assertEquals("INVALID_FRAME", assertThrowsExactly(ProtocolException.class,
                 () -> VALIDATOR.validateUnicode(nestedMessage)).code());
     }
+
+    @Test
+    void standaloneBridgeValidationReusesWireRulesWithoutApplyingDomainRules() {
+        var input = (ObjectNode) ProtocolTestFixtures.message("food_request").path("payload").path("input");
+        var info = (ObjectNode) input.path("food").path("genericInfo");
+        info.put("amount", "-0.01").put("date", "not-a-date");
+        assertDoesNotThrow(() -> VALIDATOR.validateOperationInput("food.insert", input));
+        info.put("amount", "2000000001");
+        assertEquals("INVALID_VALUE", assertThrowsExactly(ProtocolException.class,
+                () -> VALIDATOR.validateOperationInput("food.insert", input)).code());
+        info.put("amount", "1").put("foodName", "\uD800");
+        assertEquals("INVALID_FRAME", assertThrowsExactly(ProtocolException.class,
+                () -> VALIDATOR.validateOperationInput("food.insert", input)).code());
+        assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
+                () -> VALIDATOR.validateOperationInput("food.insert", null)).code());
+    }
 }
