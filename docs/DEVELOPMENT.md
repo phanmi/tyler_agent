@@ -264,7 +264,7 @@ Electron and the combined development launcher start their own backend child pro
 
 CORS allows the Electron file origin (`null`) for `/api/**` without credentials. Loopback binding limits network exposure, but neither loopback binding nor CORS authenticates other programs on the same computer.
 
-The launcher searches for Java in packaged runtime locations, `resources/runtime/bin/java.exe`, `JAVA_HOME`, the user's `.jdks` directory, and finally `PATH`. Set `BACKEND_JAR_PATH` to override the backend JAR location.
+Packaged Electron uses only its bundled `resources/runtime/bin/java.exe`, versioned backend JAR, and Python worker. It does not fall back to an installed Java runtime or accept the development `BACKEND_JAR_PATH` override. Development launchers retain the local runtime, `JAVA_HOME`, `.jdks`, and `PATH` search and the JAR override. See [desktop packaging](DESKTOP_PACKAGING.md) for the resource layout and offline acceptance procedure.
 
 ## Testing
 
@@ -279,15 +279,16 @@ From `frontend/`:
 ```powershell
 npm run test:startup
 npm run test:version
-npx tsc --noEmit
+npm run typecheck
+npm run test:ui
 npm run build
 ```
 
-Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover backend startup and release-version handling. TypeScript checking is a separate command because the Vite build does not run it.
+Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover startup, release-version handling, and UI workflows. TypeScript checking is a separate command because the Vite build does not run it. All frontend tests and helpers belong under `frontend/tests/`. After building the Windows artifact and separate fixture worker, run `npm run test:desktop`; follow the [packaging guide](DESKTOP_PACKAGING.md) for prerequisites, coverage, and clean-machine checks.
 
 ### Agent migration behavior baseline
 
-The [Python worker development guide](../agent-python/README.md) covers Step 4's pinned environment, required checks, shared Java/Python protocol fixtures, and Windows packaging/smoke tests. The application still uses the Java agent until the later lifecycle/integration steps are complete.
+The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates; clean-Windows acceptance remains pending. Java remains the default until the Step 10 rollout gates pass. Python can be selected explicitly with `AGENT_IMPLEMENTATION=python`.
 
 Run the agent characterization tests before changing its implementation:
 
@@ -303,29 +304,21 @@ Edit only the `-Drevision=` value in [.mvn/maven.config](../.mvn/maven.config) t
 
 Run `npm run sync-version` from `frontend/` to synchronize metadata immediately. Rebuild the backend after changing the version so the expected JAR exists.
 
-For a Windows installer, first place a compatible Java 26 runtime at `resources/runtime/`, with `bin/java.exe` inside it. This directory is ignored by Git and must be supplied locally. Then, from the repository root:
+Follow [Windows desktop packaging and offline acceptance](DESKTOP_PACKAGING.md) to build the backend JAR, production Python worker, and separate smoke fixture before running `npm run make`. Forge derives a runtime from the Java 26 `JAVA_HOME` JDK using `jlink` and includes the runtime, JAR, worker, and build manifest outside ASAR. No manually supplied `resources/runtime/` is needed for this build path.
 
-```powershell
-mvn package
-cd frontend
-npm ci
-npm run build
-npm run make
-```
-
-[forge.config.cjs](../frontend/forge.config.cjs) bundles the Java runtime and backend JAR with the desktop app. Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`. The current Forge configuration does not configure code signing; unsigned builds may trigger a Windows publisher warning.
+Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`. Signing is not configured. CI uploads artifacts only after the Windows smoke succeeds; configure both documented job checks as required in GitHub branch protection. Clean-Windows acceptance remains a separate recorded gate.
 
 ## Troubleshooting
 
 | Symptom | What to check |
 |---|---|
 | Backend JAR not found | Run `mvn package` from the repository root. After a version change, rebuild the JAR and run `npm run sync-version` in `frontend/`. |
-| Java missing or incompatible | Check `java -version` and `JAVA_HOME`. An older bundled runtime takes precedence over `PATH`. |
+| Java missing or incompatible | In development, check `java -version` and `JAVA_HOME`. For a packaged app, restore the complete artifact; host Java does not replace the bundled runtime. |
 | `TYLER_BACKEND_URL` is missing | Use `npm run dev` or `npm run preview`, which start the backend and supply its address. |
 | A familiar port is already occupied | Use the address printed by the launcher; the app selects available ports. |
 | Chat reports an empty API key | Save the key on the Settings page. |
 | A suggestion is absent from saved exercises | Use **Add to calendar**, or ask the agent to create and save the plan. Changing preview options alone does not save it. |
 | Existing exercise values survive regeneration | The tool preserves records matching the same date and name. Edit the saved exercise to change those values. |
-| Packaging cannot find the runtime | Supply `resources/runtime/bin/java.exe` and rebuild the frontend and backend before running Forge. |
+| Packaging cannot find the runtime or worker | Set `JAVA_HOME` to Java 26 and follow the packaging guide to build the worker/JAR before running Forge. |
 
 [Back to the user guide](../README.md)

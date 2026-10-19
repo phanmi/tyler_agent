@@ -85,9 +85,14 @@ The release version comes from `../.mvn/maven.config`. Hatch reads it for packag
 
 The [CI workflow](../.github/workflows/ci.yml) runs the checks below in the existing
 **Build and test** job for pull requests and pushes to `main`. It reads the Python
-version from `.python-version`, installs pinned uv, and syncs locked development
-dependencies. Python failures fail that job. Windows packaged-worker checks remain
-separate from this Ubuntu test run.
+version from `.python-version`, installs pinned uv through `astral-sh/setup-uv`,
+and uses `uv python install` followed by locked dependency sync. Both CI jobs use
+uv-managed Python: GitHub's `setup-python` manifest has no Windows build for the
+pinned 3.12.14 release. This avoids changing the runtime pin or requiring an
+existing Python/pip installation to bootstrap uv. Python failures fail that job.
+Windows packaged-worker checks remain separate from this Ubuntu test run. See
+[uv's GitHub Actions setup](https://docs.astral.sh/uv/guides/integration/github/)
+for the supported installation flow.
 
 Run from `agent-python/`:
 
@@ -143,7 +148,9 @@ Distribute the **entire** `dist/tyler-agent-worker/` directory. Its executable, 
 
 The packaged smoke tests copy the bundle into a different temporary directory, run with an empty `PATH`, omit `PYTHONHOME`/`PYTHONPATH` and credentials, and verify readiness, shutdown, EOF, malformed input, and invalid-run rejection before any provider call. They also verify the bundled tool-definition resource matches the source. Both the development module and relocated executable run the same smoke cases. Tests have bounded waits and terminate leftover child processes in cleanup.
 
-This verifies the bundled runtime, SDK imports, contracts, and model-definition resource on the tested Windows host. Development tests additionally exercise real pipes with an injected fake provider and actual SDK requests over an in-memory transport; they never send fixture keys to a provider. Step 5 retains parent-death tests. Complete HTTP/Python/database integration, clean-machine installation, signing, Electron integration, and release CI remain later migration gates.
+This verifies the bundled runtime, SDK imports, contracts, and model-definition resource on the tested Windows host. Development tests additionally exercise real pipes with an injected fake provider and actual SDK requests over an in-memory transport; they never send fixture keys to a provider. Step 5 retains parent-death tests, and Step 8 verifies the complete HTTP/Python/service/database path.
+
+Step 9 adds [desktop packaging and offline acceptance](../docs/DESKTOP_PACKAGING.md), including Java/Python resources outside ASAR and a Windows CI smoke job. `tests/desktop-worker.spec` builds a separate fault-injection worker from `tests/support/desktop_worker.py`; it is used only by desktop tests and is never shipped as the production worker. The local packaged application checks pass; clean-Windows execution and a remote CI run remain pending. Java stays the default until rollout. Code signing is not configured.
 
 ## Reproduce an isolated install from the lockfile
 

@@ -167,13 +167,16 @@ class PythonWorkerTest {
     @Test
     void duplicateOperationCannotExecuteTwice() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
         try (var worker = new PythonWorker(settings("duplicate"), (name, input) -> {
             calls.incrementAndGet();
+            entered.countDown();
             try { release.await(5, TimeUnit.SECONDS); } catch (InterruptedException e) { throw new AssertionError(e); }
             return fixture("time_result").path("payload").path("result");
         })) {
             assertEquals("DUPLICATE_MESSAGE", assertThrows(ProtocolException.class, () -> worker.execute(payload())).code());
+            // Duplicate rejection can reach the caller before the first callback starts.
+            assertTrue(entered.await(10, TimeUnit.SECONDS), "The accepted operation must start within the bounded wait");
             assertEquals(1, calls.get());
         } finally { release.countDown(); }
     }

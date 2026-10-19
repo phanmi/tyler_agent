@@ -82,6 +82,7 @@ agent-python/.pytest_cache/
 agent-python/.mypy_cache/
 agent-python/.ruff_cache/
 agent-python/build/
+agent-python/build-desktop-test/
 agent-python/dist/
 **/__pycache__/
 *.pyc

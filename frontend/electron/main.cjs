@@ -1,10 +1,13 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const { resolveJavaPath, resolveJarPath, startBackendProcess } = require('./backend-process.cjs')
+const { resolveJavaPath, resolveJarPath, backendArguments, startBackendProcess } = require('./backend-process.cjs')
+const { handleInstallerEvent } = require('./installer-events.cjs')
 
 let backendProcess = null
 let backendBaseUrl = null
+let stopping = false
+const startup = new AbortController()
 
 // Start the backend on an OS-assigned port and keep that exact child process.
 async function startBackend() {
@@ -17,12 +20,17 @@ async function startBackend() {
     console.log(`[backend] Java executable: ${javaPath}`)
     console.log(`[backend] Starting JAR: ${jarPath}`)
     const started = await startBackendProcess(javaPath,
-        ['-jar', jarPath, '--server.address=127.0.0.1', '--server.port=0'], {
+        backendArguments(app.isPackaged, process.resourcesPath), {
+            signal: startup.signal,
+            onSpawn: (child) => {
+                backendProcess = child
+                console.log(`[backend] Owned process: pid=${child.pid}`)
+            },
             onStdout: (data) => process.stdout.write(`[backend] ${data}`),
             onStderr: (data) => process.stderr.write(`[backend] ${data}`),
             onExit: (code, signal) => {
                 console.log(`[backend] Process exited: code=${code} signal=${signal}`)
-                if (backendProcess === started.child) {
+                if (!stopping) {
                     backendProcess = null
                     backendBaseUrl = null
                     dialog.showErrorBox('Tyler backend stopped', 'The backend process exited unexpectedly.')
@@ -30,6 +38,7 @@ async function startBackend() {
                 }
             },
         })
+    if (stopping) { started.child.kill(); return }
     if (started.child.exitCode !== null) throw new Error('Backend exited immediately after startup')
     backendProcess = started.child
     backendBaseUrl = started.baseUrl
@@ -38,6 +47,8 @@ async function startBackend() {
 
 // Terminate the Java child process when Electron exits.
 function stopBackend() {
+    stopping = true
+    startup.abort()
     if (!backendProcess) return
     const p = backendProcess
     backendProcess = null
@@ -100,14 +111,14 @@ async function main() {
     try {
         registerWindowControls()
         await startBackend()
-        createWindow()
+        if (!stopping) createWindow()
     } catch (err) {
-        dialog.showErrorBox('Tyler failed to start', err && err.message ? err.message : String(err))
+        if (!stopping) dialog.showErrorBox('Tyler failed to start', err && err.message ? err.message : String(err))
         app.quit()
     }
 }
 
-app.whenReady().then(main)
+if (!handleInstallerEvent(app)) app.whenReady().then(main)
 
 app.on('before-quit', stopBackend)
 

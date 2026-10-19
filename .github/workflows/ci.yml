@@ -17,13 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: agent-python/.python-version
-
       - name: Install Python tooling
-        run: python -m pip install uv==0.13.1
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.13.1'
+
+      # uv provides the pinned Windows build that setup-python's manifest lacks.
+      - name: Install pinned Python
+        working-directory: agent-python
+        run: uv python install
 
       - name: Install Python dependencies
         working-directory: agent-python
@@ -77,3 +79,84 @@ jobs:
         run: |
           npm run typecheck
           npm run test:ui
+
+  windows-package:
+    name: Windows packaged smoke
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tooling
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.13.1'
+      - name: Install pinned Python
+        working-directory: agent-python
+        run: uv python install
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked build dependencies
+        shell: pwsh
+        run: |
+          uv sync --project agent-python --locked --group dev
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm ci --prefix frontend
+          exit $LASTEXITCODE
+      - name: Build backend artifact (tests required by build job)
+        run: mvn --batch-mode -DskipTests package
+      - name: Build and check standalone workers
+        working-directory: agent-python
+        shell: pwsh
+        run: |
+          uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.spec
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          uv run --locked pyinstaller --noconfirm --distpath dist --workpath build-desktop-test tests/desktop-worker.spec
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          uv run --locked pytest tests --worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe
+          exit $LASTEXITCODE
+      - name: Build Windows installer
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm run test:startup
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run make
+          exit $LASTEXITCODE
+      - name: Exercise relocated packaged application
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm run test:runtime
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run test:desktop
+          exit $LASTEXITCODE
+      - name: Preserve smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-evidence
+          path: |
+            target/desktop-smoke-*/report.json
+            target/desktop-smoke-*/runtime-preflight.log
+            target/java-runtime-*/result.json
+            target/desktop-smoke-*/*/desktop.log
+          if-no-files-found: ignore
+      - name: Upload verified Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tyler-windows
+          path: |
+            frontend/out/Tyler-win32-x64
+            frontend/out/make/squirrel.windows/x64
+          if-no-files-found: error

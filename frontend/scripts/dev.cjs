@@ -12,9 +12,11 @@ async function main() {
     let started = null
     let vite = null
     let stopping = false
+    const startup = new AbortController()
     async function stop(exitCode = 0) {
         if (stopping) return
         stopping = true
+        startup.abort()
         started?.child.kill()
         if (vite) await vite.close()
         process.exitCode = exitCode
@@ -25,6 +27,8 @@ async function main() {
     try {
         started = await startBackendProcess(resolveJavaPath(),
             ['-jar', jarPath, '--server.address=127.0.0.1', '--server.port=0'], {
+                signal: startup.signal,
+                onSpawn: (child) => { started = { child } },
                 onStdout: (data) => process.stdout.write(`[backend] ${data}`),
                 onStderr: (data) => process.stderr.write(`[backend] ${data}`),
                 onExit: (code, signal) => {
@@ -32,6 +36,7 @@ async function main() {
                     void stop(1)
                 },
             })
+        if (stopping) { started.child.kill(); return }
         if (started.child.exitCode !== null) throw new Error('Backend exited immediately after startup')
 
         process.env.TYLER_BACKEND_URL = started.baseUrl
