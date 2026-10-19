@@ -85,9 +85,14 @@ The release version comes from `../.mvn/maven.config`. Hatch reads it for packag
 
 The [CI workflow](../.github/workflows/ci.yml) runs the checks below in the existing
 **Build and test** job for pull requests and pushes to `main`. It reads the Python
-version from `.python-version`, installs pinned uv, and syncs locked development
-dependencies. Python failures fail that job. Windows packaged-worker checks remain
-separate from this Ubuntu test run.
+version from `.python-version`, installs pinned uv through `astral-sh/setup-uv`,
+and uses `uv python install` followed by locked dependency sync. Both CI jobs use
+uv-managed Python: GitHub's `setup-python` manifest has no Windows build for the
+pinned 3.12.14 release. This avoids changing the runtime pin or requiring an
+existing Python/pip installation to bootstrap uv. Python failures fail that job.
+Windows packaged-worker checks remain separate from this Ubuntu test run. See
+[uv's GitHub Actions setup](https://docs.astral.sh/uv/guides/integration/github/)
+for the supported installation flow.
 
 Run from `agent-python/`:
 
