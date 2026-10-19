@@ -16,6 +16,19 @@ import static org.junit.jupiter.api.Assertions.*;
 class MessageValidatorTest {
     private static final MessageValidator VALIDATOR = new MessageValidator();
 
+    @Test
+    void supportedOperationsComeFromTheSchemaAndCannotBeMutated() throws Exception {
+        try (var input = MessageValidator.class.getResourceAsStream("/agent-protocol/message.schema.json")) {
+            assertNotNull(input);
+            var schema = new com.fasterxml.jackson.databind.ObjectMapper().readTree(input);
+            var expected = new java.util.HashSet<String>();
+            schema.path("$defs").path("operation").path("enum").forEach(name -> expected.add(name.textValue()));
+            assertEquals(expected, VALIDATOR.supportedOperations());
+            assertThrowsExactly(UnsupportedOperationException.class,
+                    () -> VALIDATOR.supportedOperations().add("unapproved.operation"));
+        }
+    }
+
     static Stream<JsonNode> messages() throws IOException {
         return ProtocolTestFixtures.cases("messages");
     }

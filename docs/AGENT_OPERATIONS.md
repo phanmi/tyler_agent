@@ -6,7 +6,9 @@ Step 6 implements Java's allowlisted service access. The bridge is wired only wh
 
 ## Dispatch and ownership
 
-`PythonWorker` validates framing, session, direction, values, and request/operation state before invoking `IOperationDispatcher` on its callback executor. [ServiceOperationDispatcher](../src/main/java/org/tyler/service/agent/bridge/ServiceOperationDispatcher.java) additionally validates standalone input against the existing operation-request schema through `MessageValidator`. It uses an explicit switch; there is no reflection, service locator, SQL entry point, or caller-selected Java method.
+`PythonWorker` validates framing, session, direction, values, and request/operation state before invoking `IOperationDispatcher` on its callback executor. [ServiceOperationDispatcher](../src/main/java/org/tyler/service/agent/bridge/ServiceOperationDispatcher.java) additionally validates standalone input against the existing operation-request schema through `MessageValidator`, then looks up an `IOperationHandler` in an immutable map. The dispatcher has no feature-service dependencies or operation switch.
+
+[OperationBridgeConfiguration](../src/main/java/org/tyler/config/OperationBridgeConfiguration.java) discovers handler components when `agent.implementation=python` and injects their collection. Each handler declares its case-sensitive protocol operation name; Spring bean names do not determine routing. `MessageValidator` derives the allowed names from the shared protocol schema. Registry construction rejects null handlers, blank names, unapproved names, duplicates, and missing operations before requests can execute. The Java default does not create these handlers or the dispatcher.
 
 | Private operation | Public tool name (case-sensitive) | Destination | Transport result |
 |---|---|---|---|
@@ -20,6 +22,16 @@ Step 6 implements Java's allowlisted service access. The bridge is wired only wh
 Domain rules remain in the existing services and validators. Negative domain numbers, null required values represented in the wire schema, and malformed calendar dates reach shared validation. Missing transport properties, incorrect JSON types, unknown operations, unsupported decimal notation/range, and invalid Unicode fail before service invocation. The dispatcher never executes legacy Java tools or constructs model messages.
 
 Decimals use `BigDecimal` and plain decimal strings in transport, preserving fractional precision and trailing zeros without passing through binary floating point. Negative zero is normalized by Java. Existing protocol magnitude limits and signed-long ID limits remain unchanged. SQLite's existing `NUMERIC` affinity can normalize trailing zeros on a later database read; this step changes neither storage types nor persisted data. The immediate food result uses the value returned by the service, including its decimal scale.
+
+The six implementations live in [bridge/handler](../src/main/java/org/tyler/service/agent/bridge/handler): `FoodInsertHandler`, `WorkoutPlanSaveHandler`, `UserInfoReadHandler`, `FileReadHandler`, `FileWriteHandler`, and `CurrentTimeHandler`. Each constructor receives only its required service, sandbox capability, or clock, plus the shared [OperationPayloadMapper](../src/main/java/org/tyler/service/agent/bridge/OperationPayloadMapper.java) where conversion is needed. The mapper owns domain-object decoding and plain-decimal result encoding. Conversion failures retain their causes as internal failures; a serialization failure after a write is never classified as a domain rejection.
+
+## Adding an operation
+
+1. Define the private operation in the shared protocol contract, schema, and fixtures. Coordinate Java/Python compatibility and write-effect classification, including any required protocol-version change. Registering a Java bean alone does not authorize a new wire operation.
+2. Add a focused class implementing `IOperationHandler` under `service/agent/bridge/handler`. Annotate it with `@Component` and `@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")`; return the schema's exact operation name from `operationName()`.
+3. Inject the required service or sandbox interface through the constructor. Use `OperationPayloadMapper` for shared object conversion. Keep domain rules and transaction orchestration in the service, and preserve original exceptions for the supervisor's cause ledger. Handlers receive input after protocol validation.
+4. Add handler tests for delegation, output, and failures. Extend shared protocol fixtures and verify production Spring registration, malformed-input rejection, and the architecture boundary. Add persistence integration coverage when the operation changes stored data.
+5. Run the affected checks and update this inventory and the migration record. No dispatcher switch, central service field list, or central handler construction list needs editing.
 
 ## Legacy adapter inventory for Step 7
 
@@ -48,6 +60,8 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 
 `ServiceOperationDispatcherTest` verifies all six shared result fixtures, exact decimal/ID conversion, tool names and legacy food/profile output compatibility, malformed-input rejection before dependency access, and exception identity. `BridgeValidationTest` runs real food/plan services and compares shared validation errors with the legacy adapters, including missing fields, dates, negative numbers, expanded years, and the last representable week.
 
-`BridgePersistenceTest` uses temporary SQLite databases and the real sandbox/services. It covers a child-JVM worker callback inserting food, independent IDs and deletion, plan rollback after partial inserts, repeated saves preserving edits, and file restrictions. `ServiceBoundaryTest` checks compiled bridge dependencies for DAO/DAL, JDBC, provider SDK, and legacy-tool references. `PythonAgentConfigurationTest` proves exactly one real dispatcher is wired to the shared dependency instances.
+`OperationRegistryTest` verifies registration failures, immutable registration, and validation before handler execution. `OperationBridgeConfigurationTest` verifies actual Spring discovery, Python-only wiring, and startup rejection of invalid or incomplete registrations. Each handler has a dedicated unit test; `OperationPayloadMapperTest` covers decimal/null conversion and safe exceptions with retained causes.
+
+`BridgePersistenceTest` uses the production Spring handler configuration, temporary SQLite databases, and the real sandbox/services. It covers a child-JVM worker callback inserting food, independent IDs and deletion, plan rollback after partial inserts, repeated saves preserving edits, and file restrictions. `ServiceBoundaryTest` checks compiled bridge dependencies for DAO/DAL, JDBC, provider SDK, and legacy-tool references, and prevents the dispatcher from depending on feature services, models, or sandbox implementations. `PythonAgentConfigurationTest` proves exactly one real dispatcher is wired to the shared dependency instances.
 
 The full existing service suite still tests read-only preview, rollback without compensating deletes, and duplicate handling. Full HTTP → Python model loop → Java service persistence and interruption parity remain Step 8; a deterministic JVM worker fixture does not establish that later integration gate.

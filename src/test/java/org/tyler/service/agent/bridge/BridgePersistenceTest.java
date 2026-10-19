@@ -5,6 +5,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.tyler.config.WorkoutDatabaseConfig;
+import org.tyler.config.OperationBridgeConfiguration;
+import org.tyler.service.agent.python.IOperationDispatcher;
 import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.exceptionHandler.exception.FileReadException;
@@ -26,7 +28,6 @@ import org.tyler.service.agent.python.WorkerTestSupport;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
-import java.time.Clock;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tyler.service.agent.bridge.ServiceOperationDispatcherTest.input;
@@ -36,16 +37,14 @@ class BridgePersistenceTest {
     @TempDir Path workspace;
 
     private ApplicationContextRunner context() {
-        return new ApplicationContextRunner().withUserConfiguration(FileSandbox.class, WorkoutDatabaseConfig.class,
+        return new ApplicationContextRunner().withUserConfiguration(OperationBridgeConfiguration.class, FileSandbox.class, WorkoutDatabaseConfig.class,
                 FoodRecordDAOSqlite.class, FoodValidator.class, FoodService.class, UserInfoService.class,
                 WorkoutDAOSqlite.class, WorkoutValidator.class, WorkoutService.class, WorkoutPlanService.class)
-                .withPropertyValues("agent.workspace-dir=" + workspace);
+                .withPropertyValues("agent.implementation=python", "agent.workspace-dir=" + workspace);
     }
 
-    private ServiceOperationDispatcher bridge(org.springframework.context.ApplicationContext context) {
-        var sandbox = context.getBean(FileSandbox.class);
-        return new ServiceOperationDispatcher(context.getBean(IFoodService.class), context.getBean(IWorkoutPlanService.class),
-                context.getBean(UserInfoService.class), sandbox, sandbox, Clock.systemDefaultZone());
+    private IOperationDispatcher bridge(org.springframework.context.ApplicationContext context) {
+        return context.getBean(IOperationDispatcher.class);
     }
 
     @Test

@@ -38,7 +38,7 @@ class BridgeValidationTest {
     private final IWorkoutService workouts = mock(IWorkoutService.class);
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
     private final WorkoutPlanService plans = new WorkoutPlanService(workouts, transactions);
-    private final ServiceOperationDispatcher dispatcher = new ServiceOperationDispatcher(food, plans,
+    private final ServiceOperationDispatcher dispatcher = BridgeTestSupport.dispatcher(food, plans,
             mock(IUserInfoService.class), mock(IFileSandboxRead.class), mock(IFileSandboxWrite.class), Clock.systemUTC());
 
     static Stream<ObjectNode> invalidFood() {

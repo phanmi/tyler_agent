@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.tyler.service.agent.python.ConversationLane;
 import org.tyler.service.agent.python.CoordinatedChatHistoryService;
@@ -14,23 +15,17 @@ import org.tyler.service.agent.python.IOperationDispatcher;
 import org.tyler.service.agent.python.PythonAgentService;
 import org.tyler.service.agent.python.PythonAgentSettings;
 import org.tyler.service.agent.python.PythonWorker;
-import org.tyler.service.agent.bridge.ServiceOperationDispatcher;
-import org.tyler.service.food.IFoodService;
-import org.tyler.service.workout.IWorkoutPlanService;
-import org.tyler.service.userInfo.IUserInfoService;
-import org.tyler.filesandbox.IFileSandboxRead;
-import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.service.apiKey.IApiKeyService;
 import org.tyler.service.chatHistory.ChatHistoryService;
 import org.tyler.service.chatHistory.IChatHistoryService;
 
 import java.time.Duration;
-import java.time.Clock;
 import java.util.List;
 
 /** Opt-in migration wiring; no worker or credential access is needed for the default Java path. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@Import(OperationBridgeConfiguration.class)
 public class PythonAgentConfiguration {
     @Bean
     public PythonAgentSettings pythonAgentSettings(Environment environment) {
@@ -46,13 +41,6 @@ public class PythonAgentConfiguration {
 
     @Bean(destroyMethod = "close")
     public ConversationLane conversationLane(PythonAgentSettings settings) { return new ConversationLane(settings); }
-
-    @Bean
-    public IOperationDispatcher operationDispatcher(IFoodService food, IWorkoutPlanService plans,
-                                                   IUserInfoService profile, IFileSandboxRead reader,
-                                                   IFileSandboxWrite writer) {
-        return new ServiceOperationDispatcher(food, plans, profile, reader, writer, Clock.systemDefaultZone());
-    }
 
     @Bean(initMethod = "start", destroyMethod = "close")
     public PythonWorker pythonWorker(PythonAgentSettings settings, IOperationDispatcher dispatcher) {

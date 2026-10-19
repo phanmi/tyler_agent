@@ -10,6 +10,7 @@ import com.networknt.schema.SpecVersion;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,13 +23,12 @@ public final class MessageValidator {
     private static final BigDecimal MAX_DECIMAL_VALUE = BigDecimal.valueOf(2_000_000_000L);
     private static final Set<String> DECIMALS = Set.of("amount", "calories", "protein", "carbs",
             "fat", "fiber", "weight", "Age");
-    private static final Set<String> OPERATIONS = Set.of("food.insert", "workout_plan.generate_save",
-            "user_info.read", "file.read", "file.write", "time.current");
     private static final Map<String, String> DIRECTIONS = Map.of("ready", "python", "run", "java",
             "operation_request", "python", "operation_result", "java", "completed", "python",
             "failed", "python", "cancel", "java", "shutdown", "java");
     private final JsonSchema schema;
     private final JsonSchema operationRequestSchema;
+    private final Set<String> operations;
 
     public MessageValidator() {
         try (var input = MessageValidator.class.getResourceAsStream("/agent-protocol/message.schema.json")) {
@@ -36,6 +36,7 @@ public final class MessageValidator {
                 throw new IllegalStateException("Missing agent protocol schema");
             }
             JsonNode document = new ObjectMapper().readTree(input);
+            operations = readOperations(document);
             var factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
             schema = factory.getSchema(document);
             var operationDocument = JsonNodeFactory.instance.objectNode()
@@ -45,6 +46,25 @@ public final class MessageValidator {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load agent protocol schema", e);
         }
+    }
+
+    /** Immutable operation allowlist from the shared schema, also used for handler registration. */
+    public Set<String> supportedOperations() {
+        return operations;
+    }
+
+    private static Set<String> readOperations(JsonNode document) {
+        JsonNode names = document.path("$defs").path("operation").path("enum");
+        if (!names.isArray() || names.isEmpty()) {
+            throw new IllegalStateException("Agent protocol schema has no operation allowlist");
+        }
+        Set<String> result = new HashSet<>();
+        for (JsonNode name : names) {
+            if (!name.isTextual() || name.textValue().isBlank() || !result.add(name.textValue())) {
+                throw new IllegalStateException("Agent protocol schema has an invalid operation allowlist");
+            }
+        }
+        return Set.copyOf(result);
     }
 
     /** Shape checks always precede semantic checks for locally generated or translated messages. */
@@ -58,7 +78,7 @@ public final class MessageValidator {
      * Session, direction, and correlation are still checked by the supervisor before dispatch.
      */
     public void validateOperationInput(String operation, JsonNode input) {
-        if (operation != null && !OPERATIONS.contains(operation)) {
+        if (operation != null && !operations.contains(operation)) {
             throw new ProtocolException("UNKNOWN_OPERATION");
         }
         var payload = JsonNodeFactory.instance.objectNode().put("operationId", "bridge")
@@ -108,7 +128,7 @@ public final class MessageValidator {
             return;
         }
         JsonNode operation = message.path("payload").path("operation");
-        if (operation.isTextual() && !OPERATIONS.contains(operation.asText())) {
+        if (operation.isTextual() && !operations.contains(operation.asText())) {
             throw new ProtocolException("UNKNOWN_OPERATION");
         }
     }

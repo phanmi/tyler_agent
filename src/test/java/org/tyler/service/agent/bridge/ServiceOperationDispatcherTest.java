@@ -38,7 +38,7 @@ class ServiceOperationDispatcherTest {
     private final IUserInfoService profile = mock(IUserInfoService.class);
     private final IFileSandboxRead reader = mock(IFileSandboxRead.class);
     private final IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
-    private final ServiceOperationDispatcher dispatcher = new ServiceOperationDispatcher(food, plans, profile, reader, writer,
+    private final ServiceOperationDispatcher dispatcher = BridgeTestSupport.dispatcher(food, plans, profile, reader, writer,
             Clock.fixed(Instant.parse("2026-10-16T16:34:56Z"), ZoneId.of("America/New_York")));
 
     @Test

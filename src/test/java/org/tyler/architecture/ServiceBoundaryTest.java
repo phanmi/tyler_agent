@@ -38,6 +38,11 @@ class ServiceBoundaryTest {
                                     || value.contains("org/springframework/jdbc/"))) {
                                 violations.add(classes.relativize(classFile) + ": " + text.stringValue());
                             }
+                            if (classFile.getFileName().toString().equals("ServiceOperationDispatcher.class")
+                                    && ((value.contains("org/tyler/service/") && !value.contains("org/tyler/service/agent/"))
+                                    || value.contains("org/tyler/filesandbox/") || value.contains("org/tyler/model/"))) {
+                                violations.add("Dispatcher must route through handlers: " + text.stringValue());
+                            }
                         }
                     }
                 }
