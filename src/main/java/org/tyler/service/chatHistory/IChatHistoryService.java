@@ -18,7 +18,10 @@ import java.util.List;
  */
 public interface IChatHistoryService {
 
-    /** Returns saved history, or an empty list if the file is missing or invalid. */
+    /**
+     * Returns at most the configured {@code chat.max-messages} recent messages (default 20),
+     * starting with a user message, or an empty list if the file is missing or invalid.
+     */
     List<ChatMessage> get();
 
     /** Appends a user or assistant message and returns the resulting history. */

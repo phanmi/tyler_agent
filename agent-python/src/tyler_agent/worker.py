@@ -7,6 +7,7 @@ from collections.abc import Callable
 from io import BufferedReader
 from typing import BinaryIO, cast
 
+from tyler_agent.lifecycle import ParentMonitor
 from tyler_agent.protocol.protocol import FrameReader, Message, MessageCodec, ProtocolError
 from tyler_agent.protocol.validation import validate_session_id
 from tyler_agent.resources import release_version
@@ -95,7 +96,9 @@ def main() -> int:
 
         msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
         msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+    monitor: ParentMonitor | None = None
     try:
+        monitor = ParentMonitor.from_environment()
         return serve(
             cast(BufferedReader, sys.stdin.buffer),
             sys.stdout.buffer,
@@ -107,3 +110,6 @@ def main() -> int:
     except (OSError, ValueError):
         log.error("Worker resource or pipe failure")
         return 2
+    finally:
+        if monitor is not None:
+            monitor.close()

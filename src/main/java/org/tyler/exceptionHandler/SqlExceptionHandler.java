@@ -3,6 +3,7 @@ package org.tyler.exceptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,6 +18,8 @@ import org.tyler.exceptionHandler.exception.SQLReadException;
  * for syntax, connection, and constraint failures. DAO resource-read and
  * persistence exceptions are also mapped to HTTP 500.
  */
+// Specific failures must be resolved before the generic Exception advice.
+@Order(0)
 @RestControllerAdvice
 public class SqlExceptionHandler implements IExceptionHandler {
 

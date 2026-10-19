@@ -46,7 +46,9 @@ def worker_command(worker_executable: str | None, tmp_path: Path) -> list[str]:
 def start(command: list[str], cwd: Path, *, session: str = SESSION) -> subprocess.Popen[bytes]:
     # No installed interpreter, development modules, or credentials are discoverable by PATH.
     environment = {
-        key: os.environ[key] for key in ("SystemRoot", "TEMP", "TMP") if key in os.environ
+        key: os.environ[key]
+        for key in ("SystemRoot", "TEMP", "TMP", "LD_LIBRARY_PATH")
+        if key in os.environ
     }
     environment.update(PATH="", PYTHONNOUSERSITE="1", TYLER_AGENT_SESSION_ID=session)
     return subprocess.Popen(
