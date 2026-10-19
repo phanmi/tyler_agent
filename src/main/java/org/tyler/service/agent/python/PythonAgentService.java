@@ -39,6 +39,8 @@ public final class PythonAgentService implements IAgentService {
                 .put("timeoutMs", settings.runTimeout().toMillis())
                 .put("operationTimeoutMs", settings.operationTimeout().toMillis());
         var messages = payload.putArray("history");
+        // The shared history service applies chat.max-messages (default 20) and removes
+        // leading assistant messages. Reuse that configured bound for both agent paths.
         for (var item : history.get()) messages.addObject().put("role", item.role()).put("content", item.content());
         String reply;
         try { reply = worker.execute(payload); }

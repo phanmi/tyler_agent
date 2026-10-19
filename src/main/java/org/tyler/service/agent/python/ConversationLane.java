@@ -4,9 +4,12 @@ import org.tyler.service.agent.protocol.ProtocolException;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -15,7 +18,7 @@ public final class ConversationLane implements AutoCloseable {
     private final ThreadPoolExecutor executor;
     private final PythonAgentSettings settings;
     private volatile Thread owner;
-    private final java.util.concurrent.ScheduledThreadPoolExecutor timer = new java.util.concurrent.ScheduledThreadPoolExecutor(
+    private final ScheduledThreadPoolExecutor timer = new ScheduledThreadPoolExecutor(
             1, Thread.ofPlatform().daemon().name("agent-queue-deadline").factory());
 
     public ConversationLane(PythonAgentSettings settings) {
@@ -32,43 +35,63 @@ public final class ConversationLane implements AutoCloseable {
     /** Nested history access on the lane executes directly; callers never wait on themselves. */
     public <T> T call(Callable<T> action) {
         if (Thread.currentThread() == owner) return invoke(action);
+        LaneTask<T> task = createTask(action);
+        submit(task);
+        ScheduledFuture<?> expiry = scheduleExpiry(task);
+        try {
+            return awaitResult(task);
+        } finally {
+            expiry.cancel(false);
+        }
+    }
+
+    private <T> LaneTask<T> createTask(Callable<T> action) {
         long submitted = System.nanoTime();
-        LaneTask<T> task = new LaneTask<>(() -> {
+        return new LaneTask<>(() -> {
             if (System.nanoTime() - submitted >= settings.queueTimeout().toNanos()) {
                 throw new ProtocolException("DEADLINE_EXCEEDED");
             }
             return action.call();
         });
+    }
+
+    private void submit(LaneTask<?> task) {
         try {
             executor.execute(task);
         } catch (RejectedExecutionException e) {
             throw new ProtocolException(executor.isShutdown() ? "WORKER_UNAVAILABLE" : "WORKER_BUSY");
         }
-        java.util.concurrent.ScheduledFuture<?> expiry;
+    }
+
+    private ScheduledFuture<?> scheduleExpiry(LaneTask<?> task) {
         try {
-            expiry = timer.schedule(() -> {
+            return timer.schedule(() -> {
                 if (executor.remove(task)) task.expire();
             }, settings.queueTimeout().toNanos(), TimeUnit.NANOSECONDS);
         } catch (RejectedExecutionException e) {
-            task.cancel(true);
-            executor.remove(task);
+            cancel(task);
             throw new ProtocolException("WORKER_UNAVAILABLE");
         }
+    }
+
+    private <T> T awaitResult(LaneTask<T> task) {
         try {
             return task.get();
         } catch (InterruptedException e) {
-            task.cancel(true);
-            executor.remove(task);
+            cancel(task);
             Thread.currentThread().interrupt();
             throw new ProtocolException("REQUEST_CANCELLED");
-        } catch (java.util.concurrent.CancellationException e) {
+        } catch (CancellationException e) {
             throw new ProtocolException("WORKER_UNAVAILABLE");
         } catch (ExecutionException e) {
             if (e.getCause() instanceof RuntimeException failure) throw failure;
             throw new ProtocolException("INTERNAL_FAILURE");
-        } finally {
-            expiry.cancel(false);
         }
+    }
+
+    private void cancel(LaneTask<?> task) {
+        task.cancel(true);
+        executor.remove(task);
     }
 
     private <T> T invoke(Callable<T> action) {

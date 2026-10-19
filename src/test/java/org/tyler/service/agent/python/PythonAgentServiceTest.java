@@ -3,6 +3,8 @@ package org.tyler.service.agent.python;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.controller.agent.AgentController;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
@@ -11,6 +13,9 @@ import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.model.chat.ChatMessage;
 import org.tyler.service.apiKey.IApiKeyService;
 import org.tyler.service.chatHistory.IChatHistoryService;
+import org.tyler.service.chatHistory.ChatHistoryService;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +30,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.tyler.service.agent.python.WorkerTestSupport.*;
 
 class PythonAgentServiceTest {
+    @ParameterizedTest
+    @ValueSource(ints = {0, 3, 20})
+    void historySentToPythonUsesTheSharedConfiguredLimit(int maxMessages) throws Exception {
+        var reader = mock(IFileSandboxRead.class);
+        var writer = mock(IFileSandboxWrite.class);
+        List<ChatMessage> saved = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            saved.add(new ChatMessage(i % 2 == 0 ? "user" : "assistant", "message-" + i));
+        }
+        when(reader.exists("history.json")).thenReturn(true);
+        when(reader.read("history.json")).thenReturn(new ObjectMapper().writeValueAsString(saved));
+        var store = new ChatHistoryService(reader, writer, "history.json", maxMessages);
+        var keys = mock(IApiKeyService.class);
+        when(keys.get()).thenReturn("SYNTHETIC");
+        var worker = mock(PythonWorker.class);
+        int expectedSize = maxMessages - maxMessages % 2;
+        when(worker.execute(any())).thenAnswer(call -> {
+            var snapshot = ((com.fasterxml.jackson.databind.JsonNode) call.getArgument(0)).path("history");
+            assertEquals(expectedSize, snapshot.size());
+            for (int i = 0; i < expectedSize; i++) {
+                assertEquals("message-" + (30 - expectedSize + i), snapshot.get(i).path("content").asText());
+                assertEquals(i % 2 == 0 ? "user" : "assistant", snapshot.get(i).path("role").asText());
+            }
+            return "reply";
+        });
+        var settings = settings("complete");
+        try (var lane = new ConversationLane(settings)) {
+            var history = new CoordinatedChatHistoryService(store, lane);
+            var service = new PythonAgentService(worker, lane, keys, history, settings, "test-model");
+            assertEquals("reply", service.ask("question"));
+            verify(worker).historySettled(true);
+            verify(writer).write(eq("history.json"), anyString());
+        }
+    }
+
     @Test
     void currentKeysAndHistoryAreReadAfterQueueWaitAndHistoryClearIsOrdered() throws Exception {
         var settings = settings("complete");

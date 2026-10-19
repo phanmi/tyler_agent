@@ -9,6 +9,13 @@ from threading import Event, Thread
 
 log = logging.getLogger(__name__)
 
+PARENT_PID_ENV = "TYLER_AGENT_PARENT_PID"
+MAX_PROCESS_ID = 0xFFFFFFFF
+PARENT_POLL_INTERVAL_SECONDS = 0.1
+PROCESS_SYNCHRONIZE_ACCESS = 0x00100000
+WAIT_TIMEOUT = 258
+NONBLOCKING_WAIT_MS = 0
+
 if sys.platform == "win32":
     from ctypes import wintypes
 
@@ -21,12 +28,12 @@ if sys.platform == "win32":
         kernel.WaitForSingleObject.restype = wintypes.DWORD
         kernel.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel.CloseHandle.restype = wintypes.BOOL
-        handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE only.
+        handle = kernel.OpenProcess(PROCESS_SYNCHRONIZE_ACCESS, False, pid)
         if not handle:
             raise OSError("Cannot monitor worker parent")
 
         def alive() -> bool:
-            return int(kernel.WaitForSingleObject(handle, 0)) == 258  # WAIT_TIMEOUT
+            return int(kernel.WaitForSingleObject(handle, NONBLOCKING_WAIT_MS)) == WAIT_TIMEOUT
 
         def close() -> None:
             kernel.CloseHandle(handle)
@@ -47,29 +54,36 @@ class ParentMonitor:
     """Own a small watchdog; normal cleanup is idempotent and never waits on model work."""
 
     def __init__(self, parent_pid: int, exit_process: Callable[[int], None] = os._exit) -> None:
-        if parent_pid <= 0 or parent_pid > 0xFFFFFFFF:
+        if parent_pid <= 0 or parent_pid > MAX_PROCESS_ID:
             raise ValueError("Invalid worker parent identifier")
         self._alive, self._release = _parent_probe(parent_pid)
         self._exit = exit_process
         self._stop = Event()
         self._thread = Thread(target=self._watch, name="agent-parent-monitor", daemon=True)
-        self._thread.start()
+        try:
+            self._thread.start()
+        except RuntimeError:
+            self._release()
+            raise
 
     @classmethod
     def from_environment(cls) -> "ParentMonitor":
-        value = os.environ.get("TYLER_AGENT_PARENT_PID")
+        value = os.environ.get(PARENT_PID_ENV)
         return cls(int(value) if value is not None else os.getppid())
 
     def _watch(self) -> None:
-        while not self._stop.wait(0.1):
-            if not self._alive():
-                log.info("Worker owner exited; terminating worker")
-                self._exit(0)
-                return
+        try:
+            while not self._stop.wait(PARENT_POLL_INTERVAL_SECONDS):
+                if not self._alive():
+                    log.info("Worker owner exited; terminating worker")
+                    self._exit(0)
+                    return
+        finally:
+            # The probe thread owns the handle until its final access, even during close.
+            self._release()
 
     def close(self) -> None:
-        if self._stop.is_set():
-            return
         self._stop.set()
-        self._thread.join(timeout=1)
-        self._release()
+        # Production probes are nonblocking OS calls. The event interrupts the polling wait;
+        # join confirms termination instead of releasing a handle a live probe could still use.
+        self._thread.join()

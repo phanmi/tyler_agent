@@ -5,15 +5,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.tyler.service.agent.protocol.ProtocolException;
+import org.tyler.exceptionHandler.exception.FileReadException;
+import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.SQLPersistentException;
+import org.tyler.exceptionHandler.exception.SQLReadException;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tyler.service.agent.python.WorkerTestSupport.*;
@@ -21,6 +27,42 @@ import static org.tyler.service.agent.python.WorkerTestSupport.*;
 /** Real pipe/process tests prove callbacks, cancellation, quarantine, and cleanup rather than mocked exits. */
 @ExtendWith(OutputCaptureExtension.class)
 class PythonWorkerTest {
+    static Stream<RuntimeException> localStorageFailures() {
+        var cause = new java.io.IOException("synthetic-private-file-content");
+        return Stream.of(new SQLReadException("synthetic-secret-sql", cause),
+                new SQLPersistentException("synthetic-secret-sql", cause),
+                new FileReadException("synthetic-private-path", cause),
+                new FileWriteException("synthetic-private-path", cause));
+    }
+
+    @ParameterizedTest
+    @MethodSource("localStorageFailures")
+    void localFailureRetainsOriginalCauseWithoutExposingItsMessage(RuntimeException original) {
+        try (var worker = new PythonWorker(settings("operation_then_remote_failure"), (name, input) -> {
+            throw original;
+        })) {
+            RuntimeException failure = assertThrows(original.getClass(), () -> worker.execute(payload()));
+            assertSame(original, failure.getCause());
+            assertSame(original.getCause(), failure.getCause().getCause());
+            assertArrayEquals(original.getStackTrace(), failure.getCause().getStackTrace());
+            assertFalse(failure.getMessage().contains("synthetic-"));
+            var fileAdvice = new org.tyler.exceptionHandler.FileExceptionHandler();
+            var sqlAdvice = new org.tyler.exceptionHandler.SqlExceptionHandler();
+            var response = switch (failure) {
+                case FileReadException read -> fileAdvice.handleFileRead(read);
+                case FileWriteException write -> fileAdvice.handleFileWrite(write);
+                case SQLReadException read -> sqlAdvice.handleSqlRead(read);
+                case SQLPersistentException write -> sqlAdvice.handleSqlPersistent(write);
+                default -> throw new AssertionError("Unexpected storage failure type");
+            };
+            assertFalse(response.getBody().toString().contains("synthetic-"));
+
+            // A subsequent remote-only failure must not acquire the previous request's cause.
+            RuntimeException next = assertThrowsExactly(SQLReadException.class, () -> worker.execute(payload()));
+            assertNull(next.getCause());
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"startup_exit, WORKER_UNAVAILABLE", "mismatch, UNSUPPORTED_VERSION"})
     void rejectsFailedStartupAndKillsProcess(String mode, String code) throws Exception {

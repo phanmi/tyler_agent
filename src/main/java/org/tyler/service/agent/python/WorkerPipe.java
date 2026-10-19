@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 
 /** One reader/writer per pipe; writes and stderr draining cannot block protocol decisions. */
 final class WorkerPipe implements AutoCloseable {
+    private static final String WORKER_UNAVAILABLE = "WORKER_UNAVAILABLE";
     private static final Logger log = LoggerFactory.getLogger(WorkerPipe.class);
     private final Process process;
     private final MessageCodec codec = new MessageCodec();
@@ -33,7 +34,7 @@ final class WorkerPipe implements AutoCloseable {
     }
 
     void send(JsonNode message) {
-        if (!outgoing.offer(codec.encode(message))) throw new ProtocolException("WORKER_UNAVAILABLE");
+        if (!outgoing.offer(codec.encode(message))) throw new ProtocolException(WORKER_UNAVAILABLE);
     }
 
     private void read(Consumer<JsonNode> receiver) {
@@ -45,11 +46,11 @@ final class WorkerPipe implements AutoCloseable {
                 for (JsonNode message : reader.feed(Arrays.copyOf(buffer, count))) receiver.accept(message);
             }
             reader.finish();
-            failure.accept("WORKER_UNAVAILABLE");
+            failure.accept(WORKER_UNAVAILABLE);
         } catch (ProtocolException e) {
             failure.accept(e.code());
         } catch (IOException e) {
-            failure.accept("WORKER_UNAVAILABLE");
+            failure.accept(WORKER_UNAVAILABLE);
         }
     }
 
@@ -67,7 +68,7 @@ final class WorkerPipe implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            failure.accept("WORKER_UNAVAILABLE");
+            failure.accept(WORKER_UNAVAILABLE);
         }
     }
 

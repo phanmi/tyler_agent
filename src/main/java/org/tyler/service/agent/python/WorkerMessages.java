@@ -11,7 +11,10 @@ import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 
-/** Builds private transport envelopes and code-owned failures; never serializes arbitrary exceptions. */
+/**
+ * Builds private transport envelopes and code-owned failures; never serializes arbitrary exceptions.
+ * The worker's Java run ledger retains original local failures separately from these wire payloads.
+ */
 final class WorkerMessages {
     private WorkerMessages() { }
 

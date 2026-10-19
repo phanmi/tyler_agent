@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 public final class FakeWorker {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static String request;
+    private static int runs;
 
     private FakeWorker() { }
 
@@ -50,9 +51,12 @@ public final class FakeWorker {
 
     private static void run(String mode, JsonNode message) throws Exception {
         request = message.path("requestId").asText();
+        runs++;
         switch (mode) {
             case "crash" -> System.exit(3);
             case "hang", "ignore_cancel", "late" -> { }
+            case "operation_then_remote_failure" -> send(WorkerTestSupport.fixture(
+                    runs == 1 ? "time_request" : "failed_storage"));
             case "operation", "duplicate", "write" -> {
                 ObjectNode call = WorkerTestSupport.fixture(mode.equals("write") ? "food_request" : "time_request");
                 send(call);

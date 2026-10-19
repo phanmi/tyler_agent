@@ -155,7 +155,7 @@ public final class PythonWorker implements AutoCloseable {
     private void failed(Connection current, JsonNode message) {
         Run run = current.run;
         stopDeadline(run);
-        run.reply.completeExceptionally(ProtocolFailures.translate(message, current.codec));
+        run.reply.completeExceptionally(run.withLocalCause(ProtocolFailures.translate(message, current.codec)));
         if (run.cancelled) {
             breakConnection(current, "REQUEST_CANCELLED");
             return;
@@ -191,6 +191,9 @@ public final class PythonWorker implements AutoCloseable {
     private void settleOperation(Connection current, Run run, JsonNode request, JsonNode result, RuntimeException failure) {
         synchronized (lock) {
             pendingOperations--;
+            // A failed operation prevents further dispatch in this run. Keep its original Java
+            // cause locally; WorkerMessages serializes only the allowlisted code and safe text.
+            run.localFailure = failure;
             ObjectNode payload = WorkerMessages.result(request, result, failure);
             if (current.broken || closed || run.cancelled || run.reply.isDone()) {
                 String outcome = failure == null
@@ -221,7 +224,7 @@ public final class PythonWorker implements AutoCloseable {
             } catch (ProtocolException e) {
                 breakConnection(current, e.code());
             }
-            run.reply.completeExceptionally(new ProtocolException(code));
+            run.reply.completeExceptionally(run.withLocalCause(new ProtocolException(code)));
             log.info("Agent run cancelled: request={}, code={}, pendingOperations={}", run.id, code, pendingOperations);
             retireAfterGrace(current);
         }
@@ -249,7 +252,7 @@ public final class PythonWorker implements AutoCloseable {
             current.ready.completeExceptionally(new ProtocolException(code));
             if (current.run != null) {
                 stopDeadline(current.run);
-                current.run.reply.completeExceptionally(new ProtocolException(code));
+                current.run.reply.completeExceptionally(current.run.withLocalCause(new ProtocolException(code)));
             }
             current.pipe.close();
             log.info("Agent worker closed: pid={}, reason={}, pendingOperations={}",
@@ -280,7 +283,8 @@ public final class PythonWorker implements AutoCloseable {
                 try { sendAccepted(current, "shutdown", null, WorkerMessages.reason("application_exit")); }
                 catch (ProtocolException ignored) { /* Already closing; termination below remains authoritative. */ }
                 current.ready.completeExceptionally(new ProtocolException("REQUEST_CANCELLED"));
-                if (current.run != null) current.run.reply.completeExceptionally(new ProtocolException("REQUEST_CANCELLED"));
+                if (current.run != null) current.run.reply.completeExceptionally(
+                        current.run.withLocalCause(new ProtocolException("REQUEST_CANCELLED")));
             }
         }
         if (current != null) {
@@ -318,9 +322,16 @@ public final class PythonWorker implements AutoCloseable {
         final String id;
         final CompletableFuture<String> reply = new CompletableFuture<>();
         ScheduledFuture<?> deadline;
+        RuntimeException localFailure;
         boolean cancelled;
         boolean completed;
 
         Run(String id) { this.id = id; }
+
+        /** Public text is Java-owned; only locally raised exceptions may enter the cause chain. */
+        RuntimeException withLocalCause(RuntimeException safeFailure) {
+            if (localFailure != null) safeFailure.initCause(localFailure);
+            return safeFailure;
+        }
     }
 }
