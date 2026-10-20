@@ -9,7 +9,7 @@ import org.tyler.service.agent.bridge.IOperationHandler;
 
 /** Writes through the sandbox and acknowledges the requested path only after successful completion. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class FileWriteHandler implements IOperationHandler {
     private final IFileSandboxWrite writer;
 

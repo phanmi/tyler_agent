@@ -22,9 +22,9 @@ import org.tyler.service.chatHistory.IChatHistoryService;
 import java.time.Duration;
 import java.util.List;
 
-/** Opt-in migration wiring; no worker or credential access is needed for the default Java path. */
+/** Default Python wiring; explicit Java selection retains restart-based migration rollback. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 @Import(OperationBridgeConfiguration.class)
 public class PythonAgentConfiguration {
     @Bean

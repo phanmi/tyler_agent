@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 
 /** Returns server-local time using an injected clock and the existing text representation. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class CurrentTimeHandler implements IOperationHandler {
     private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
     private final Clock clock;

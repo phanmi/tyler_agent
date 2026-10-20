@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.service.food.IFoodService;
 import org.tyler.model.food.Food;
@@ -20,6 +21,7 @@ import java.util.Map;
  * to {@link IFoodService}, and serializes the saved food value for the model.
  */
 @Component
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class RecordFoodTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "java", matchIfMissing = true)
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class AgentService implements IAgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);

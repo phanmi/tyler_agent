@@ -18,7 +18,7 @@ The runner uses the bundled Electron executable in Node mode. This setting is re
 
 ### Installer check on the clean machine
 
-The automated suite exercises the packaged application and Squirrel's obsolete event. It does **not** prove installer installation, upgrade, or uninstallation. Inside the disposable environment, run `inputs/installer/Tyler-<version> Setup.exe`, launch the installed app and confirm the window opens, then quit and uninstall through Windows Settings. Record any publisher warning, startup failure, orphaned Java/Python process, or uninstall failure. To exercise the installed Python path before rollout, launch the installed `Tyler.exe` from PowerShell with `$env:AGENT_IMPLEMENTATION = 'python'`. The default remains Java until Step 10. Upgrade behavior requires a previous installer and a separate recorded exercise.
+The automated suite exercises the packaged application and Squirrel's obsolete event. It does **not** prove installer installation, upgrade, or uninstallation. Inside the disposable environment, run `inputs/installer/Tyler-<version> Setup.exe`, launch the installed app and confirm the window opens, then quit and uninstall through Windows Settings. Record any publisher warning, startup failure, orphaned Java/Python process, or uninstall failure. Python is the default from Step 10; leave `AGENT_IMPLEMENTATION` unset to verify it. See the [rollout and recovery guide](AGENT_ROLLOUT.md) for temporary Java rollback. Upgrade behavior requires a previous installer and a separate recorded exercise.
 
 The installer is currently unsigned. Do not enter real API keys or copy user data into this test environment. Keep the environment open until you have saved the results; the generated Sandbox mappings preserve automated results on the host.
 
@@ -79,7 +79,7 @@ frontend/out/Tyler-win32-x64/
     desktop-build.json
 ```
 
-Java and Python resources are outside ASAR. Electron starts bundled Java with the bundled worker path as a single argument; Java owns Python readiness and shutdown. Packaged execution has no fallback to installed Java and ignores the development `BACKEND_JAR_PATH` override. `agent.implementation=java` remains the default; set `AGENT_IMPLEMENTATION=python` to opt in. The separate `desktop-test-worker` fixture is never included in production resources.
+Java and Python resources are outside ASAR. Electron starts bundled Java with the bundled worker path as a single argument; Java owns Python readiness and shutdown. Packaged execution has no fallback to installed Java and ignores the development `BACKEND_JAR_PATH` override. `agent.implementation=python` is the default. The smoke suite leaves the implementation selector unset, so readiness and child-process checks exercise the shipped default. Set `AGENT_IMPLEMENTATION=java` only for restart-based rollback during the release window. The separate `desktop-test-worker` fixture is never included in production resources.
 
 Installer files are under `frontend/out/make/squirrel.windows/x64/`. Implementation references: [Forge hook lifecycle](https://www.electronforge.io/config/hooks), [Forge packager configuration](https://www.electronforge.io/config/configuration), and [Electron main-process debugging](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process). The test enables the inspector only for its own application processes; normal launch does not enable it.
 

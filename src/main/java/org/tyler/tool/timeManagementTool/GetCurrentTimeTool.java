@@ -1,5 +1,6 @@
 package org.tyler.tool.timeManagementTool;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.tool.ITool;
 
@@ -10,6 +11,7 @@ import java.time.format.DateTimeFormatter;
  * Returns the current date and time in the server's local time zone.
  */
 @Component
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class GetCurrentTimeTool implements ITool {
 
     private static final DateTimeFormatter FORMATTER =

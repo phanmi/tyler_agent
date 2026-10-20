@@ -24,7 +24,7 @@ class BackendReadinessIntegrationTest {
         String nonce = "1234567890abcdef1234567890abcdef";
         Path log = directory.resolve("backend.log"), pidFile = directory.resolve("worker.pid");
         var builder = new ProcessBuilder(javaCommand(ReadinessOwner.class, pidFile.toString(),
-                "--agent.implementation=python", "--agent.workspace-dir=" + directory.resolve("data"),
+                "--agent.workspace-dir=" + directory.resolve("data"),
                 "--agent.python.command[0]=" + python(), "--agent.python.command[1]=-m", "--agent.python.command[2]=tyler_agent",
                 "--spring.main.banner-mode=off", "--logging.level.root=ERROR"));
         builder.environment().put("TYLER_STARTUP_NONCE", nonce);

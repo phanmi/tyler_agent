@@ -9,7 +9,7 @@ import org.tyler.service.agent.bridge.IOperationHandler;
 
 /** Reads text through the existing sandbox; path checks and storage failures stay with it. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class FileReadHandler implements IOperationHandler {
     private final IFileSandboxRead reader;
 

@@ -15,7 +15,7 @@ import java.util.List;
 
 /** Discovers Python bridge handlers without enumerating feature services in central wiring. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 @ComponentScan(basePackageClasses = IOperationHandler.class)
 public class OperationBridgeConfiguration {
     @Bean

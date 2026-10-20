@@ -173,6 +173,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 - Loopback binding and CORS do not authenticate other programs on the same computer. Any authentication requirement needs an explicit design.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
 - Use the project's shared release-version source; do not introduce competing version definitions.
+- When changing an implementation default, test omitted, explicit, and invalid selections, including startup failure without silent fallback. Keep dormant migration components inactive unless explicitly selected. Preserve any documented release rollback window, record restart/data-compatibility evidence, and inventory callers before retirement; passing local tests does not complete a release window.
 
 ### Logging
 

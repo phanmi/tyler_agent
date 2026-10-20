@@ -1,11 +1,13 @@
 package org.tyler.tool.userTool;
 
 import com.openai.models.responses.FunctionTool;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.service.userInfo.IUserInfoService;
 import org.tyler.tool.ITool;
 
 @Component
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class GetUserInfoTool implements ITool {
     IUserInfoService userInfoService;
 

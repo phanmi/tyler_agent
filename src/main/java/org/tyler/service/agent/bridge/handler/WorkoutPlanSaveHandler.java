@@ -9,7 +9,7 @@ import org.tyler.service.workout.IWorkoutPlanService;
 
 /** Delegates plan validation, generation, duplicate policy, and atomic saving to the plan service. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class WorkoutPlanSaveHandler implements IOperationHandler {
     private final IWorkoutPlanService service;
     private final OperationPayloadMapper mapper;

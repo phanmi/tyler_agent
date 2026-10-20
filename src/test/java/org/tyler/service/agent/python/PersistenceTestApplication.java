@@ -36,7 +36,7 @@ final class PersistenceTestApplication implements AutoCloseable {
     PersistenceTestApplication(Path workspace, String timeout) {
         var app = new SpringApplication(TylerAgentApplication.class, FaultConfiguration.class);
         app.setRegisterShutdownHook(false);
-        context = app.run("--agent.implementation=python", "--agent.workspace-dir=" + workspace,
+        context = app.run("--agent.workspace-dir=" + workspace,
                 "--server.address=127.0.0.1", "--server.port=0", "--spring.main.banner-mode=off",
                 "--logging.level.root=ERROR", "--chat.max-messages=100",
                 "--openai.key-file-path=apikey.txt", "--chat.history-file-path=chat-history.json",
@@ -49,6 +49,8 @@ final class PersistenceTestApplication implements AutoCloseable {
         base = "http://127.0.0.1:" + context.getEnvironment().getProperty("local.server.port");
         context.getBean(IApiKeyService.class).save("SYNTHETIC_INTEGRATION_KEY");
         assertInstanceOf(PythonAgentService.class, context.getBean(org.tyler.service.agent.IAgentService.class));
+        assertTrue(context.getBeansOfType(org.tyler.service.agent.IClientFactory.class).isEmpty());
+        assertTrue(context.getBeansOfType(org.tyler.tool.ITool.class).isEmpty());
         assertTrue(ProcessHandle.of(worker.pid()).orElseThrow().isAlive());
     }
 
