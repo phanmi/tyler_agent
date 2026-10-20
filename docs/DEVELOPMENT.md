@@ -48,7 +48,7 @@ uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.
 cd ..
 ```
 
-Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers now start Java with the repository root as its working directory, so the default worker path resolves consistently. Startup does not download dependencies or silently switch to Java if the worker is missing.
+Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers start Java with the repository root as its working directory, so the default worker path resolves consistently. Before that change of directory, relative `BACKEND_JAR_PATH` and explicit `AGENT_WORKSPACE_DIR` overrides are resolved against the directory where the launcher was invoked. For example, launching from `frontend/` with `AGENT_WORKSPACE_DIR=./data` continues to use `frontend/data`, including in Java rollback mode. Startup does not download dependencies or silently switch to Java if the worker is missing.
 
 ### Browser development
 

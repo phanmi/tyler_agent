@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-20):** Committed baseline `e648ea1` contains the Step 10 Python-default rollout and restart-based Java rollback tests. The current release preparation changes set the shared version to **0.2.1** and add [release notes](releases/0.2.1.md); they introduce no new user-facing features. Previous CI and user-confirmed clean-Windows results remain dated below. Step 10 remains **partial** until one validated release and subsequent legacy retirement are recorded. The 0.2.1 candidate is not yet published; see [rollout and recovery](AGENT_ROLLOUT.md).
+**Current state (refreshed 2026-10-20):** Committed baseline `5b33012` includes the Step 10 Python-default rollout, rollback tests, and **0.2.1** release preparation. The current correction preserves relative development JAR/workspace overrides in both launchers; see the latest execution record and [release notes](releases/0.2.1.md). Previous CI and user-confirmed clean-Windows results remain dated below. Step 10 remains **partial** until one validated release and subsequent legacy retirement are recorded. The 0.2.1 candidate is not yet published; see [rollout and recovery](AGENT_ROLLOUT.md).
 
 ## Current implementation baseline
 
@@ -18,9 +18,9 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
 | CI | [Run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed both jobs and uploaded verified Windows artifacts on `b029ce5`. Required-check configuration is user-confirmed; attachment pending. Step 10 is committed in `e648ea1`; this historical run does not verify the 0.2.1 candidate. |
 | Python execution | [Worker and development commands](../agent-python/README.md), [runtime](../agent-python/src/tyler_agent/runtime.py), [agent loop](../agent-python/src/tyler_agent/agent.py), [provider](../agent-python/src/tyler_agent/provider.py), and [adapters](../agent-python/src/tyler_agent/tools) implement Step 7. Readiness needs no key; a valid run uses its supplied credential snapshot and executes through the Java operation bridge. |
-| Latest local verification | See the dated 0.2.1 release-preparation record below for the current checks; Step 10 results refer to its recorded earlier baseline. Earlier launcher, backend, Python, frontend, and clean-environment observations remain historical evidence. |
+| Latest local verification | See the latest relative-path correction record for affected frontend checks and the 0.2.1 release-preparation record for backend/Python verification; Step 10 results refer to its recorded earlier baseline. Earlier launcher, backend, Python, frontend, and clean-environment observations remain historical evidence. |
 
-The launcher correction and Step 10 rollout are committed in `e648ea1`. Only the current 0.2.1 release preparation is uncommitted. No release has been published by this task. Record the final release commit, artifact, and validated-release outcome before retiring Java.
+The Step 10 rollout and 0.2.1 preparation are committed in `5b33012`. Only the current relative-path correction, regressions, and documentation are uncommitted. No release has been published by this task. Record the final release commit, artifact, and validated-release outcome before retiring Java.
 
 ## Progress
 
@@ -965,3 +965,17 @@ On committed baseline `1a0e78a`, changed both CI jobs to bootstrap pinned uv 0.1
 | `tyler-agent-0.2.1.jar` | `d1378b3ee68180516fe0f29a64e69323137d405b0f7f6e65006cc666ec1690ec` |
 
 The installer, full package, `RELEASES`, and generated `SHA256SUMS.txt` are under `frontend/out/make/squirrel.windows/x64/`. Local command logs use the `target/release-0.2.1-` prefix (`npm-ci`, `backend`, `worker`, `fixture`, `python-tests`, `make`, `runtime`, and `desktop`). These ignored build outputs are local evidence; they do not constitute a published release or new hosted CI result. Documentation link checks and `git diff --check` pass.
+
+
+### 2026-10-20 — Preserve development relative path overrides
+
+**Baseline:** `5b33012` (0.2.1 release preparation). Review found that changing Java's development cwd to the repository root reinterpreted relative JAR and workspace overrides. Both the browser and Electron launcher were affected; a relative workspace could make existing data appear missing and direct new writes to a different directory.
+
+**Fix:** `resolveJarPath()` now resolves the development JAR override against the caller's cwd, so its existence check and Java receive the same absolute path. The shared `startBackendProcess()` builds its effective environment and resolves a nonblank explicit workspace against that original cwd before applying a child cwd. Parent environment variables remain unchanged. Both existing launchers use these shared functions. Default worker discovery still uses the repository cwd; packaged resource selection and workspace behavior without a cwd override are unchanged. No Java/Python service, schema, data, or release-version change was made.
+
+**Regression coverage:** The new `frontend/tests/electron/relative-paths.test.cjs` executes each actual launcher up to its backend call, then starts a real child using the captured JAR/cwd/environment options. The child fixture reads a chosen JAR and pre-existing workspace history, writes only in that workspace, and emits the normal readiness nonce. The matrix covers relative and absolute JAR overrides, both launchers, and Python/Java selection. A separate repository-root data directory is checked for accidental writes. All test files/helpers remain under `frontend/tests/`.
+
+The original four relative-JAR cases failed before the fix (backend exit before readiness). After the fix, all **8 regression cases** pass. Node 22/npm 10 verification: **26 startup tests**, **3 version tests**, **42 UI tests**, TypeScript checking, and production build passed. Backend/Python suites were not rerun for this launcher-only correction; their earlier results remain dated above. The frontend currently has no configured standalone lint/formatter gate. Test log: `target/relative-paths-startup.log`; pre-fix evidence: `target/relative-paths-before.log`.
+
+
+**Packaged verification:** Rebuilt the 0.2.1 installer and passed all **10 packaged smoke scenarios** on Windows build 10.0.26200, with the default Python selection and isolated temporary data. Evidence: `target/relative-paths-make.log`, `target/relative-paths-desktop.log`, and `target/desktop-smoke-b6p8us/report.json`. The corrected installer supersedes the earlier local candidate; active release notes and `frontend/out/make/squirrel.windows/x64/SHA256SUMS.txt` now use its hashes. Installer SHA-256: `32c885af29e60d13bee65dea78049b6bfd5f80e2bcda8e1b318f549ba240b9e3`; full package: `832d430f2bc671d6c41abe03594ea1464d39cb9a9978db95f4e91126ac7d2afd`; `RELEASES`: `f42362fe8b85113681259153c3aaf50744b542efc9c6cb0ff3eddde76801201f`. The Java/Python artifacts are unchanged. All 107 local links/anchors in the affected guides resolve; `git diff --check` passes. No publication, user-data relocation, or new hosted CI result is claimed.

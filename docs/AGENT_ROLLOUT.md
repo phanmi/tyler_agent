@@ -6,7 +6,7 @@
 
 Python is the default in development and packaged builds. Java remains available through explicit configuration for one validated release. There is no automatic fallback or conversation replay.
 
-The prepared rollout release is **0.2.1**, defined in `.mvn/maven.config`, based on committed `e648ea1` (the Python-default rollout) plus the release metadata/documentation changes. See the [release notes](releases/0.2.1.md). This is a local release candidate; it has not been published. Record its final release commit, artifact hashes, deployment date, and release acceptance before completing the rollback window. Preparing or testing the candidate does not itself complete that window.
+The prepared rollout release is **0.2.1**, defined in `.mvn/maven.config`, based on committed `5b33012` (0.2.1 preparation) plus the development relative-path correction. See the [release notes](releases/0.2.1.md). This is a local release candidate; it has not been published. Record its final release commit, artifact hashes, deployment date, and release acceptance before completing the rollback window. Preparing or testing the candidate does not itself complete that window.
 
 Prerequisite evidence:
 
@@ -18,7 +18,7 @@ Prerequisite evidence:
 
 Install the locked Python environment and build the worker as described in [development setup](DEVELOPMENT.md#run-from-source). Java starts the worker and waits for its handshake before publishing the existing backend readiness event. Startup needs no provider key; chat uses the key stored through Settings.
 
-Browser and Electron development launchers use the repository root as Java's working directory. Direct backend launches must run there or configure absolute worker command entries. Packaged execution passes an absolute bundled worker path and never needs installed Python, Java, or a dependency download. Missing/incompatible workers fail startup visibly; choosing Java rollback is an explicit operator action.
+Browser and Electron development launchers use the repository root as Java's working directory. Relative JAR and explicit workspace overrides are anchored to the original launch directory before the child starts, preserving existing keys, history, and databases in both Python and Java rollback modes. Direct backend launches must run there or configure absolute worker command entries. Packaged execution passes an absolute bundled worker path and never needs installed Python, Java, or a dependency download. Missing/incompatible workers fail startup visibly; choosing Java rollback is an explicit operator action.
 
 ## Configuration-and-restart rollback
 

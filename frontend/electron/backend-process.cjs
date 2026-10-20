@@ -34,7 +34,8 @@ function resolveJavaPath(packaged = false, resourcesPath = '') {
 function resolveJarPath(packaged = false, resourcesPath = '') {
     const jarName = `tyler-agent-${releaseVersion}.jar`
     if (packaged) return path.join(resourcesPath, jarName)
-    if (process.env.BACKEND_JAR_PATH) return process.env.BACKEND_JAR_PATH
+    // Resolve the override where the launcher was invoked, before the child changes cwd.
+    if (process.env.BACKEND_JAR_PATH) return path.resolve(process.env.BACKEND_JAR_PATH)
     return path.join(__dirname, '..', '..', 'target', jarName)
 }
 
@@ -51,6 +52,12 @@ function backendArguments(packaged = false, resourcesPath = '') {
 function startBackendProcess(command, args, options = {}) {
     const nonce = randomBytes(16).toString('hex')
     const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS
+    const environment = { ...process.env, ...options.env, TYLER_STARTUP_NONCE: nonce }
+    // Development uses the repository cwd for its worker. Keep an explicit workspace
+    // anchored to the caller's directory so settings and databases do not move.
+    if (options.cwd && environment.AGENT_WORKSPACE_DIR?.trim()) {
+        environment.AGENT_WORKSPACE_DIR = path.resolve(environment.AGENT_WORKSPACE_DIR)
+    }
 
     return new Promise((resolve, reject) => {
         if (options.signal?.aborted) {
@@ -61,7 +68,7 @@ function startBackendProcess(command, args, options = {}) {
         try {
             child = spawn(command, args, {
                 cwd: options.cwd,
-                env: { ...process.env, ...options.env, TYLER_STARTUP_NONCE: nonce },
+                env: environment,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 windowsHide: true,
             })
