@@ -308,7 +308,7 @@ The suites use deterministic provider mocks and synthetic credentials without ne
 
 Edit only the `-Drevision=` value in [.mvn/maven.config](../.mvn/maven.config) to set the release version. Maven uses it for the project version and `target/tyler-agent-<version>.jar`. Frontend npm lifecycle scripts synchronize `package.json` and `package-lock.json`; Electron and Forge use the resulting version to locate the JAR.
 
-Run `npm run sync-version` from `frontend/` to synchronize metadata immediately. Rebuild the backend after changing the version so the expected JAR exists.
+Run `npm run sync-version` from `frontend/` to synchronize npm metadata immediately. From `agent-python/`, run `uv sync --locked --reinstall-package tyler-agent-worker` to refresh editable package metadata from the shared version. Rebuild the backend, production worker, desktop test worker, and installer so all artifacts use the same release. Follow the [packaging checks](DESKTOP_PACKAGING.md); the current candidate is described in the [0.2.1 release notes](releases/0.2.1.md).
 
 Follow [Windows desktop packaging and offline acceptance](DESKTOP_PACKAGING.md) to build the backend JAR, production Python worker, and separate smoke fixture before running `npm run make`. Forge derives a runtime from the Java 26 `JAVA_HOME` JDK using `jlink` and includes the runtime, JAR, worker, and build manifest outside ASAR. No manually supplied `resources/runtime/` is needed for this build path.
 

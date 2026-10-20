@@ -6,7 +6,7 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-19):** Committed baseline `b029ce5` contains Steps 2–9 and the Windows launcher correction. [CI run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed both **Build and test** and **Windows packaged smoke** on that commit. The user confirmed clean-Windows acceptance and required checks on 2026-10-19; the report/configuration attachment is pending. The Step 1 inventory is reconciled below. The current Step 10 working-tree changes select Python by default and retain explicit Java rollback for one validated release. Step 10 is **partial**: rollout preparation and verification do not complete the release window or authorize legacy removal. See [rollout and recovery](AGENT_ROLLOUT.md).
+**Current state (refreshed 2026-10-20):** Committed baseline `e648ea1` contains the Step 10 Python-default rollout and restart-based Java rollback tests. The current release preparation changes set the shared version to **0.2.1** and add [release notes](releases/0.2.1.md); they introduce no new user-facing features. Previous CI and user-confirmed clean-Windows results remain dated below. Step 10 remains **partial** until one validated release and subsequent legacy retirement are recorded. The 0.2.1 candidate is not yet published; see [rollout and recovery](AGENT_ROLLOUT.md).
 
 ## Current implementation baseline
 
@@ -16,11 +16,11 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 | Workout and plan validation | [WorkoutValidator](../src/main/java/org/tyler/validation/WorkoutValidator.java) enforces workout rules through the workout service. [WorkoutPlanService](../src/main/java/org/tyler/service/workout/WorkoutPlanService.java) owns plan date/goal/equipment validation, including the seven-representable-days guard. The default [Python plan adapter](../agent-python/src/tyler_agent/tools/builtin/workout_plan/adapter.py) requests `workout_plan.generate_save`; its bridge calls the same plan service. The Java tool remains only for explicit rollback. |
 | HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
-| CI | [Run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed both jobs and uploaded verified Windows artifacts on `b029ce5`. Required-check configuration is user-confirmed; attachment pending. The Step 10 changes are not yet committed or remotely verified. |
+| CI | [Run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed both jobs and uploaded verified Windows artifacts on `b029ce5`. Required-check configuration is user-confirmed; attachment pending. Step 10 is committed in `e648ea1`; this historical run does not verify the 0.2.1 candidate. |
 | Python execution | [Worker and development commands](../agent-python/README.md), [runtime](../agent-python/src/tyler_agent/runtime.py), [agent loop](../agent-python/src/tyler_agent/agent.py), [provider](../agent-python/src/tyler_agent/provider.py), and [adapters](../agent-python/src/tyler_agent/tools) implement Step 7. Readiness needs no key; a valid run uses its supplied credential snapshot and executes through the Java operation bridge. |
-| Latest local verification | See the dated Step 10 record below for checks against `b029ce5` plus the current changes. Earlier launcher, backend, Python, frontend, and clean-environment observations remain historical evidence. |
+| Latest local verification | See the dated 0.2.1 release-preparation record below for the current checks; Step 10 results refer to its recorded earlier baseline. Earlier launcher, backend, Python, frontend, and clean-environment observations remain historical evidence. |
 
-The launcher correction is committed in `b029ce5`. Only the current Step 10 rollout changes are uncommitted. Release metadata remains 0.2.0; no release has been published by this task. Record the merged rollout commit, release artifact, and validated-release outcome before retiring Java.
+The launcher correction and Step 10 rollout are committed in `e648ea1`. Only the current 0.2.1 release preparation is uncommitted. No release has been published by this task. Record the final release commit, artifact, and validated-release outcome before retiring Java.
 
 ## Progress
 
@@ -248,7 +248,7 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 **Definition of done**
 
-- [x] Steps 1-9 have passed their acceptance criteria, and the rollout candidate is recorded: release 0.2.0, `b029ce5` plus these uncommitted changes. Record the eventual merged commit/artifact before deployment; prerequisite clean-machine/required-check evidence is user-confirmed.
+- [x] Steps 1-9 have passed their acceptance criteria, and the rollout candidate is recorded: release 0.2.1, committed Step 10 baseline `e648ea1` plus release metadata changes. Record the final release commit/artifact before deployment; prerequisite clean-machine/required-check evidence is user-confirmed.
 - [x] Python is the tested default in development and packaged runs, preserving HTTP/tool contracts and existing persisted data. Step 10 checks below include restart compatibility and 10 packaged scenarios with the selector unset.
 - [ ] During one validated release, switching configuration and restarting restores the legacy implementation without replaying in-flight requests; the rollback exercise and release are recorded. Automated restart/data-preservation exercise implemented; the actual validated-release window remains pending.
 - [ ] After that window, a caller inventory precedes removal of obsolete Java agent/tool code, Java provider dependencies, and the temporary implementation selector. Remaining Java adapters implement infrastructure/service access only.
@@ -929,3 +929,39 @@ On committed baseline `1a0e78a`, changed both CI jobs to bootstrap pinned uv 0.1
 | `frontend/out/make/squirrel.windows/x64/Tyler-0.2.0 Setup.exe` | `e00925f77611f7a240265eb523e404d1b61faab8a36c6ae327d4212a28cb6e43` |
 
 **Final review:** Simplified the explicit-Java wiring test and reran all four configuration cases successfully (target/step10-wiring-final.log). Reviewed affected comments and existing safe startup/operation diagnostics. All 183 local Markdown links/anchors in the changed guides resolve, and git diff --check passes. No remote CI run for these uncommitted changes is claimed.
+
+
+### 2026-10-20 — Prepare release 0.2.1
+
+**Baseline and intent:** Clean committed `e648ea1` contains the Python-default rollout. The user requested release **0.2.1** as a technology/architecture update with no new user-facing features. No application logic, tool contract, schema, protocol version, or dependency version changes were made in this preparation.
+
+**Changes:** Updated the shared `.mvn/maven.config` revision and ran `npm run sync-version` to regenerate the frontend package/lockfile root versions. Python uses the same source dynamically; `uv sync --locked --reinstall-package tyler-agent-worker` refreshed installed editable metadata from 0.2.0 to 0.2.1. Its lockfile needed no change. Rebuilt the production worker and separate desktop test fixture so their embedded release resources are current. Added [release notes](releases/0.2.1.md), linked them from the README, and refreshed the rollout candidate and release instructions. Historical 0.2.0 evidence remains unchanged.
+
+**Verification:** Windows x64, OpenJDK 26.0.2.1, Node 22.23.3/npm 10.9.9, uv 0.13.1, and Python 3.12.14. Tests use temporary data and deterministic provider fixtures; no live model calls were made.
+
+| Command/check | Result |
+|---|---|
+| Maven `--batch-mode -o verify` with the documented local repository/Mockito settings | **731 passed**, zero failures/errors/skips; generated `target/tyler-agent-0.2.1.jar`. Omitted `clean` to preserve previous offline handoffs in `target/`. |
+| `uv sync --locked --reinstall-package tyler-agent-worker` | Installed editable worker metadata **0.2.1** with existing locked dependencies. |
+| Ruff format/check and mypy for Linux/Windows | Passed, **52 files**. |
+| PyInstaller production and desktop fixture builds | Passed; embedded `.mvn/maven.config` is **0.2.1**. |
+| `uv run --locked pytest tests --worker-executable dist/tyler-agent-worker/tyler-agent-worker.exe` | **376 passed**. |
+| Node 22 `npm ci` | Passed; package-lock changes are limited to the release root versions. |
+| Frontend startup/version/UI suites | **18 startup**, **3 version**, **42 UI** tests passed. |
+| Frontend `typecheck` and `build` | Passed. |
+
+**Dependency audit:** `npm ci` reports the existing **37 findings** (3 low, 7 moderate, 26 high, 1 critical). No dependency upgrade or audit remediation is claimed; assess these findings before publication rather than applying an unreviewed automatic upgrade during release preparation.
+
+**Release boundary:** This is preparation only: no Git tag, GitHub release, publication, installer execution against user data, or claim of a completed validated-release rollback window. Required CI for the final commit and clean-machine install/upgrade acceptance of this candidate remain release checks. Java rollback and the Step 10 retirement gate remain in place.
+
+
+**Packaged candidate verification:** `npm run make`, `npm run test:runtime`, and `npm run test:desktop` all passed on Windows build 10.0.26200. The relocated packaged application completed **10 scenarios** with the implementation selector unset, isolated data, and no provider credentials. Report: `target/desktop-smoke-CG3BU2/report.json`; native launcher regression: `target/java-runtime-eQ7eoB/result.json`. Backend JAR manifest, frontend package/lockfile metadata, installed Python package metadata, and both development/packaged worker release resources all report **0.2.1**. The worker protocol remains version 1.
+
+| Release artifact | SHA-256 |
+|---|---|
+| `Tyler-0.2.1 Setup.exe` | `cf1a9f0945c23bfda9f8efa13ab063fe630d0664df7a72345a81c174281fcc5f` |
+| `Tyler-0.2.1-full.nupkg` | `3718eb3947295c89411d21adc88b16d9ad54343844db3287e4ac5e6e1716cec4` |
+| `RELEASES` | `190770869634857f033a3ce12e973ce58eb7ad4e9c399c11b5fe10debe6b01ef` |
+| `tyler-agent-0.2.1.jar` | `d1378b3ee68180516fe0f29a64e69323137d405b0f7f6e65006cc666ec1690ec` |
+
+The installer, full package, `RELEASES`, and generated `SHA256SUMS.txt` are under `frontend/out/make/squirrel.windows/x64/`. Local command logs use the `target/release-0.2.1-` prefix (`npm-ci`, `backend`, `worker`, `fixture`, `python-tests`, `make`, `runtime`, and `desktop`). These ignored build outputs are local evidence; they do not constitute a published release or new hosted CI result. Documentation link checks and `git diff --check` pass.

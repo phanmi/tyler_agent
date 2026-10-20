@@ -6,11 +6,11 @@
 
 Python is the default in development and packaged builds. Java remains available through explicit configuration for one validated release. There is no automatic fallback or conversation replay.
 
-The rollout candidate uses the existing **0.2.0** release source in `.mvn/maven.config`, based on committed `b029ce5` plus the Step 10 changes. This is a local candidate, not a claim that a release has been published. Record its eventual merged commit, artifact hashes, deployment date, and release acceptance before starting/completing the rollback window. Changing the default does not itself complete that window.
+The prepared rollout release is **0.2.1**, defined in `.mvn/maven.config`, based on committed `e648ea1` (the Python-default rollout) plus the release metadata/documentation changes. See the [release notes](releases/0.2.1.md). This is a local release candidate; it has not been published. Record its final release commit, artifact hashes, deployment date, and release acceptance before completing the rollback window. Preparing or testing the candidate does not itself complete that window.
 
 Prerequisite evidence:
 
-- [CI run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed **Build and test** and **Windows packaged smoke** on `b029ce5`. This verifies the preceding baseline, not the uncommitted Step 10 changes.
+- [CI run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed **Build and test** and **Windows packaged smoke** on `b029ce5`. This verifies the earlier baseline; Step 10 is now committed in `e648ea1`. It is not CI evidence for the 0.2.1 candidate.
 - On 2026-10-19 the user confirmed successful clean-Windows acceptance and required CI checks. The clean-machine report and required-check configuration attachment are still to be supplied; this is user-attested evidence, not an independently inspected report.
 - The migration execution record records local Step 10 verification separately.
 

@@ -4,6 +4,8 @@ A personal desktop assistant for conversations, food tracking, and weekly workou
 
 [Get started](#get-started) · [Using Tyler](#using-tyler) · [Developer guide](docs/DEVELOPMENT.md)
 
+[0.2.1 release notes](docs/releases/0.2.1.md) — maintenance release introducing the Python agent layer and fixes for potential bugs and issues, with no new user-facing features.
+
 ## What you can do
 
 - **Pick up a conversation later.** Tyler saves recent chats and restores them when you reopen the app.
