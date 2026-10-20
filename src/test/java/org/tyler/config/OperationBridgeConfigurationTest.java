@@ -31,7 +31,7 @@ class OperationBridgeConfigurationTest {
 
     @Test
     void discoversExactlyTheSchemaOperationsOnlyForPython() {
-        runner.run(context -> {
+        runner.withPropertyValues("agent.implementation=java").run(context -> {
             assertNull(context.getStartupFailure());
             assertTrue(context.getBeansOfType(IOperationHandler.class).isEmpty());
             assertTrue(context.getBeansOfType(IOperationDispatcher.class).isEmpty());

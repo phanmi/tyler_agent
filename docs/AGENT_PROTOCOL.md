@@ -2,7 +2,7 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the version 1 contract established in Step 3. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the opt-in Java process supervisor and parent watchdog. The default implementation remains Java. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same opt-in boundary.
+This is the version 1 contract established in Step 3. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the Java process supervisor and parent watchdog. Step 10 selects Python by default, retaining explicit Java selection for the release rollback window. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same service boundary.
 
 Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 

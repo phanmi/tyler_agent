@@ -88,6 +88,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 - Validate configuration at its owning boundary with explicit defaults and precedence. Do not create competing configuration for shared settings. Use the [global release-version source](../.mvn/maven.config); release and protocol compatibility versions have separate meanings.
 - Resolve packaged resources independently of the current working directory and developer checkout. Build with the pinned environment and include required runtime, dependencies, schema, and version resources. The installed application must not require the user's Python installation or download dependencies at startup.
 - For startup, runtime, dependency, or packaging changes, verify an applicable relocated bundle with a sanitized environment and no provider credentials. Record target-platform limitations; a development interpreter test is not packaged-app evidence.
+- When a migration changes the default runtime, packaged acceptance MUST exercise that default without an override that could hide incorrect wiring. Keep rollback explicit, preserve uncertain write outcomes across restarts, and record the validated release before retiring compatibility code. Distinguish local candidate checks, hosted CI, and user-supplied environment evidence.
 
 ## PY-12 — Tests and regression coverage
 

@@ -2,13 +2,13 @@
 
 [Migration tracker](AGENT_MIGRATION.md) | [Protocol contract](AGENT_PROTOCOL.md) | [Session lifecycle](AGENT_SESSION.md)
 
-Step 6 implements Java's allowlisted service access; Step 7 implements the Python model loop and six tool adapters. Step 8 verifies the complete HTTP/Python/database path with a fake provider and temporary storage. The bridge is wired only when `agent.implementation=python`; Java remains the default until the later rollout gate. This page inventories the preserved adapter behavior, extension boundaries, and integration evidence.
+Step 6 implements Java's allowlisted service access; Step 7 implements the Python model loop and six tool adapters. Step 8 verifies the complete HTTP/Python/database path with a fake provider and temporary storage. The bridge is wired for Python, the default implementation; explicit Java selection retains restart-based rollback during the release window. This page inventories the preserved adapter behavior, extension boundaries, and integration evidence.
 
 ## Dispatch and ownership
 
 `PythonWorker` validates framing, session, direction, values, and request/operation state before invoking `IOperationDispatcher` on its callback executor. [ServiceOperationDispatcher](../src/main/java/org/tyler/service/agent/bridge/ServiceOperationDispatcher.java) additionally validates standalone input against the existing operation-request schema through `MessageValidator`, then looks up an `IOperationHandler` in an immutable map. The dispatcher has no feature-service dependencies or operation switch.
 
-[OperationBridgeConfiguration](../src/main/java/org/tyler/config/OperationBridgeConfiguration.java) discovers handler components when `agent.implementation=python` and injects their collection. Each handler declares its case-sensitive protocol operation name; Spring bean names do not determine routing. `MessageValidator` derives the allowed names from the shared protocol schema. Registry construction rejects null handlers, blank names, unapproved names, duplicates, and missing operations before requests can execute. The Java default does not create these handlers or the dispatcher.
+[OperationBridgeConfiguration](../src/main/java/org/tyler/config/OperationBridgeConfiguration.java) discovers handler components when `agent.implementation=python` and injects their collection. Each handler declares its case-sensitive protocol operation name; Spring bean names do not determine routing. `MessageValidator` derives the allowed names from the shared protocol schema. Registry construction rejects null handlers, blank names, unapproved names, duplicates, and missing operations before requests can execute. Explicit Java selection does not create these handlers or the dispatcher.
 
 | Private operation | Public tool name (case-sensitive) | Destination | Transport result |
 |---|---|---|---|
@@ -28,7 +28,7 @@ The six implementations live in [bridge/handler](../src/main/java/org/tyler/serv
 ## Adding an operation
 
 1. Define the private operation in the shared protocol contract, schema, and fixtures. Coordinate Java/Python compatibility and write-effect classification, including any required protocol-version change. Registering a Java bean alone does not authorize a new wire operation.
-2. Add a focused class implementing `IOperationHandler` under `service/agent/bridge/handler`. Annotate it with `@Component` and `@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")`; return the schema's exact operation name from `operationName()`.
+2. Add a focused class implementing `IOperationHandler` under `service/agent/bridge/handler`. Annotate it with `@Component` and `@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)`; return the schema's exact operation name from `operationName()`.
 3. Inject the required service or sandbox interface through the constructor. Use `OperationPayloadMapper` for shared object conversion. Keep domain rules and transaction orchestration in the service, and preserve original exceptions for the supervisor's cause ledger. Handlers receive input after protocol validation.
 4. Add handler tests for delegation, output, and failures. Extend shared protocol fixtures and verify production Spring registration, malformed-input rejection, and the architecture boundary. Add persistence integration coverage when the operation changes stored data.
 5. Run the affected checks and update this inventory and the migration record. No dispatcher switch, central service field list, or central handler construction list needs editing.
@@ -83,7 +83,7 @@ Run `uv sync --locked --group dev` in `agent-python/` first, then `mvn -Dtest=Ag
 
 [ResponsesProvider](../agent-python/src/tyler_agent/provider.py) owns SDK conversion and safe error classification. A new asynchronous client belongs to each run and closes after success, failure, or cancellation. It uses the Java credential snapshot, the explicit OpenAI endpoint, zero SDK retries, and a request timeout of the smaller of 60 seconds and the run deadline. No key is read or client created during readiness. Authentication/permission errors become `PROVIDER_AUTH`; other SDK failures become `PROVIDER_FAILURE`, retaining local causes without logging or serializing provider detail. This follows the [Responses function-calling contract](https://developers.openai.com/api/docs/guides/function-calling).
 
-The Python worker does not replay operations or fall back to Java. New operational bounds are 100 function calls and 1,000 output items per provider response, plus the existing 16 MiB text/frame bound and five-round limit. Oversized provider output fails before that response's tools execute. These are explicit resource limits for the opt-in Python implementation. The existing run and operation deadlines also apply.
+The Python worker does not replay operations or fall back to Java. New operational bounds are 100 function calls and 1,000 output items per provider response, plus the existing 16 MiB text/frame bound and five-round limit. Oversized provider output fails before that response's tools execute. These are explicit resource limits for the Python implementation. The existing run and operation deadlines also apply.
 
 An operation failure retains Java's validated category, code, and safe message. The terminal `failed` payload replaces the operation's `writeOutcome` with the aggregate for the whole run: a successful write followed by a failed read reports `committed`, even when that read reports `none`. Uncertainty still takes precedence. The original Java cause remains in the supervisor ledger; it is not serialized to Python.
 

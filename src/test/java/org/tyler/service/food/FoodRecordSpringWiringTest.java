@@ -42,7 +42,7 @@ class FoodRecordSpringWiringTest {
         return new ApplicationContextRunner()
                 .withUserConfiguration(FileSandbox.class, FoodDaoScan.class,
                         FoodValidator.class, FoodService.class, FoodController.class, RecordFoodTool.class)
-                .withPropertyValues("agent.workspace-dir=" + tempDir,
+                .withPropertyValues("agent.implementation=java", "agent.workspace-dir=" + tempDir,
                         "food.database-path=food-record.sqlite");
     }
 

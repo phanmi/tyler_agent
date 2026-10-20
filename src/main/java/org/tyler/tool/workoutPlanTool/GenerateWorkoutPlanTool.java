@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.model.workout.WorkoutPlan;
 import org.tyler.service.workout.IWorkoutPlanService;
@@ -18,6 +19,7 @@ import java.util.Map;
  * Adapts model arguments and JSON results to the shared workout plan service.
  */
 @Component
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class GenerateWorkoutPlanTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

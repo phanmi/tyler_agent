@@ -21,6 +21,8 @@ async function startBackend() {
     console.log(`[backend] Starting JAR: ${jarPath}`)
     const started = await startBackendProcess(javaPath,
         backendArguments(app.isPackaged, process.resourcesPath), {
+            // Development resolves the worker from the repository; packaged argv uses absolute paths.
+            cwd: app.isPackaged ? undefined : path.join(__dirname, '..', '..'),
             signal: startup.signal,
             onSpawn: (child) => {
                 backendProcess = child

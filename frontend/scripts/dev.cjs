@@ -27,6 +27,8 @@ async function main() {
     try {
         started = await startBackendProcess(resolveJavaPath(),
             ['-jar', jarPath, '--server.address=127.0.0.1', '--server.port=0'], {
+                // The development worker command is relative to the repository root.
+                cwd: path.join(__dirname, '..', '..'),
                 signal: startup.signal,
                 onSpawn: (child) => { started = { child } },
                 onStdout: (data) => process.stdout.write(`[backend] ${data}`),

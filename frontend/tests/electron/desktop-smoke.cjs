@@ -79,7 +79,7 @@ function smokeEnvironment(data) {
     return {
         ...Object.fromEntries(Object.entries(process.env).filter(([key]) => osVariables.has(key.toLowerCase()))),
         TEMP: os.tmpdir(), TMP: os.tmpdir(), PATH: '', APPDATA: data, LOCALAPPDATA: data,
-        AGENT_IMPLEMENTATION: 'python', AGENT_WORKSPACE_DIR: data,
+        AGENT_WORKSPACE_DIR: data,
     }
 }
 

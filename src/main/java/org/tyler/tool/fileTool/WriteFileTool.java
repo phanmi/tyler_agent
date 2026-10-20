@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.responses.FunctionTool;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.filesandbox.IFileSandboxWrite;
@@ -17,6 +18,7 @@ import java.util.Map;
  * Lets the model write text files within the sandbox workspace.
  */
 @Component
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class WriteFileTool implements ITool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

@@ -10,7 +10,8 @@ Start here if this is your first Java or React project. These instructions targe
 |---|---|---|
 | Java Development Kit (JDK) | Compiles and runs the backend. Includes both `java` and the `javac` compiler. | **JDK 26**, matching `pom.xml`. |
 | Apache Maven | Downloads Java libraries, runs tests, and builds the backend JAR. | A stable **Maven 3.9.x** binary distribution. |
-| Node.js and npm | Run frontend build tools and install JavaScript packages. npm comes with Node.js. | **Node.js 24 LTS** is a suitable setup choice; the current dependency requires at least 22.12.0. |
+| Node.js and npm | Run frontend build tools and install JavaScript packages. npm comes with Node.js. | **Node.js 22** with npm 10 matches CI; use at least 22.12.0. |
+| Python and uv | Run and package the default agent worker. | **Python 3.12.14** and **uv 0.13.1**, pinned by the Python project. |
 | IntelliJ IDEA | Editor for navigating, editing, and debugging Java code. Command-line builds also work without it. | A current release supporting Java 26. |
 
 Install Java, Maven, and Node.js before configuring the project in IntelliJ. The paths below are examples: use the actual folders on your computer.
@@ -67,7 +68,20 @@ For the recommended setup, Node should report `v24.x.x`; npm should print its ow
 5. In **Settings > Build, Execution, Deployment > Build Tools > Maven**, select your installed Maven directory as the Maven home. Under **Runner**, select the project JDK for the JRE; under **Importing**, select it for the importer JDK. See [IntelliJ Maven configuration](https://www.jetbrains.com/help/idea/maven-support.html).
 6. Open a fresh IntelliJ terminal and run `mvn -version` and `node --version`. They should match the versions verified above. Restart IntelliJ if it was open while you changed environment variables.
 
-## 5. Download the project's dependencies and start it
+## 5. Prepare the Python worker
+
+Follow [Install the development environment](../agent-python/README.md#install-the-development-environment) to install pinned uv. From the repository root, run:
+
+```powershell
+cd agent-python
+uv sync --locked
+uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.spec
+cd ..
+```
+
+uv installs the pinned Python interpreter if needed. The worker bundle must exist before starting the app; Python is now the default agent. Maven integration tests also need the installed `.venv`. Installed release users receive bundled runtimes and do not run these development commands.
+
+## 6. Download the project's dependencies and start it
 
 The **repository root** means the folder containing `pom.xml`. In PowerShell, navigate there using your own path, for example:
 

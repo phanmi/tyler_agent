@@ -4,6 +4,7 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.service.apiKey.IApiKeyService;
@@ -16,6 +17,7 @@ import org.tyler.service.apiKey.IApiKeyService;
  * A missing key raises {@link OpenAIKeyException} only when a client is requested.
  */
 @Service
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "java")
 public class OpenAIClientFactory implements IClientFactory {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAIClientFactory.class);

@@ -6,17 +6,17 @@ This guide explains the session model, the meaning of each state and message typ
 
 ## What is implemented today?
 
-Java's [ProtocolSession](../src/main/java/org/tyler/service/agent/protocol/ProtocolSession.java) and Python's [ProtocolSession](../agent-python/src/tyler_agent/session.py) are **pure state observers**. Given a message or local event, they return a decision and update an in-memory ledger. Shared fixtures test both implementations against the same expected decisions. The opt-in Java [PythonWorker](../src/main/java/org/tyler/service/agent/python/PythonWorker.java) now owns real processes and uses the Java observer under a lock; the observer itself still performs no I/O.
+Java's [ProtocolSession](../src/main/java/org/tyler/service/agent/protocol/ProtocolSession.java) and Python's [ProtocolSession](../agent-python/src/tyler_agent/session.py) are **pure state observers**. Given a message or local event, they return a decision and update an in-memory ledger. Shared fixtures test both implementations against the same expected decisions. The Java [PythonWorker](../src/main/java/org/tyler/service/agent/python/PythonWorker.java) now owns real processes and uses the Java observer under a lock; the observer itself still performs no I/O.
 
 The runnable Python [worker](../agent-python/src/tyler_agent/worker.py) sends credential-free `ready` and executes valid runs through [WorkerRuntime](../agent-python/src/tyler_agent/runtime.py). The main thread reads and validates frames; one owned asyncio thread serializes run state, cancellable provider calls, operation futures, and stdout writes. Only one run and one Java operation can be active. Shutdown/EOF cancels and awaits owned tasks before stopping and joining the loop thread. Java's grace-period termination remains the hard boundary if library cleanup cannot finish. Malformed input or protocol violations produce a safe stderr diagnostic and exit code 2; normal shutdown/EOF exits with code 0.
 
 The Python runtime tracks request tombstones, operation IDs, and observed write outcomes. It uses the shared validator but does not instantiate the pure observer: Java's history-settlement events are local to Java, so Python has no authority to settle history. Java sends the next run only after its own operation/history ledger settles. Late results for finished requests are ignored; mismatched or repeated active operation results fail the protocol. Cancellation stops further tools and continuations, closes the request-owned client, and reports a cancellation/deadline failure. A pending write remains uncertain; cancellation never implies rollback.
 
-Application chat uses the legacy Java agent by default. Step 5 connects `PythonAgentService` behind the same HTTP contract when explicitly selected. Step 6 adds the [allowlisted service operation bridge](AGENT_OPERATIONS.md), and Step 7 adds the Python model loop and adapters. Step 8 tests the complete HTTP/Python/service persistence path with a real loopback server and subprocess, a fake model provider, and temporary SQLite/history files. Desktop packaging and rollout remain later gates.
+Application chat uses `PythonAgentService` by default behind the existing HTTP contract. Explicit Java selection is temporary restart-based rollback support. Step 6 adds the [allowlisted service operation bridge](AGENT_OPERATIONS.md), and Step 7 adds the Python model loop and adapters. Step 8 tests the complete HTTP/Python/service persistence path with a real loopback server and subprocess, a fake model provider, and temporary SQLite/history files. Step 9 packages the worker with Java; Step 10 begins default rollout while retaining the required release rollback window.
 
-## Opt-in configuration and lifecycle ownership
+## Configuration and lifecycle ownership
 
-Keep `agent.implementation=java` as the default until integration and rollout gates pass. To opt in during development, build the [Python bundle](../agent-python/README.md#build-and-smoke-test-the-windows-bundle) and set:
+Python is the default. Before starting development, build the [Python bundle](../agent-python/README.md#build-and-smoke-test-the-windows-bundle) or configure an installed development interpreter. Example explicit configuration:
 
 ```yaml
 agent:
@@ -28,7 +28,7 @@ agent:
     operation-timeout: 1m
 ```
 
-The default command resolves `agent-python/dist/tyler-agent-worker/tyler-agent-worker.exe` on Windows (no `.exe` on other platforms) relative to the backend working directory. Use an absolute path outside repository development. For an installed development environment, the command list can instead contain the absolute `.venv` Python executable followed by `-m` and `tyler_agent`. Each list entry is one argument; there is no shell parsing. Never put credentials in this list. Invalid implementation selection fails startup, with no silent fallback.
+The default command resolves `agent-python/dist/tyler-agent-worker/tyler-agent-worker.exe` on Windows (no `.exe` on other platforms) relative to the backend working directory. Use an absolute path outside repository development. For an installed development environment, the command list can instead contain the absolute `.venv` Python executable followed by `-m` and `tyler_agent`. Each list entry is one argument; there is no shell parsing. Never put credentials in this list. Invalid implementation selection or failed worker startup fails startup, with no silent fallback. During the release rollback window, set `AGENT_IMPLEMENTATION=java` and restart; see the [rollout and recovery guide](AGENT_ROLLOUT.md).
 
 The run and operation timeouts must be between 1,000 and 3,600,000 ms, with the operation timeout no longer than the run timeout. Production bounds remain 30 seconds for worker readiness, 16 queued actions, 30 seconds for queue wait, and 5 seconds of shutdown/cancellation grace. Worker readiness also remains subject to the desktop's existing overall startup deadline. Java recycles an idle worker after 10,000 runs.
 

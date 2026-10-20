@@ -41,16 +41,28 @@ class PythonAgentConfigurationTest {
             .withBean(ChatHistoryService.class, () -> mock(ChatHistoryService.class));
 
     @Test
-    void defaultAndExplicitJavaSelectOnlyLegacyServiceWithoutAWorker() {
-        for (String[] properties : List.of(new String[]{}, new String[]{"agent.implementation=java"})) {
-            runner.withPropertyValues(properties).run(context -> {
-                assertNull(context.getStartupFailure());
-                assertEquals(1, context.getBeansOfType(IAgentService.class).size());
-                assertInstanceOf(AgentService.class, context.getBean(IAgentService.class));
-                assertTrue(context.getBeansOfType(PythonWorker.class).isEmpty());
-                verifyNoInteractions(keys);
-            });
-        }
+    void explicitJavaSelectsOnlyLegacyServiceWithoutAWorker() {
+        runner.withPropertyValues("agent.implementation=java").run(context -> {
+            assertNull(context.getStartupFailure());
+            assertEquals(1, context.getBeansOfType(IAgentService.class).size());
+            assertInstanceOf(AgentService.class, context.getBean(IAgentService.class));
+            assertTrue(context.getBeansOfType(PythonWorker.class).isEmpty());
+            verifyNoInteractions(keys);
+        });
+    }
+
+    @Test
+    void defaultSelectionStartsPythonWithoutReadingKey() {
+        runner.withPropertyValues(java.util.Arrays.stream(pythonProperties("complete"))
+                .filter(value -> !value.startsWith("agent.implementation=")).toArray(String[]::new))
+                .run(context -> {
+                    assertNull(context.getStartupFailure());
+                    assertEquals(1, context.getBeansOfType(IAgentService.class).size());
+                    assertInstanceOf(PythonAgentService.class, context.getBean(IAgentService.class));
+                    assertEquals(1, context.getBeansOfType(IOperationDispatcher.class).size());
+                    assertTrue(context.getBean(PythonWorker.class).pid() > 0);
+                    verifyNoInteractions(keys);
+                });
     }
 
     @Test

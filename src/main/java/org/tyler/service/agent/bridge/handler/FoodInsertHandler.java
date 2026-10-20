@@ -10,7 +10,7 @@ import org.tyler.service.food.IFoodService;
 
 /** Appends through the shared food service and preserves its generated ID and decimal values. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python")
+@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class FoodInsertHandler implements IOperationHandler {
     private final IFoodService service;
     private final OperationPayloadMapper mapper;

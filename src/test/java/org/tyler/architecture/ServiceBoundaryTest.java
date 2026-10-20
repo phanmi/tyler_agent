@@ -17,6 +17,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServiceBoundaryTest {
 
     @Test
+    void providerDependenciesStayInTheFrozenRollbackInventory() throws Exception {
+        Path classes = Path.of(TylerAgentApplication.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI());
+        // Temporary exception: remove this inventory with the legacy implementation after its release window.
+        var legacy = java.util.Set.of("org/tyler/service/agent/AgentService", "org/tyler/service/agent/IClientFactory",
+                "org/tyler/service/agent/OpenAIClientFactory", "org/tyler/tool/ITool",
+                "org/tyler/tool/fileTool/ReadFileTool", "org/tyler/tool/fileTool/WriteFileTool",
+                "org/tyler/tool/foodRecordTool/RecordFoodTool", "org/tyler/tool/userTool/GetUserInfoTool",
+                "org/tyler/tool/workoutPlanTool/GenerateWorkoutPlanTool");
+        List<String> violations = new ArrayList<>();
+        try (var paths = Files.walk(classes.resolve("org/tyler"))) {
+            for (Path file : paths.filter(path -> path.toString().endsWith(".class")).toList()) {
+                String name = classes.relativize(file).toString().replace('\\', '/').replaceFirst("\\.class$", "");
+                for (var entry : ClassFile.of().parse(file).constantPool()) {
+                    if (entry instanceof Utf8Entry text && text.stringValue().replace('.', '/').contains("com/openai/")
+                            && !legacy.contains(name.split("\\$")[0])) {
+                        violations.add(name + ": provider dependency belongs in Python");
+                    }
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(), () -> "New Java provider dependencies: " + violations);
+    }
+
+    @Test
     void controllersToolsAndBridgeCannotReferenceStorageTypes() throws Exception {
         Path classes = Path.of(TylerAgentApplication.class.getProtectionDomain()
                 .getCodeSource().getLocation().toURI());

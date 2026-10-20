@@ -8,7 +8,7 @@ For backend implementation and review conventions, see the [backend coding and d
 
 Python agent contributors and reviewers must also follow the [Python agent coding and design standards](PYTHON_AGENT_STANDARDS.md). Setup and verification commands are in the [Python development guide](../agent-python/README.md).
 
-For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, each side's reaction, and the opt-in Step 5 supervisor configuration. The [service operation guide](AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and legacy adapter contracts. Java remains the default; real Python model/tool execution is still pending. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, each side's reaction, and the worker supervisor configuration. The [service operation guide](AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and legacy adapter contracts. Python is the default for model/tool execution. The [rollout guide](AGENT_ROLLOUT.md) documents temporary Java rollback and retirement gates. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
 
 ## Contents
 
@@ -38,6 +38,17 @@ The desktop launcher and installer configuration target Windows. Build requireme
 | Maven | Used to compile, test, and package the backend. |
 | Node.js and npm | Node.js 22.12.0 or newer, required by the Electron dependency in [package-lock.json](../frontend/package-lock.json). |
 | OpenAI API key | Required for chat; enter it in the app's Settings page. |
+
+Before either development launch below, prepare Python from the repository root:
+
+```powershell
+cd agent-python
+uv sync --locked
+uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.spec
+cd ..
+```
+
+Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers now start Java with the repository root as its working directory, so the default worker path resolves consistently. Startup does not download dependencies or silently switch to Java if the worker is missing.
 
 ### Browser development
 
@@ -89,43 +100,33 @@ The backend uses an available loopback port by default. A saved API key is neede
 
 | Area | Technologies |
 |---|---|
-| Backend | Java 26, Spring Boot 4.1.1, OpenAI Java SDK 4.54.0, Spring JDBC, SQLite. |
+| Backend | Java 26, Spring Boot 4.1.1, Spring JDBC, SQLite. OpenAI Java SDK 4.54.0 is retained only for rollback. |
+| Agent | Python 3.12.14, OpenAI Python SDK 3.31.0, private Java/Python process protocol. |
 | Frontend | React 18, TypeScript, Vite, react-calendar. |
 | Desktop | Electron, Electron Forge, Squirrel.Windows. |
-| Build | Maven and npm. |
+| Build | Maven, npm, uv, and PyInstaller. |
 
-Dependency declarations live in [pom.xml](../pom.xml) and [package.json](../frontend/package.json); the frontend lockfile records resolved npm versions.
+Dependency declarations live in [pom.xml](../pom.xml), [pyproject.toml](../agent-python/pyproject.toml), and [package.json](../frontend/package.json); the frontend lockfile records resolved npm versions.
 
 ```mermaid
 flowchart TB
-    UI["React: Chat, Workouts, Settings"]
-    Desktop["Electron main process"]
-    Controllers["Spring HTTP controllers"]
-    Services["Application services"]
-    Agent["AgentService"]
-    Tools["ITool components"]
-    Data["DAO interfaces and implementations"]
-    SQLite[("Food and workout SQLite databases")]
-    Files["Workspace files"]
-    OpenAI["OpenAI API"]
-
-    UI -->|HTTP| Controllers
-    UI -->|Window controls and backend address| Desktop
-    Desktop -->|Starts backend process| Controllers
-    Controllers --> Services
-    Services --> Agent
-    Agent <--> OpenAI
-    Agent --> Tools
-    Services --> Data
-    Tools -->|Food and workout persistence| Services
-    Data --> SQLite
-    Tools --> Files
-    Services --> Files
+    UI[React] -->|HTTP| Controllers[Spring controllers]
+    Desktop[Electron] -->|Owns| Java[Java backend]
+    Controllers --> Adapter[Java agent adapter]
+    Java -->|Owns private-pipe worker| Python[Python agent and tool adapters]
+    Adapter <-->|Run and reply| Python
+    Python <--> OpenAI[OpenAI API]
+    Python <-->|Allowlisted operations| Bridge[Java operation bridge]
+    Controllers --> Services[Shared Java services]
+    Bridge --> Services
+    Services --> Data[DAOs and SQLite]
+    Services --> Files[Workspace files]
+    Bridge --> Files
 ```
 
-For a chat request, `AgentService` loads retained history, adds the new message, and calls OpenAI with the registered tool definitions. It executes any requested tools and sends their results back to the model, up to five tool rounds. It then saves the user message and final reply and returns the reply to the frontend.
+For a chat request, the Java adapter reads the current key and bounded history and sends a request snapshot to Python. Python assembles model input, calls OpenAI, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. The old Java agent is instantiated only when explicitly selected for rollback.
 
-Controllers and services are grouped by feature. The food controller and recording tool share `IFoodService`; the workout CRUD controller and plan tool share `IWorkoutService` for persistence. Both services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
+Controllers and services are grouped by feature. The food controller and Python recording tool share `IFoodService` through the bridge. Plan HTTP/tool operations share `IWorkoutPlanService`, which coordinates persistence through `IWorkoutService`; workout CRUD also uses `IWorkoutService`. The food and workout persistence services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
 ## Repository layout
 
@@ -137,7 +138,7 @@ tyler_agent/
 │  ├─ config/                     # Startup and CORS configuration
 │  ├─ controller/                 # HTTP routes grouped by feature
 │  ├─ service/                    # Chat, history, settings, food, and workouts
-│  ├─ tool/                       # Agent tools
+│  ├─ tool/                       # Temporary legacy rollback tools
 │  ├─ dao/                        # SQLite persistence
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
@@ -148,8 +149,13 @@ tyler_agent/
 │  ├─ logback-spring.xml           # Logging configuration
 │  └─ db/                         # Food and workout SQL files
 ├─ src/test/java/org/tyler/        # Backend tests
+├─ agent-python/
+│  ├─ src/tyler_agent/             # Python agent, provider, tools, and protocol
+│  ├─ tests/                       # Python tests and helpers
+│  └─ uv.lock                      # Locked Python dependencies
 ├─ frontend/
-│  ├─ electron/                   # Main process, preload bridge, startup tests
+│  ├─ electron/                   # Main process and preload bridge
+│  ├─ tests/                      # UI, Electron, and script tests
 │  ├─ scripts/                    # Development and version synchronization
 │  ├─ src/components/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
@@ -172,7 +178,7 @@ CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; 
 
 ## Agent tools and workout persistence
 
-Spring discovers components implementing [`ITool`](../src/main/java/org/tyler/tool/ITool.java). `AgentService` receives them as a list and exposes their function definitions to OpenAI.
+Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent/tools/builtin), each with an adapter and its own schema. Tools invoke allowlisted Java service operations; see [tool extension instructions](AGENT_OPERATIONS.md#adding-a-python-tool). Legacy Java tools are retained only for explicit rollback and parity tests.
 
 | Tool | Behavior |
 |---|---|
@@ -181,13 +187,13 @@ Spring discovers components implementing [`ITool`](../src/main/java/org/tyler/to
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
 | `recordFood` | Validates food arguments and saves the record through the food service. |
-| `generateWorkoutPlan` | Generates seven dated days and saves the planned exercises through the workout service and DAO. |
+| `generateWorkoutPlan` | Requests seven dated days and saves planned exercises through the Java plan service. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
 
 Executing the tool saves nine strength exercises and three timed activity entries for a new week. Timed activities include their duration in the exercise name and use `1X1` for one session. Rest days have no workout entry. New records use weight `0` as a placeholder. Existing records with the same date and exercise name are reused, preserving their saved reps and weights.
 
-The controller and tool share a dedicated plan service and model-layer plan DTOs. The tool handles its schema, JSON parsing, and serialization; the service owns templates, preview, duplicate matching, and saving. Plan persistence uses a real transaction: the workout DAO's `JdbcTemplate` and its transaction manager share the same configured workout data source. A failed write rolls back all inserts from that request and preserves pre-existing records, without compensating deletes. Sequential repeats reuse date/name matches; concurrent deduplication is not guaranteed. If multiple matching records already exist, the last in ascending ID order is used in the returned plan without modifying any of them.
+The controller and Python tool share a dedicated Java plan service, reached through the bridge for tool calls. Java owns the model-layer plan DTOs. The tool handles its schema, JSON parsing, and serialization; the service owns templates, preview, duplicate matching, and saving. Plan persistence uses a real transaction: the workout DAO's `JdbcTemplate` and its transaction manager share the same configured workout data source. A failed write rolls back all inserts from that request and preserves pre-existing records, without compensating deletes. Sequential repeats reuse date/name matches; concurrent deduplication is not guaranteed. If multiple matching records already exist, the last in ascending ID order is used in the returned plan without modifying any of them.
 
 The calendar calls the plan service's `previewPlan` method through `GET /api/workouts/plan`. A preview does not access storage. **Add to calendar** creates an entry, while **Save exercise** creates or updates a saved entry. The preview week begins on Monday; an agent-generated plan begins on its supplied start date.
 
@@ -288,7 +294,7 @@ Backend tests cover controllers, services, tools, file access, and database oper
 
 ### Agent migration behavior baseline
 
-The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates; clean-Windows acceptance remains pending. Java remains the default until the Step 10 rollout gates pass. Python can be selected explicitly with `AGENT_IMPLEMENTATION=python`.
+The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates, verified by CI run 48 and user-confirmed clean-Windows acceptance. Step 10 makes Python the default; Java remains an explicit configuration-and-restart rollback option for one validated release. See the [rollout guide](AGENT_ROLLOUT.md).
 
 Run the agent characterization tests before changing its implementation:
 
