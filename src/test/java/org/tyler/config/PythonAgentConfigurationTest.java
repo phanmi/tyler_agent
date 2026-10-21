@@ -3,9 +3,7 @@ package org.tyler.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.tyler.controller.agent.AgentController;
-import org.tyler.service.agent.AgentService;
 import org.tyler.service.agent.IAgentService;
-import org.tyler.service.agent.IClientFactory;
 import org.tyler.service.agent.python.CoordinatedChatHistoryService;
 import org.tyler.service.agent.python.PythonAgentService;
 import org.tyler.service.agent.python.PythonWorker;
@@ -30,8 +28,7 @@ import static org.mockito.Mockito.*;
 class PythonAgentConfigurationTest {
     private final IApiKeyService keys = mock(IApiKeyService.class);
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(PythonAgentConfiguration.class, AgentService.class, AgentController.class)
-            .withBean(IClientFactory.class, () -> mock(IClientFactory.class))
+            .withUserConfiguration(PythonAgentConfiguration.class, AgentController.class)
             .withBean(IApiKeyService.class, () -> keys)
             .withBean(IFoodService.class, () -> mock(IFoodService.class))
             .withBean(IWorkoutPlanService.class, () -> mock(IWorkoutPlanService.class))
@@ -41,21 +38,8 @@ class PythonAgentConfigurationTest {
             .withBean(ChatHistoryService.class, () -> mock(ChatHistoryService.class));
 
     @Test
-    void explicitJavaSelectsOnlyLegacyServiceWithoutAWorker() {
-        runner.withPropertyValues("agent.implementation=java").run(context -> {
-            assertNull(context.getStartupFailure());
-            assertEquals(1, context.getBeansOfType(IAgentService.class).size());
-            assertInstanceOf(AgentService.class, context.getBean(IAgentService.class));
-            assertTrue(context.getBeansOfType(PythonWorker.class).isEmpty());
-            verifyNoInteractions(keys);
-        });
-    }
-
-    @Test
     void defaultSelectionStartsPythonWithoutReadingKey() {
-        runner.withPropertyValues(java.util.Arrays.stream(pythonProperties("complete"))
-                .filter(value -> !value.startsWith("agent.implementation=")).toArray(String[]::new))
-                .run(context -> {
+        runner.withPropertyValues(pythonProperties("complete")).run(context -> {
                     assertNull(context.getStartupFailure());
                     assertEquals(1, context.getBeansOfType(IAgentService.class).size());
                     assertInstanceOf(PythonAgentService.class, context.getBean(IAgentService.class));
@@ -66,7 +50,7 @@ class PythonAgentConfigurationTest {
     }
 
     @Test
-    void pythonSelectionWaitsForHandshakeWithoutReadingKey() {
+    void workerStartupWaitsForHandshakeWithoutReadingKey() {
         runner.withPropertyValues(pythonProperties("complete")).run(context -> {
             assertNull(context.getStartupFailure());
             assertEquals(1, context.getBeansOfType(IAgentService.class).size());
@@ -83,13 +67,12 @@ class PythonAgentConfigurationTest {
     }
 
     @Test
-    void invalidSelectionAndProtocolMismatchFailStartupRatherThanFallingBack() {
-        runner.withPropertyValues("agent.implementation=unknown").run(context -> assertNotNull(context.getStartupFailure()));
+    void protocolMismatchFailsStartupWithoutFallback() {
         runner.withPropertyValues(pythonProperties("mismatch")).run(context -> assertNotNull(context.getStartupFailure()));
     }
 
     private String[] pythonProperties(String mode) {
-        List<String> result = new ArrayList<>(List.of("agent.implementation=python"));
+        List<String> result = new ArrayList<>();
         List<String> command = WorkerTestSupport.settings(mode).command();
         for (int index = 0; index < command.size(); index++) result.add("agent.python.command[" + index + "]=" + command.get(index));
         return result.toArray(String[]::new);

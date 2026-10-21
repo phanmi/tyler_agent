@@ -1,7 +1,6 @@
 package org.tyler.service.agent.bridge.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.model.food.Food;
 import org.tyler.service.agent.bridge.IOperationHandler;
@@ -10,7 +9,6 @@ import org.tyler.service.food.IFoodService;
 
 /** Appends through the shared food service and preserves its generated ID and decimal values. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class FoodInsertHandler implements IOperationHandler {
     private final IFoodService service;
     private final OperationPayloadMapper mapper;

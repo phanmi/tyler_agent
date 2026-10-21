@@ -41,26 +41,6 @@ class ServiceOperationDispatcherTest {
     private final ServiceOperationDispatcher dispatcher = BridgeTestSupport.dispatcher(food, plans, profile, reader, writer,
             Clock.fixed(Instant.parse("2026-10-16T16:34:56Z"), ZoneId.of("America/New_York")));
 
-    @Test
-    void publicToolNamesAndFoodProfileOutputsRemainCompatible() throws Exception {
-        var foodTool = new org.tyler.tool.foodRecordTool.RecordFoodTool(food);
-        var profileTool = new org.tyler.tool.userTool.GetUserInfoTool(profile);
-        var tools = List.of(foodTool, new org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool(plans), profileTool,
-                new org.tyler.tool.fileTool.ReadFileTool(reader), new org.tyler.tool.fileTool.WriteFileTool(writer),
-                new org.tyler.tool.timeManagementTool.GetCurrentTimeTool());
-        assertEquals(List.of("recordFood", "generateWorkoutPlan", "GetUserInfo", "readFile", "writeFile", "getCurrentTime"),
-                tools.stream().map(org.tyler.tool.ITool::name).toList());
-        Food value = MAPPER.treeToValue(input("food").get("food"), Food.class);
-        when(food.insertFood(any())).thenAnswer(call -> new FoodEntry(42, call.getArgument(0)));
-        var result = dispatcher.dispatch("food.insert", input("food"));
-        assertEquals(foodTool.execute(MAPPER.writeValueAsString(value)), MAPPER.writerWithDefaultPrettyPrinter()
-                .writeValueAsString(MAPPER.treeToValue(result.get("food"), Food.class)));
-        when(profile.get()).thenReturn(MAPPER.treeToValue(fixture("profile_result").path("payload")
-                .path("result").path("profile"), UserInfo.class));
-        var profileResult = dispatcher.dispatch("user_info.read", input("profile"));
-        assertEquals(profileTool.execute("ignored"), MAPPER.treeToValue(profileResult.get("profile"), UserInfo.class).toString());
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"food", "plan", "profile", "file_read", "file_write", "time"})
     void allSixOperationsMatchSharedResultFixtures(String prefix) throws Exception {

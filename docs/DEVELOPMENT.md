@@ -8,7 +8,7 @@ For backend implementation and review conventions, see the [backend coding and d
 
 Python agent contributors and reviewers must also follow the [Python agent coding and design standards](PYTHON_AGENT_STANDARDS.md). Setup and verification commands are in the [Python development guide](../agent-python/README.md).
 
-For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, each side's reaction, and the worker supervisor configuration. The [service operation guide](AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and legacy adapter contracts. Python is the default for model/tool execution. The [rollout guide](AGENT_ROLLOUT.md) documents temporary Java rollback and retirement gates. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, each side's reaction, and the worker supervisor configuration. The [service operation guide](AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and preserved tool contracts. Python owns all model/tool execution. The [rollout guide](AGENT_ROLLOUT.md) documents recovery using the validated previous release. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
 
 ## Contents
 
@@ -48,7 +48,7 @@ uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.
 cd ..
 ```
 
-Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers start Java with the repository root as its working directory, so the default worker path resolves consistently. Before that change of directory, relative `BACKEND_JAR_PATH` and explicit `AGENT_WORKSPACE_DIR` overrides are resolved against the directory where the launcher was invoked. For example, launching from `frontend/` with `AGENT_WORKSPACE_DIR=./data` continues to use `frontend/data`, including in Java rollback mode. Startup does not download dependencies or silently switch to Java if the worker is missing.
+Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers start Java with the repository root as its working directory, so the default worker path resolves consistently. Before that change of directory, relative `BACKEND_JAR_PATH` and explicit `AGENT_WORKSPACE_DIR` overrides are resolved against the directory where the launcher was invoked. For example, launching from `frontend/` with `AGENT_WORKSPACE_DIR=./data` continues to use `frontend/data`. Startup does not download dependencies or silently switch to Java if the worker is missing.
 
 ### Browser development
 
@@ -100,7 +100,7 @@ The backend uses an available loopback port by default. A saved API key is neede
 
 | Area | Technologies |
 |---|---|
-| Backend | Java 26, Spring Boot 4.1.1, Spring JDBC, SQLite. OpenAI Java SDK 4.54.0 is retained only for rollback. |
+| Backend | Java 26, Spring Boot 4.1.1, Spring JDBC, SQLite. |
 | Agent | Python 3.12.14, OpenAI Python SDK 3.31.0, private Java/Python process protocol. |
 | Frontend | React 18, TypeScript, Vite, react-calendar. |
 | Desktop | Electron, Electron Forge, Squirrel.Windows. |
@@ -124,7 +124,7 @@ flowchart TB
     Bridge --> Files
 ```
 
-For a chat request, the Java adapter reads the current key and bounded history and sends a request snapshot to Python. Python assembles model input, calls OpenAI, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. The old Java agent is instantiated only when explicitly selected for rollback.
+For a chat request, the Java adapter reads the current key and bounded history and sends a request snapshot to Python. Python assembles model input, calls OpenAI, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. There is no Java provider client or alternate agent implementation.
 
 Controllers and services are grouped by feature. The food controller and Python recording tool share `IFoodService` through the bridge. Plan HTTP/tool operations share `IWorkoutPlanService`, which coordinates persistence through `IWorkoutService`; workout CRUD also uses `IWorkoutService`. The food and workout persistence services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
@@ -138,7 +138,6 @@ tyler_agent/
 │  ├─ config/                     # Startup and CORS configuration
 │  ├─ controller/                 # HTTP routes grouped by feature
 │  ├─ service/                    # Chat, history, settings, food, and workouts
-│  ├─ tool/                       # Temporary legacy rollback tools
 │  ├─ dao/                        # SQLite persistence
 │  ├─ model/                      # Application data records
 │  ├─ filesandbox/                # Workspace file access
@@ -178,7 +177,7 @@ CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; 
 
 ## Agent tools and workout persistence
 
-Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent/tools/builtin), each with an adapter and its own schema. Tools invoke allowlisted Java service operations; see [tool extension instructions](AGENT_OPERATIONS.md#adding-a-python-tool). Legacy Java tools are retained only for explicit rollback and parity tests.
+Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent/tools/builtin), each with an adapter and its own schema. Tools invoke allowlisted Java service operations; see [tool extension instructions](AGENT_OPERATIONS.md#adding-a-python-tool). Frozen release fixtures protect existing tool schemas and output formats.
 
 | Tool | Behavior |
 |---|---|
@@ -294,12 +293,14 @@ Backend tests cover controllers, services, tools, file access, and database oper
 
 ### Agent migration behavior baseline
 
-The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates, verified by CI run 48 and user-confirmed clean-Windows acceptance. Step 10 makes Python the default; Java remains an explicit configuration-and-restart rollback option for one validated release. See the [rollout guide](AGENT_ROLLOUT.md).
+The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates, verified by CI run 48 and user-confirmed clean-Windows acceptance. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See the [rollout guide](AGENT_ROLLOUT.md).
 
-Run the agent characterization tests before changing its implementation:
+Run the agent behavior and Java integration tests before changing their contracts:
 
 ```powershell
-mvn "-Dtest=AgentServiceTest,OpenAIClientFactoryTest" test
+mvn "-Dtest=PythonAgentServiceTest,AgentPersistenceIntegrationTest,AgentRestartIntegrationTest,PythonToolContractTest" test
+# From agent-python/:
+uv run --locked pytest tests/test_agent.py tests/test_tools.py tests/test_tool_registry.py
 ```
 
 The suites use deterministic provider mocks and synthetic credentials without network requests. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.

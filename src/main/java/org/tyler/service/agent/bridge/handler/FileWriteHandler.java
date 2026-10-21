@@ -2,14 +2,12 @@ package org.tyler.service.agent.bridge.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.service.agent.bridge.IOperationHandler;
 
 /** Writes through the sandbox and acknowledges the requested path only after successful completion. */
 @Component
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 public final class FileWriteHandler implements IOperationHandler {
     private final IFileSandboxWrite writer;
 

@@ -12,7 +12,7 @@ The runnable Python [worker](../agent-python/src/tyler_agent/worker.py) sends cr
 
 The Python runtime tracks request tombstones, operation IDs, and observed write outcomes. It uses the shared validator but does not instantiate the pure observer: Java's history-settlement events are local to Java, so Python has no authority to settle history. Java sends the next run only after its own operation/history ledger settles. Late results for finished requests are ignored; mismatched or repeated active operation results fail the protocol. Cancellation stops further tools and continuations, closes the request-owned client, and reports a cancellation/deadline failure. A pending write remains uncertain; cancellation never implies rollback.
 
-Application chat uses `PythonAgentService` by default behind the existing HTTP contract. Explicit Java selection is temporary restart-based rollback support. Step 6 adds the [allowlisted service operation bridge](AGENT_OPERATIONS.md), and Step 7 adds the Python model loop and adapters. Step 8 tests the complete HTTP/Python/service persistence path with a real loopback server and subprocess, a fake model provider, and temporary SQLite/history files. Step 9 packages the worker with Java; Step 10 begins default rollout while retaining the required release rollback window.
+Application chat uses `PythonAgentService` by default behind the existing HTTP contract. Python is the only agent implementation. Step 6 adds the [allowlisted service operation bridge](AGENT_OPERATIONS.md), and Step 7 adds the Python model loop and adapters. Step 8 tests the complete HTTP/Python/service persistence path with a real loopback server and subprocess, a fake model provider, and temporary SQLite/history files. Step 9 packages the worker with Java; Step 10 retires Java agent orchestration after the validated release window.
 
 ## Configuration and lifecycle ownership
 
@@ -20,7 +20,6 @@ Python is the default. Before starting development, build the [Python bundle](..
 
 ```yaml
 agent:
-  implementation: python
   python:
     command:
       - E:/path/to/tyler-agent-worker/tyler-agent-worker.exe
@@ -28,7 +27,7 @@ agent:
     operation-timeout: 1m
 ```
 
-The default command resolves `agent-python/dist/tyler-agent-worker/tyler-agent-worker.exe` on Windows (no `.exe` on other platforms) relative to the backend working directory. Use an absolute path outside repository development. For an installed development environment, the command list can instead contain the absolute `.venv` Python executable followed by `-m` and `tyler_agent`. Each list entry is one argument; there is no shell parsing. Never put credentials in this list. Invalid implementation selection or failed worker startup fails startup, with no silent fallback. During the release rollback window, set `AGENT_IMPLEMENTATION=java` and restart; see the [rollout and recovery guide](AGENT_ROLLOUT.md).
+The default command resolves `agent-python/dist/tyler-agent-worker/tyler-agent-worker.exe` on Windows (no `.exe` on other platforms) relative to the backend working directory. Use an absolute path outside repository development. For an installed development environment, the command list can instead contain the absolute `.venv` Python executable followed by `-m` and `tyler_agent`. Each list entry is one argument; there is no shell parsing. Never put credentials in this list. Failed worker startup fails application startup, with no silent fallback. Recovery requires stopping the application and installing a validated compatible release; see the [rollout and recovery guide](AGENT_ROLLOUT.md).
 
 The run and operation timeouts must be between 1,000 and 3,600,000 ms, with the operation timeout no longer than the run timeout. Production bounds remain 30 seconds for worker readiness, 16 queued actions, 30 seconds for queue wait, and 5 seconds of shutdown/cancellation grace. Worker readiness also remains subject to the desktop's existing overall startup deadline. Java recycles an idle worker after 10,000 runs.
 
@@ -55,7 +54,7 @@ Callbacks use a separate executor from both the conversation lane and the pipe r
 
 An operation exception is retained in its Java run ledger before a safe operation result is sent. The protocol stops further dispatch after that failure. A later terminal failure (or locally detected transport/cancellation failure) uses a Java-owned public message and attaches the retained local exception as its cause, preserving its original stack and nested causes. Remote error text never becomes a Java cause, and a new run cannot inherit the previous run's local failure. The cause itself is never serialized to Python or included in HTTP error bodies.
 
-Only OS runtime essentials (`SystemRoot`, temporary-directory variables, and the Linux loader path when configured) are inherited by the child. Java supplies non-secret session/parent identifiers and disables Python user-site packages. Credentials travel only in `run`, not environment variables or command arguments. Logs use safe identifiers/codes; the controller and legacy adapter also avoid logging raw chat/tool content. Specific exception advice runs before generic advice to retain the existing error categories and response shapes.
+Only OS runtime essentials (`SystemRoot`, temporary-directory variables, and the Linux loader path when configured) are inherited by the child. Java supplies non-secret session/parent identifiers and disables Python user-site packages. Credentials travel only in `run`, not environment variables or command arguments. Logs use safe identifiers/codes; the controller and Python adapter also avoid logging raw chat/tool content. Specific exception advice runs before generic advice to retain the existing error categories and response shapes.
 
 ## Session identity and ownership
 

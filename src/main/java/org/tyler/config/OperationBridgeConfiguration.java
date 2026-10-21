@@ -1,6 +1,5 @@
 package org.tyler.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +14,6 @@ import java.util.List;
 
 /** Discovers Python bridge handlers without enumerating feature services in central wiring. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 @ComponentScan(basePackageClasses = IOperationHandler.class)
 public class OperationBridgeConfiguration {
     @Bean

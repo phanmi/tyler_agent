@@ -17,22 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServiceBoundaryTest {
 
     @Test
-    void providerDependenciesStayInTheFrozenRollbackInventory() throws Exception {
+    void javaProductionHasNoProviderDependencies() throws Exception {
         Path classes = Path.of(TylerAgentApplication.class.getProtectionDomain()
                 .getCodeSource().getLocation().toURI());
-        // Temporary exception: remove this inventory with the legacy implementation after its release window.
-        var legacy = java.util.Set.of("org/tyler/service/agent/AgentService", "org/tyler/service/agent/IClientFactory",
-                "org/tyler/service/agent/OpenAIClientFactory", "org/tyler/tool/ITool",
-                "org/tyler/tool/fileTool/ReadFileTool", "org/tyler/tool/fileTool/WriteFileTool",
-                "org/tyler/tool/foodRecordTool/RecordFoodTool", "org/tyler/tool/userTool/GetUserInfoTool",
-                "org/tyler/tool/workoutPlanTool/GenerateWorkoutPlanTool");
         List<String> violations = new ArrayList<>();
         try (var paths = Files.walk(classes.resolve("org/tyler"))) {
             for (Path file : paths.filter(path -> path.toString().endsWith(".class")).toList()) {
                 String name = classes.relativize(file).toString().replace('\\', '/').replaceFirst("\\.class$", "");
                 for (var entry : ClassFile.of().parse(file).constantPool()) {
-                    if (entry instanceof Utf8Entry text && text.stringValue().replace('.', '/').contains("com/openai/")
-                            && !legacy.contains(name.split("\\$")[0])) {
+                    if (entry instanceof Utf8Entry text && text.stringValue().replace('.', '/').contains("com/openai/")) {
                         violations.add(name + ": provider dependency belongs in Python");
                     }
                 }
@@ -42,11 +35,11 @@ class ServiceBoundaryTest {
     }
 
     @Test
-    void controllersToolsAndBridgeCannotReferenceStorageTypes() throws Exception {
+    void controllersAndBridgeCannotReferenceStorageTypes() throws Exception {
         Path classes = Path.of(TylerAgentApplication.class.getProtectionDomain()
                 .getCodeSource().getLocation().toURI());
         List<String> violations = new ArrayList<>();
-        for (String layer : List.of("controller", "tool", "service/agent/bridge")) {
+        for (String layer : List.of("controller", "service/agent/bridge")) {
             Path directory = classes.resolve("org/tyler/" + layer);
             try (var paths = Files.walk(directory)) {
                 List<Path> classFiles = paths.filter(path -> path.toString().endsWith(".class")).toList();
@@ -58,8 +51,7 @@ class ServiceBoundaryTest {
                             if (value.contains("org/tyler/dao/") || value.contains("org/tyler/dal/")) {
                                 violations.add(classes.relativize(classFile) + ": " + text.stringValue());
                             }
-                            if (layer.equals("service/agent/bridge") && (value.contains("org/tyler/tool/")
-                                    || value.contains("com/openai/") || value.contains("java/sql/")
+                            if (layer.equals("service/agent/bridge") && (value.contains("com/openai/") || value.contains("java/sql/")
                                     || value.contains("org/springframework/jdbc/"))) {
                                 violations.add(classes.relativize(classFile) + ": " + text.stringValue());
                             }

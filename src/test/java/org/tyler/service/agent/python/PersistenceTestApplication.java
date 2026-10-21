@@ -49,8 +49,6 @@ final class PersistenceTestApplication implements AutoCloseable {
         base = "http://127.0.0.1:" + context.getEnvironment().getProperty("local.server.port");
         context.getBean(IApiKeyService.class).save("SYNTHETIC_INTEGRATION_KEY");
         assertInstanceOf(PythonAgentService.class, context.getBean(org.tyler.service.agent.IAgentService.class));
-        assertTrue(context.getBeansOfType(org.tyler.service.agent.IClientFactory.class).isEmpty());
-        assertTrue(context.getBeansOfType(org.tyler.tool.ITool.class).isEmpty());
         assertTrue(ProcessHandle.of(worker.pid()).orElseThrow().isAlive());
     }
 

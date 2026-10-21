@@ -43,17 +43,14 @@ function captureLaunch(entry, directory) {
 }
 
 for (const entry of ['scripts/dev.cjs', 'electron/main.cjs']) {
-    const cases = ['python', 'java'].flatMap(implementation =>
-        ['relative', 'absolute'].map(jarPath => ({ implementation, jarPath })))
-    for (const { implementation, jarPath } of cases) {
-        test(`${entry}: ${jarPath} JAR and existing relative workspace survive child cwd in ${implementation} mode`,
+    for (const jarPath of ['relative', 'absolute']) {
+        test(`${entry}: ${jarPath} JAR and existing relative workspace survive child cwd`,
             { timeout: 10000 }, async () => {
                 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'Tyler relative paths '))
                 const originalDirectory = process.cwd()
                 const originalEnvironment = {
                     BACKEND_JAR_PATH: process.env.BACKEND_JAR_PATH,
                     AGENT_WORKSPACE_DIR: process.env.AGENT_WORKSPACE_DIR,
-                    AGENT_IMPLEMENTATION: process.env.AGENT_IMPLEMENTATION,
                 }
                 let child
                 let exited
@@ -70,7 +67,6 @@ for (const entry of ['scripts/dev.cjs', 'electron/main.cjs']) {
                     process.env.BACKEND_JAR_PATH = jarPath === 'relative'
                         ? '../target/chosen.jar' : path.join(root, 'target/chosen.jar')
                     process.env.AGENT_WORKSPACE_DIR = './data'
-                    process.env.AGENT_IMPLEMENTATION = implementation
                     const launch = await captureLaunch(entry, path.join(launchDirectory, path.dirname(entry)))
                     const { cwd, env } = launch.options
                     // A real child resolves the exact captured -jar path and effective workspace.
@@ -79,7 +75,7 @@ for (const entry of ['scripts/dev.cjs', 'electron/main.cjs']) {
                         onSpawn(process) { child = process; exited = once(child, 'exit') },
                     })
                     assert.equal(started.port, 43210)
-                    assert.equal(fs.readFileSync(path.join(workspace, 'saved.txt'), 'utf8'), implementation)
+                    assert.equal(fs.readFileSync(path.join(workspace, 'saved.txt'), 'utf8'), 'saved')
                     assert.equal(fs.readFileSync(path.join(workspace, 'history.json'), 'utf8'), 'existing history')
                     assert.equal(fs.readFileSync(path.join(root, 'data', 'history.json'), 'utf8'), 'different workspace')
                     assert.equal(fs.existsSync(path.join(root, 'data', 'saved.txt')), false)

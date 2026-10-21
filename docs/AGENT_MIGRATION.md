@@ -6,21 +6,21 @@ This tracker covers moving agent orchestration, OpenAI communication, and tool a
 
 **Direction:** Java to Python, confirmed on 2026-10-16.
 
-**Current state (refreshed 2026-10-20):** Committed baseline `5b33012` includes the Step 10 Python-default rollout, rollback tests, and **0.2.1** release preparation. The current correction preserves relative development JAR/workspace overrides in both launchers; see the latest execution record and [release notes](releases/0.2.1.md). Previous CI and user-confirmed clean-Windows results remain dated below. Step 10 remains **partial** until one validated release and subsequent legacy retirement are recorded. The 0.2.1 candidate is not yet published; see [rollout and recovery](AGENT_ROLLOUT.md).
+**Current state (refreshed 2026-10-21):** Retirement work starts from clean committed `dbc6f1e`, whose tracked tree matches published v0.2.1 (`2e43873`). CI runs 52 and 53 passed for those revisions. The user confirmed completion of v0.2.1 validation including restart/rollback and identified the matching installer in `frontend/out`. Java orchestration/tools and the provider SDK are removed in the current uncommitted retirement changes; Python is the only agent runtime. All post-removal local checks passed; Step 10 is complete in the working tree. Verification is recorded below. Recovery uses the exact validated v0.2.1 release, not a runtime selector. See [rollout and recovery](AGENT_ROLLOUT.md).
 
 ## Current implementation baseline
 
 | Area | Verified current state and source |
 |---|---|
-| Food validation | [FoodService](../src/main/java/org/tyler/service/food/FoodService.java) invokes the injected `IValidator<Food>` implemented by [FoodValidator](../src/main/java/org/tyler/validation/FoodValidator.java) before DAO insertion. Required fields, real calendar dates, and nonnegative amounts/nutrition are shared domain rules. The default [Python food adapter](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) parses tool input and requests `food.insert`; the bridge calls `IFoodService`. The Java tool remains only for explicit rollback. |
-| Workout and plan validation | [WorkoutValidator](../src/main/java/org/tyler/validation/WorkoutValidator.java) enforces workout rules through the workout service. [WorkoutPlanService](../src/main/java/org/tyler/service/workout/WorkoutPlanService.java) owns plan date/goal/equipment validation, including the seven-representable-days guard. The default [Python plan adapter](../agent-python/src/tyler_agent/tools/builtin/workout_plan/adapter.py) requests `workout_plan.generate_save`; its bridge calls the same plan service. The Java tool remains only for explicit rollback. |
+| Food validation | [FoodService](../src/main/java/org/tyler/service/food/FoodService.java) invokes the injected `IValidator<Food>` implemented by [FoodValidator](../src/main/java/org/tyler/validation/FoodValidator.java) before DAO insertion. Required fields, real calendar dates, and nonnegative amounts/nutrition are shared domain rules. The default [Python food adapter](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) parses tool input and requests `food.insert`; the bridge calls `IFoodService`. The Java bridge delegates to the same service; there is no Java model-facing tool. |
+| Workout and plan validation | [WorkoutValidator](../src/main/java/org/tyler/validation/WorkoutValidator.java) enforces workout rules through the workout service. [WorkoutPlanService](../src/main/java/org/tyler/service/workout/WorkoutPlanService.java) owns plan date/goal/equipment validation, including the seven-representable-days guard. The default [Python plan adapter](../agent-python/src/tyler_agent/tools/builtin/workout_plan/adapter.py) requests `workout_plan.generate_save`; its bridge calls the same plan service. The Java bridge delegates to the same service; there is no Java model-facing tool. |
 | HTTP validation | [GenericExceptionHandler](../src/main/java/org/tyler/exceptionHandler/GenericExceptionHandler.java) explicitly maps missing required parameters and argument type mismatches to HTTP 400. [DomainValidationContractTest](../src/test/java/org/tyler/service/DomainValidationContractTest.java) exercises real shared services behind HTTP and tool adapters. |
 | Frontend checks | [package.json](../frontend/package.json) includes `typecheck`, `test:ui`, `test:startup`, and `test:version`. Tests/helpers live under [frontend/tests](../frontend/tests); [Vitest configuration](../frontend/vitest.config.ts) selects `tests/**/*.test.{ts,tsx}`. These changes are already merged. |
-| CI | [Run 48](https://github.com/phanmi/tyler_agent/actions/runs/39290936729) passed both jobs and uploaded verified Windows artifacts on `b029ce5`. Required-check configuration is user-confirmed; attachment pending. Step 10 is committed in `e648ea1`; this historical run does not verify the 0.2.1 candidate. |
+| CI | [Run 52](https://github.com/phanmi/tyler_agent/actions/runs/39454630874) passed on `dbc6f1e`; [run 53](https://github.com/phanmi/tyler_agent/actions/runs/39481721083) passed on release `2e43873`. These baseline runs do not verify uncommitted retirement changes. |
 | Python execution | [Worker and development commands](../agent-python/README.md), [runtime](../agent-python/src/tyler_agent/runtime.py), [agent loop](../agent-python/src/tyler_agent/agent.py), [provider](../agent-python/src/tyler_agent/provider.py), and [adapters](../agent-python/src/tyler_agent/tools) implement Step 7. Readiness needs no key; a valid run uses its supplied credential snapshot and executes through the Java operation bridge. |
-| Latest local verification | See the latest relative-path correction record for affected frontend checks and the 0.2.1 release-preparation record for backend/Python verification; Step 10 results refer to its recorded earlier baseline. Earlier launcher, backend, Python, frontend, and clean-environment observations remain historical evidence. |
+| Latest local verification | See the 2026-10-21 retirement execution record for current checks. Earlier test totals and local/hosted/clean-environment observations remain historical evidence. |
 
-The Step 10 rollout and 0.2.1 preparation are committed in `5b33012`. Only the current relative-path correction, regressions, and documentation are uncommitted. No release has been published by this task. Record the final release commit, artifact, and validated-release outcome before retiring Java.
+Release v0.2.1 was published on 2026-10-20. The uploaded installer SHA-256 is `c6dcc8715aac2f76a8043146e7554243d5e554ccd58bfa4b5dcbfb0c0371be37`, matching the local artifact inspected before retirement. The release's validated-window acceptance is user-confirmed on 2026-10-21; this is distinct from independently inspected GitHub publication/CI and local automated checks. Retirement changes are not yet committed or released.
 
 ## Progress
 
@@ -35,7 +35,7 @@ The Step 10 rollout and 0.2.1 preparation are committed in `5b33012`. Only the c
 | 7 | Port the agent loop and tool adapters | Complete | Fake-provider parity matrix, all six schemas/output contracts, real pipe execution/cancellation, SDK no-retry checks, and rebuilt bundle tests pass; see the dated Step 7 record. |
 | 8 | Verify the complete persistence path | Complete | 17 real HTTP/Python/service integration cases cover persistence, actual rollback, failures/history, interrupted writes, concurrency, cancellation, late results, and shutdown. See the dated Step 8 record. |
 | 9 | Integrate desktop packaging and CI | Complete (user-confirmed clean-machine gate) | CI run 48 passed both jobs. User confirmed clean-Windows acceptance and required checks; report/configuration attachment pending. |
-| 10 | Roll out Python and retire the Java agent | Partially complete | Python default, rollback exercise, architecture checks, and retirement inventory implemented. One validated release and subsequent legacy removal remain pending. |
+| 10 | Roll out Python and retire the Java agent | Complete (working tree) | v0.2.1 validation confirmed; legacy code/SDK/selector retired. Backend, Python, frontend, recovery compatibility, and packaged checks passed. See the 2026-10-21 record. |
 
 The roadmap includes completed and future work. Check the progress table and dated evidence before treating a configuration, component, or test as available.
 
@@ -75,7 +75,7 @@ Migration constraints:
 - Do not replay a conversation or write operation automatically after an uncertain result, or silently fall back to Java after tools may have run.
 - Keep credentials out of process arguments and logs. Transfer the credential snapshot through the private pipe and refresh it for later requests after a key change.
 - Use the existing global release-version source. A protocol compatibility version is a separate concept.
-- All agent functionality must be implemented in Python under the [backend standards](BACKEND_STANDARDS.md#agent-implementation-language). Existing Java agent code is temporary migration/rollback code; the retained Java process adapter and operation bridge implement infrastructure and service access, not agent decisions.
+- All agent functionality must be implemented in Python under the [backend standards](BACKEND_STANDARDS.md#agent-implementation-language). The retired Java agent must not be reintroduced; the retained Java process adapter and operation bridge implement infrastructure and service access, not agent decisions.
 
 ## Executable roadmap
 
@@ -248,13 +248,13 @@ Step 3 defines the contract and fixture expectations in [agent protocol version 
 
 **Definition of done**
 
-- [x] Steps 1-9 have passed their acceptance criteria, and the rollout candidate is recorded: release 0.2.1, committed Step 10 baseline `e648ea1` plus release metadata changes. Record the final release commit/artifact before deployment; prerequisite clean-machine/required-check evidence is user-confirmed.
-- [x] Python is the tested default in development and packaged runs, preserving HTTP/tool contracts and existing persisted data. Step 10 checks below include restart compatibility and 10 packaged scenarios with the selector unset.
-- [ ] During one validated release, switching configuration and restarting restores the legacy implementation without replaying in-flight requests; the rollback exercise and release are recorded. Automated restart/data-preservation exercise implemented; the actual validated-release window remains pending.
-- [ ] After that window, a caller inventory precedes removal of obsolete Java agent/tool code, Java provider dependencies, and the temporary implementation selector. Remaining Java adapters implement infrastructure/service access only.
-- [ ] Production code, tests, configuration, and active documentation contain no obsolete legacy-type references; dated historical records may retain them as history.
-- [ ] Architecture checks enforce Python agent ownership and the shared service boundary; the full required test/build/package suite passes after removal.
-- [ ] Standards, setup, operation, testing, and recovery documentation match the final architecture. The replacement recovery procedure uses a previously validated release after the legacy implementation is removed.
+- [x] Steps 1-9 passed their acceptance criteria. Validated rollout release v0.2.1 is recorded at `2e43873`, with the published installer digest and successful release CI run 53. Clean-machine/release acceptance is user-confirmed.
+- [x] Python is the tested default in development and packaged runs, preserving HTTP/tool contracts and existing persisted data. Step 10 checks below include restart/recovery compatibility and 10 packaged scenarios; the selector has been removed.
+- [x] The v0.2.1 release window and restart/rollback acceptance are user-confirmed on 2026-10-21. Publication/asset digest and CI runs 52/53 were inspected; both baseline rollback integration cases passed immediately before retirement. See the dated evidence below.
+- [x] After that window, a caller inventory precedes removal of obsolete Java agent/tool code, Java provider dependencies, and the temporary implementation selector. Remaining Java adapters implement infrastructure/service access only.
+- [x] Production code, tests, configuration, and active documentation contain no obsolete legacy-type references; dated historical records may retain them as history.
+- [x] Architecture checks enforce Python agent ownership and the shared service boundary; the full required test/build/package suite passes after removal.
+- [x] Standards, setup, operation, testing, and recovery documentation match the final architecture. The replacement recovery procedure uses a previously validated release after the legacy implementation is removed.
 
 
 ## Execution record
@@ -265,8 +265,8 @@ Historical source: `f18aa42`, with characterization changes then uncommitted. Th
 
 The then-existing Java implementation was characterized before any migration of production code:
 
-- Expanded [AgentServiceTest](../src/test/java/org/tyler/service/agent/AgentServiceTest.java) from 2 to 30 executed cases.
-- Expanded [OpenAIClientFactoryTest](../src/test/java/org/tyler/service/agent/OpenAIClientFactoryTest.java) from 3 to 14 executed cases. Constructed SDK clients use synthetic keys and are closed during test cleanup.
+- Expanded [AgentServiceTest](https://github.com/phanmi/tyler_agent/blob/dbc6f1e/src/test/java/org/tyler/service/agent/AgentServiceTest.java) from 2 to 30 executed cases.
+- Expanded [OpenAIClientFactoryTest](https://github.com/phanmi/tyler_agent/blob/dbc6f1e/src/test/java/org/tyler/service/agent/OpenAIClientFactoryTest.java) from 3 to 14 executed cases. Constructed SDK clients use synthetic keys and are closed during test cleanup.
 - Added assertions for full overridden tool schemas using the real plan-tool adapter, alongside default no-argument schemas.
 - Verified real plan-tool parsing failures without invoking its application service.
 - Added exact exception-type and retained-cause/identity assertions, ordered call/output checks, history checks, and checks that completed tools are not replayed.
@@ -979,3 +979,46 @@ The original four relative-JAR cases failed before the fix (backend exit before 
 
 
 **Packaged verification:** Rebuilt the 0.2.1 installer and passed all **10 packaged smoke scenarios** on Windows build 10.0.26200, with the default Python selection and isolated temporary data. Evidence: `target/relative-paths-make.log`, `target/relative-paths-desktop.log`, and `target/desktop-smoke-b6p8us/report.json`. The corrected installer supersedes the earlier local candidate; active release notes and `frontend/out/make/squirrel.windows/x64/SHA256SUMS.txt` now use its hashes. Installer SHA-256: `32c885af29e60d13bee65dea78049b6bfd5f80e2bcda8e1b318f549ba240b9e3`; full package: `832d430f2bc671d6c41abe03594ea1464d39cb9a9978db95f4e91126ac7d2afd`; `RELEASES`: `f42362fe8b85113681259153c3aaf50744b542efc9c6cb0ff3eddde76801201f`. The Java/Python artifacts are unchanged. All 107 local links/anchors in the affected guides resolve; `git diff --check` passes. No publication, user-data relocation, or new hosted CI result is claimed.
+
+
+### 2026-10-21 — Step 10 completed: retire the Java agent
+
+**Baseline and release gate:** Started with clean `dbc6f1e6b6928121cd11f6c0ab738835e8467b80`. Its tracked tree is identical to published v0.2.1 merge commit `2e43873c8c642c68e8645141a2ad45cc9b60f02a`. Inspected GitHub publication metadata and successful CI [run 52](https://github.com/phanmi/tyler_agent/actions/runs/39454630874) / [run 53](https://github.com/phanmi/tyler_agent/actions/runs/39481721083). The release was published on 2026-10-20 at 16:18 EDT. The uploaded 296,082,944-byte installer digest matches the local `frontend/out` installer: `c6dcc8715aac2f76a8043146e7554243d5e554ccd58bfa4b5dcbfb0c0371be37`.
+
+The user confirmed completion of release validation including restart/rollback on 2026-10-21, identifying that installer. This is user-attested release acceptance; no independent clean-machine report was provided. Both existing rollback integration cases were rerun successfully before removal. The published installer and its backend JAR were preserved locally under ignored `agent-python/build-desktop-test/retirement-baseline/` before rebuilding; the published GitHub asset remains the durable recovery source.
+
+**Caller inventory and changes:** Searched production, tests, configuration, frontend tests, and documentation before deleting anything.
+
+| Retired responsibility | Disposition / retained coverage |
+|---|---|
+| Java `AgentService`, `IClientFactory`, `OpenAIClientFactory` | Removed orchestration/provider ownership and characterization/factory tests. Retained `IAgentService`, Python worker/service/lane/history coordination, HTTP contracts, and Python agent/provider behavior tests. |
+| `ITool` and six Java model-facing tools | Removed production classes and obsolete tool tests. Domain validation and food wiring tests now use retained bridge handlers/shared services. Python tools and their tests own parsing, schemas, and output behavior. |
+| Java provider dependency | Removed `com.openai:openai-java` and its logger entry. Resolved dependency tree and rebuilt JAR contain no OpenAI Java SDK. |
+| Temporary runtime selector and conditional wiring | Removed from YAML, Python configuration, operation configuration and all six handlers. Worker/bridge startup is unconditional; handshake failures still fail startup. Frontend path tests retain both launchers and relative/absolute JAR cases without obsolete Java-mode variants. |
+| Parity and rollback assertions | Frozen release schemas in `tool-definitions.json` plus existing output goldens replace live Java-builder comparisons. Both Java and Python test the schema fixture. `AgentRestartIntegrationTest` retains success/failure-after-commit, stable-ID, history, and no-replay checks across Python restarts. |
+| Architecture / documentation | Removed the provider-import allowlist. Retained compiled controller/bridge storage checks and Python database-import checks. Updated standards, development, operations, session/protocol, packaging, release status, and recovery instructions. Historical deleted-source links are pinned to `dbc6f1e`. |
+
+No training rules, API/tool shapes, database schemas, workspace paths, record IDs, protocol version, or Python runtime algorithm changed. Shared Java services, validators, DAOs, sandbox operations and transaction behavior remain. The new schema fixture is test data; production tool definitions remain separate per-tool files.
+
+**Verification:** Windows x64 build 10.0.26200; OpenJDK 26.0.2.1; Maven via IntelliJ; Node 22.23.3/npm 10.9.9; uv 0.13.1 and CPython 3.12.14. Dependencies remain locked. All operations used temporary data and deterministic providers, with no live model calls or user workspace access.
+
+| Command/check | Result |
+|---|---|
+| Baseline `mvn -Dtest=AgentRollbackIntegrationTest test` | **2 passed** before deletion. |
+| Maven clean build, then full `mvn --batch-mode -o verify` after correcting a migrated test fixture | **656 passed, 0 failures/errors/skips**; rebuilt backend JAR. The reduction from 731 removes 75 legacy-only cases; shared service/HTTP/persistence/worker coverage remains. |
+| `mvn dependency:tree` and packaged-JAR inspection | Passed; no OpenAI Java SDK or retired tool classes. |
+| `uv sync --locked`; Ruff format/check; mypy for Linux and Windows | Passed; **52** Python source/test files checked. |
+| `uv run --locked pytest tests` | **366 passed**, including the new released-schema regression. |
+| Rebuild production worker and desktop fault-injection worker; full pytest with `--worker-executable` | **377 passed**, including relocated packaged-worker checks. |
+| Node 22 startup/version/UI suites, `typecheck`, `build` | **22 startup**, **3 version**, **42 UI** tests passed; type check and build passed. Four redundant Java-selector variants were removed from the previous 26 startup cases. No standalone frontend lint script is configured. |
+| Cross-release recovery with real backend JARs | Passed: retirement Python writes food/plan/history; published v0.2.1 Java mode reads the same IDs/history/key, deletes one independently addressable food record and updates a workout; retirement Python reads those changes without replay and appends a new chat once. |
+| `npm run make`, `npm run test:runtime`, `npm run test:desktop` | Passed: native Unicode-path launcher regression and all **10** packaged scenarios, including startup failures, active-request exit, and installer-obsolete. |
+| Final review | Changed comments/logging and exception coverage inspected. Removed-type/selector search is clear outside dated historical records; provider strings remain only as architecture prohibitions. Local documentation links/anchors and `git diff --check` pass. |
+
+**Corrections during verification:** The initial clean Maven run exposed two migrated decimal tests that incorrectly parsed numeric JSON through an intermediate floating-point tree. The helper now creates the exact decimal-string transport representation used by the real protocol; production behavior was unchanged. All 656 cases then passed. The dependency-tree check initially could not run offline because its configured Maven report plugin was uncached; the online retry installed the report plugin and passed. No checks were skipped or weakened.
+
+**Recovery evidence:** `target/retirement-recovery/report.json` and its three backend logs record the cross-release exercise. Recovery JAR SHA-256: `a0da3d84bda77cf5e3e5776673233c5d19c9afc5fdc126fdf3c7a0af2a0e3b60`; retirement JAR: `d0696cdd4cec63502804fd99fa5f3f0ef2545897562d90a63c9028db05b7e1bd`. This proves the exercised data compatibility, not Windows installer downgrade/upgrade behavior.
+
+**Packaged evidence:** `target/desktop-smoke-Frizb3/report.json`, `target/java-runtime-T5YS3i/result.json`, and command logs under ignored `agent-python/step10-retirement-*.log`. The retirement installer SHA-256 is `f608aa6c9e4ad15eb202563ebcd5817862d6feeb302566ea380d5b25bb1a3710`; its worker executable SHA-256 is `7ea1a74e55fed7b5b3edf53f193df33d76d620ebd64245b8f05e9d24ae24dfba`. These are local working-tree artifacts, not the published recovery installer. Final comment-only cleanup followed the behavior/build checks.
+
+**Completion and limitations:** All Step 10 acceptance items are satisfied locally, using the user's explicit confirmation for the validated-release gate. Retirement changes remain uncommitted and unpublished; no new hosted CI result or independent clean-machine installer test is claimed. The global version remains 0.2.1 because no new release was requested. Assign a new release version before publishing this retirement build; do not replace the validated recovery artifact. The recovery procedure now identifies the exact published v0.2.1 installer and preserves existing data. No automatic fallback/replay or concurrent deduplication is claimed.

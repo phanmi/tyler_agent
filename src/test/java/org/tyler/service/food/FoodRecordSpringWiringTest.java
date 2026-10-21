@@ -12,7 +12,8 @@ import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.controller.food.FoodController;
-import org.tyler.tool.foodRecordTool.RecordFoodTool;
+import org.tyler.service.agent.bridge.handler.FoodInsertHandler;
+import org.tyler.service.agent.bridge.OperationPayloadMapper;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
 import org.tyler.model.food.GenericInfo;
@@ -41,8 +42,8 @@ class FoodRecordSpringWiringTest {
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(FileSandbox.class, FoodDaoScan.class,
-                        FoodValidator.class, FoodService.class, FoodController.class, RecordFoodTool.class)
-                .withPropertyValues("agent.implementation=java", "agent.workspace-dir=" + tempDir,
+                        FoodValidator.class, FoodService.class, FoodController.class, FoodInsertHandler.class, OperationPayloadMapper.class)
+                .withPropertyValues("agent.workspace-dir=" + tempDir,
                         "food.database-path=food-record.sqlite");
     }
 
@@ -57,7 +58,7 @@ class FoodRecordSpringWiringTest {
                     assertSame(context.getBean(FoodService.class), service);
                     assertSame(dao, ReflectionTestUtils.getField(service, "dao"));
                     FoodController controller = context.getBean(FoodController.class);
-                    RecordFoodTool tool = context.getBean(RecordFoodTool.class);
+                    FoodInsertHandler handler = context.getBean(FoodInsertHandler.class);
                     assertTrue(service.getFoodRecordsByDate("2026-09-27").isEmpty());
                     String date = "2026-09-27";
                     Food food = new Food(
@@ -67,7 +68,8 @@ class FoodRecordSpringWiringTest {
                                     new BigDecimal("0.2"), new BigDecimal("2.4")));
 
                     ObjectMapper mapper = new ObjectMapper();
-                    assertEquals(food, mapper.readValue(tool.execute(mapper.writeValueAsString(food)), Food.class));
+                    assertEquals(food, mapper.treeToValue(handler.execute(mapper.createObjectNode()
+                            .set("food", mapper.valueToTree(food))).get("food"), Food.class));
                     assertEquals(List.of(food), service.getFoodRecordsByDate(date).stream().map(FoodEntry::food).toList());
                     List<FoodEntry> records = controller.foodByDate(date);
                     assertEquals(1, records.size());
