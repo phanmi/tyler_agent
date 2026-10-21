@@ -1,7 +1,6 @@
 package org.tyler.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
@@ -22,9 +21,8 @@ import org.tyler.service.chatHistory.IChatHistoryService;
 import java.time.Duration;
 import java.util.List;
 
-/** Default Python wiring; explicit Java selection retains restart-based migration rollback. */
+/** Wires the Python worker, shared conversation lane, and Java-owned application services. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "agent.implementation", havingValue = "python", matchIfMissing = true)
 @Import(OperationBridgeConfiguration.class)
 public class PythonAgentConfiguration {
     @Bean

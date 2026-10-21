@@ -15,8 +15,6 @@ import org.tyler.service.food.FoodService;
 import org.tyler.service.userInfo.IUserInfoService;
 import org.tyler.service.workout.IWorkoutService;
 import org.tyler.service.workout.WorkoutPlanService;
-import org.tyler.tool.foodRecordTool.RecordFoodTool;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
 import org.tyler.validation.FoodValidator;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -30,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.tyler.service.agent.bridge.ServiceOperationDispatcherTest.input;
 
-/** The bridge and legacy adapters reach real shared validators, before any storage or transaction. */
+/** The bridge and direct service callers reach real shared validators, before any storage or transaction. */
 class BridgeValidationTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final IFoodRecordDAO dao = mock(IFoodRecordDAO.class);
@@ -74,10 +72,10 @@ class BridgeValidationTest {
 
     @ParameterizedTest
     @MethodSource("invalidFood")
-    void foodDomainErrorsMatchLegacyServicePath(ObjectNode invalid) throws Exception {
+    void foodDomainErrorsMatchSharedServicePath(ObjectNode invalid) throws Exception {
         Food value = MAPPER.treeToValue(invalid.path("food"), Food.class);
         var expected = assertThrowsExactly(IllegalArgumentException.class,
-                () -> new RecordFoodTool(food).execute(MAPPER.writeValueAsString(value)));
+                () -> food.insertFood(value));
         var actual = assertThrowsExactly(IllegalArgumentException.class, () -> dispatcher.dispatch("food.insert", invalid));
         assertEquals(expected.getMessage(), actual.getMessage());
         verifyNoInteractions(dao);
@@ -97,9 +95,10 @@ class BridgeValidationTest {
 
     @ParameterizedTest
     @MethodSource("invalidPlans")
-    void planDomainErrorsMatchLegacyServicePath(ObjectNode invalid) {
+    void planDomainErrorsMatchSharedServicePath(ObjectNode invalid) {
         var expected = assertThrowsExactly(IllegalArgumentException.class,
-                () -> new GenerateWorkoutPlanTool(plans).execute(invalid.toString()));
+                () -> plans.generateAndSave(invalid.path("startDate").asText(null),
+                        invalid.path("goal").asText(null), invalid.path("equipment").asText(null)));
         var actual = assertThrowsExactly(IllegalArgumentException.class,
                 () -> dispatcher.dispatch("workout_plan.generate_save", invalid));
         assertEquals(expected.getMessage(), actual.getMessage());

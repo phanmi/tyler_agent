@@ -14,8 +14,6 @@ openai:
   key-file-path: ${OPENAI_KEY_FILE_PATH:apikey.txt}
 
 agent:
-  # Python is the default; select java and restart for the migration rollback window.
-  implementation: ${AGENT_IMPLEMENTATION:python}
   workspace-dir: ${AGENT_WORKSPACE_DIR:}
 
 userinfo:

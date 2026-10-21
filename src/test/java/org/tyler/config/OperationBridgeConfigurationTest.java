@@ -30,13 +30,8 @@ class OperationBridgeConfigurationTest {
             .withBean(IFileSandboxWrite.class, () -> mock(IFileSandboxWrite.class));
 
     @Test
-    void discoversExactlyTheSchemaOperationsOnlyForPython() {
-        runner.withPropertyValues("agent.implementation=java").run(context -> {
-            assertNull(context.getStartupFailure());
-            assertTrue(context.getBeansOfType(IOperationHandler.class).isEmpty());
-            assertTrue(context.getBeansOfType(IOperationDispatcher.class).isEmpty());
-        });
-        runner.withPropertyValues("agent.implementation=python").run(context -> {
+    void discoversExactlyTheSchemaOperations() {
+        runner.run(context -> {
             assertNull(context.getStartupFailure());
             var handlers = context.getBeansOfType(IOperationHandler.class).values();
             var allowed = context.getBean(MessageValidator.class).supportedOperations();
@@ -52,7 +47,7 @@ class OperationBridgeConfigurationTest {
     void invalidOrDuplicateHandlerStopsStartup(String name) {
         var extra = mock(IOperationHandler.class);
         when(extra.operationName()).thenReturn(name);
-        runner.withPropertyValues("agent.implementation=python")
+        runner
                 .withBean("extraHandler", IOperationHandler.class, () -> extra)
                 .run(context -> {
                     Throwable failure = context.getStartupFailure();
@@ -65,7 +60,7 @@ class OperationBridgeConfigurationTest {
 
     @Test
     void missingHandlerStopsStartupWithItsOperationName() {
-        runner.withPropertyValues("agent.implementation=python")
+        runner
                 .withInitializer(context -> context.addBeanFactoryPostProcessor(factory ->
                         ((BeanDefinitionRegistry) factory).removeBeanDefinition("fileReadHandler")))
                 .run(context -> {

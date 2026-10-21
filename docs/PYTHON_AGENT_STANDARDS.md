@@ -63,7 +63,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 - Keep malformed input, domain rejection, provider failure, storage failure, protocol failure, and worker failure distinguishable. Preserve the established machine-readable categories and final HTTP mapping; do not classify errors by parsing human-readable prose.
 - Catch the narrowest useful exception at the boundary that can handle or translate it. Preserve local causes with exception chaining when wrapping; sanitize public/protocol diagnostics. A broad catch is appropriate only at a deliberate top-level failure boundary with tested reporting and cleanup.
 - Do not return empty results, fabricated defaults, or apparent success to hide failure. Define which exceptions callers receive and what state remains after an error.
-- Make retry policy explicit, including SDK defaults. Retry only demonstrably safe operations with bounded attempts and deadlines. Do not automatically replay a write, an entire conversation, or an in-flight request through the legacy implementation after an unknown outcome. Idempotency or concurrent deduplication claims require implementation and tests.
+- Make retry policy explicit, including SDK defaults. Retry only demonstrably safe operations with bounded attempts and deadlines. Do not automatically replay a write, an entire conversation, or an in-flight request through another implementation after an unknown outcome. Idempotency or concurrent deduplication claims require implementation and tests.
 
 ## PY-09 — Security and privacy
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from conftest import FIXTURES
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
@@ -15,6 +16,15 @@ from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.contracts import Handler, Operation, Tool
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.registry import ToolCatalog
+
+
+def test_builtin_definitions_preserve_released_contracts() -> None:
+    """The release snapshot replaces parity with the retired Java schema builders."""
+    expected = json.loads((FIXTURES / "tool-definitions.json").read_text(encoding="utf-8"))
+    actual = ToolAdapters(operation).definitions()
+    assert sorted(actual, key=lambda item: item["name"]) == sorted(
+        expected, key=lambda item: item["name"]
+    )
 
 
 def definition(name: str = "example") -> Message:

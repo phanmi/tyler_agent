@@ -2,7 +2,7 @@
 
 [Migration tracker](../docs/AGENT_MIGRATION.md) | [Protocol contract](../docs/AGENT_PROTOCOL.md) | [Backend standards](../docs/BACKEND_STANDARDS.md) | [Python agent standards](../docs/PYTHON_AGENT_STANDARDS.md)
 
-Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. The application uses Python by default; Java remains available only for the release rollback window. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
+Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. Python is the only agent implementation; Java retains HTTP, process supervision, and shared services. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
 
 ## Source layout
 
@@ -150,7 +150,7 @@ The packaged smoke tests copy the bundle into a different temporary directory, r
 
 This verifies the bundled runtime, SDK imports, contracts, and model-definition resource on the tested Windows host. Development tests additionally exercise real pipes with an injected fake provider and actual SDK requests over an in-memory transport; they never send fixture keys to a provider. Step 5 retains parent-death tests, and Step 8 verifies the complete HTTP/Python/service/database path.
 
-Step 9 adds [desktop packaging and offline acceptance](../docs/DESKTOP_PACKAGING.md), including Java/Python resources outside ASAR and a Windows CI smoke job. `tests/desktop-worker.spec` builds a separate fault-injection worker from `tests/support/desktop_worker.py`; it is used only by desktop tests and is never shipped as the production worker. CI run 48 passed both jobs on `b029ce5`; the user confirmed clean-Windows acceptance and required checks on 2026-10-19, with the report attachment pending. Step 10 switches the default to Python and retains restart-based Java rollback for one validated release. See [rollout status and recovery](../docs/AGENT_ROLLOUT.md). Code signing is not configured.
+Step 9 adds [desktop packaging and offline acceptance](../docs/DESKTOP_PACKAGING.md), including Java/Python resources outside ASAR and a Windows CI smoke job. `tests/desktop-worker.spec` builds a separate fault-injection worker from `tests/support/desktop_worker.py`; it is used only by desktop tests and is never shipped as the production worker. CI run 48 passed both jobs on `b029ce5`; the user confirmed clean-Windows acceptance and required checks on 2026-10-19, with the report attachment pending. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See [rollout status and recovery](../docs/AGENT_ROLLOUT.md). Code signing is not configured.
 
 ## Reproduce an isolated install from the lockfile
 

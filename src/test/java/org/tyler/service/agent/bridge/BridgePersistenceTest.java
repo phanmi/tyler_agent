@@ -40,7 +40,7 @@ class BridgePersistenceTest {
         return new ApplicationContextRunner().withUserConfiguration(OperationBridgeConfiguration.class, FileSandbox.class, WorkoutDatabaseConfig.class,
                 FoodRecordDAOSqlite.class, FoodValidator.class, FoodService.class, UserInfoService.class,
                 WorkoutDAOSqlite.class, WorkoutValidator.class, WorkoutService.class, WorkoutPlanService.class)
-                .withPropertyValues("agent.implementation=python", "agent.workspace-dir=" + workspace);
+                .withPropertyValues("agent.workspace-dir=" + workspace);
     }
 
     private IOperationDispatcher bridge(org.springframework.context.ApplicationContext context) {

@@ -50,7 +50,7 @@ An optional DAL beneath a service requires a documented responsibility involving
 - Java retains HTTP adapters, worker process lifecycle, protocol transport and operation dispatch, shared domain services and validators, persistence and transactions, sandboxed file access, and persisted settings and history. Reading stored history or credentials for a request does not make Java responsible for constructing model messages or prompts.
 - Python tools delegate application operations through the allowlisted Java bridge. They must not access application databases directly, reimplement domain rules or transaction logic, bypass the file sandbox, or create a second owner for persisted settings or history.
 - The bridge translates protocol messages and invokes existing service contracts; it must not become another agent implementation. Keep provider types, prompts, model-facing tool schemas, and agent decisions out of new Java code.
-- Existing Java agent code is temporary migration and rollback support. Characterization tests, necessary safety or compatibility fixes, and migration cleanup are allowed; new agent features and a parallel Java implementation are not. Record any temporary compatibility change and its retirement condition in the migration log.
+- Java agent orchestration, provider clients, and model-facing tools have been retired. Do not reintroduce a parallel implementation. Preserve compatibility through protocol fixtures, Python tests, and Java service/worker integration tests.
 - Follow the staged [Java-to-Python agent migration roadmap](AGENT_MIGRATION.md). This policy governs new and changed code; it does not authorize deleting the legacy implementation before the documented acceptance and rollback gates are met.
 
 ### Exceptions and refactor scope
@@ -156,7 +156,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 - Keep preview operations free of writes. Make saving behavior clear in the tool description and result.
 - Preserve repeat-call behavior and user edits where the tool contract already supports them.
 - Do not add network, filesystem, or database effects that are unrelated to the tool's purpose.
-- Treat an interrupted operation with an unknown write outcome as uncertain, not failed. Do not automatically replay writes, retry a whole conversation, or switch to the legacy agent for an in-flight request unless duplicate execution is explicitly safe and tested.
+- Treat an interrupted operation with an unknown write outcome as uncertain, not failed. Do not automatically replay writes, retry a whole conversation, or switch runtime implementations for an in-flight request unless duplicate execution is explicitly safe and tested.
 
 ### Worker protocol and lifecycle
 
@@ -186,7 +186,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 ## 9. Testing and review
 
-Use JUnit Jupiter and the existing Spring Boot test and mocking facilities for Java. Use the Python project's configured test runner and mocking facilities for agent code, with tests in `agent-python/tests/`. Follow neighboring tests; prefer tests of observable behavior over assertions about internal forwarding alone. Tests for the temporary Java agent remain valid until its documented retirement gate.
+Use JUnit Jupiter and the existing Spring Boot test and mocking facilities for Java. Use the Python project's configured test runner and mocking facilities for agent code, with tests in `agent-python/tests/`. Follow neighboring tests; prefer tests of observable behavior over assertions about internal forwarding alone. Retain contract and persistence coverage when removing obsolete implementation tests; move useful assertions to the owning language or service boundary.
 
 | Change | Expected coverage |
 |---|---|

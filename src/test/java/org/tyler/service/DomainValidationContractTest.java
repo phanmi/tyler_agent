@@ -25,8 +25,9 @@ import org.tyler.model.workout.Workout;
 import org.tyler.service.food.FoodService;
 import org.tyler.service.workout.WorkoutPlanService;
 import org.tyler.service.workout.WorkoutService;
-import org.tyler.tool.foodRecordTool.RecordFoodTool;
-import org.tyler.tool.workoutPlanTool.GenerateWorkoutPlanTool;
+import org.tyler.service.agent.bridge.handler.FoodInsertHandler;
+import org.tyler.service.agent.bridge.OperationPayloadMapper;
+import org.tyler.service.agent.bridge.handler.WorkoutPlanSaveHandler;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -58,6 +59,22 @@ class DomainValidationContractTest {
                     new WorkoutController(workoutService, planService))
             .setControllerAdvice(new SqlExceptionHandler(), new GenericExceptionHandler()).build();
 
+    private com.fasterxml.jackson.databind.JsonNode foodOperation(String json) throws Exception {
+        var transport = new OperationPayloadMapper();
+        // The wire carries exact decimal strings, never an intermediate floating-point tree.
+        return new FoodInsertHandler(foodService, transport)
+                .execute(transport.value("food", MAPPER.readValue(json, Food.class)));
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode planOperation(String json) throws Exception {
+        ObjectNode input = (ObjectNode) MAPPER.readTree(json);
+        // Python parsing fills absent domain fields with null before the protocol operation.
+        for (String field : List.of("startDate", "goal", "equipment")) {
+            if (!input.has(field)) input.putNull(field);
+        }
+        return new WorkoutPlanSaveHandler(planService, new OperationPayloadMapper()).execute(input);
+    }
+
     private static String changed(String json, String parent, String field, Object value) throws Exception {
         ObjectNode root = (ObjectNode) MAPPER.readTree(json);
         ObjectNode target = parent == null ? root : (ObjectNode) root.get(parent);
@@ -88,11 +105,11 @@ class DomainValidationContractTest {
 
     @ParameterizedTest
     @MethodSource("invalidFood")
-    void foodToolAndDirectServiceUseTheSameDomainErrors(String json) throws Exception {
+    void foodOperationAndDirectServiceUseTheSameDomainErrors(String json) throws Exception {
         Food food = MAPPER.readValue(json, Food.class);
         var direct = assertThrowsExactly(IllegalArgumentException.class, () -> foodService.insertFood(food));
         var tool = assertThrowsExactly(IllegalArgumentException.class,
-                () -> new RecordFoodTool(foodService).execute(json));
+                () -> foodOperation(json));
         assertEquals(direct.getMessage(), tool.getMessage());
         verifyNoInteractions(foodDao);
     }
@@ -104,14 +121,14 @@ class DomainValidationContractTest {
 
     @ParameterizedTest
     @MethodSource("invalidDates")
-    void foodDatesAreConsistentForToolLookupAndDateDeletion(String date) throws Exception {
+    void foodDatesAreConsistentForOperationLookupAndDateDeletion(String date) throws Exception {
         var expected = assertThrowsExactly(IllegalArgumentException.class,
                 () -> foodService.getFoodRecordsByDate(date));
         assertEquals(expected.getMessage(), assertThrowsExactly(IllegalArgumentException.class,
                 () -> foodService.deleteFoodByDate(date)).getMessage());
         String json = changed(FOOD, "genericInfo", "date", date);
         assertEquals(expected.getMessage(), assertThrowsExactly(IllegalArgumentException.class,
-                () -> new RecordFoodTool(foodService).execute(json)).getMessage());
+                () -> foodOperation(json)).getMessage());
         var request = get("/api/food");
         if (date != null) request.param("date", date);
         mvc.perform(request).andExpect(status().isBadRequest())
@@ -129,8 +146,9 @@ class DomainValidationContractTest {
         }
         Food expected = MAPPER.readValue(json, Food.class);
         when(foodDao.insert(expected)).thenReturn(7L);
-        String result = new RecordFoodTool(foodService).execute(json);
-        assertEquals(expected, MAPPER.readValue(result, Food.class));
+        var result = foodOperation(json);
+        assertEquals(expected, MAPPER.treeToValue(result.get("food"), Food.class));
+        assertEquals("7", result.path("id").asText());
         verify(foodDao).insert(expected);
     }
 
@@ -188,7 +206,7 @@ class DomainValidationContractTest {
 
     @ParameterizedTest
     @MethodSource("invalidPlans")
-    void planToolAndHttpPreviewShareValidationBeforeTransactions(String json) throws Exception {
+    void planOperationAndHttpPreviewShareValidationBeforeTransactions(String json) throws Exception {
         var args = MAPPER.readTree(json);
         String date = args.path("startDate").asText(null);
         String goal = args.path("goal").asText(null);
@@ -196,7 +214,7 @@ class DomainValidationContractTest {
         var expected = assertThrowsExactly(IllegalArgumentException.class,
                 () -> new WorkoutController(workoutService, planService).workoutPlan(date, goal, equipment));
         assertEquals(expected.getMessage(), assertThrowsExactly(IllegalArgumentException.class,
-                () -> new GenerateWorkoutPlanTool(planService).execute(json)).getMessage());
+                () -> planOperation(json)).getMessage());
         // Required query-parameter absence is an HTTP binding error; supplied values reach the service.
         var request = get("/api/workouts/plan");
         if (date != null) request.param("startDate", date);
