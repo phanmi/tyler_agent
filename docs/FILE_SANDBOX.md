@@ -47,6 +47,17 @@ existing DAO read/write exception translation. Workout JDBC and transactions sti
 share the same data source. No schema or data migration is involved. Linked
 database paths are intentionally no longer accepted.
 
+Database settings accept plain filesystem paths only. Before sandbox resolution,
+the data source rejects `?` query syntax (including recognized pragmas such as
+`busy_timeout`), JDBC/file/resource URLs, memory selectors, and trailing ASCII
+whitespace/control characters that the JDBC URL parser trims. It also checks the
+resolved absolute path, because a configured root can contain `?` on POSIX.
+This prevents SQLite JDBC from opening a different filename from the one validated,
+including different journal/WAL/shared-memory sidecars. Do not put connection
+options in `food.database-path` or `workout.database-path`. Ordinary relative and
+absolute paths, spaces within filenames, and literal `#`/`%` remain supported.
+Invalid settings raise a path-free `IllegalArgumentException` before opening.
+
 ## Concurrent filesystem changes and platform limits
 
 File channels request `NOFOLLOW_LINKS`. Where supported, `SecureDirectoryStream`
@@ -103,3 +114,19 @@ mvn test
 - Local Maven used the cached dependency repository, forked JDK 26 compilation,
   and the project's Mockito agent. Output is retained in the ignored
   `agent-python/sandbox-focused.log` and `agent-python/sandbox-full.log` files.
+
+### SQLite filename parsing regression — 2026-10-22
+
+- Added rejection before resolution for query pragmas/URL syntax and JDBC-trimmed
+  trailing whitespace, plus validation of the resolved absolute filename.
+- Regression tests use `data.sqlite?busy_timeout=5000` with real external links
+  at `data.sqlite`, `data.sqlite-journal`, `data.sqlite-wal`, and `data.sqlite-shm`.
+  Both database consumers reject the setting without modifying external targets
+  or creating additional workspace files.
+- Focused `mvn -Dtest=SandboxedSqliteDataSourceTest,FoodRecordDAOSqliteTest,WorkoutDAOSqliteTest test`:
+  **passed**, 48 tests, zero failures/errors, one POSIX-only skip on Windows.
+- Full `mvn test`: **passed**, 701 tests, zero failures/errors, three expected skips
+  (the POSIX-only root-name case and two secure-directory tests).
+- Windows symlink regressions executed without skips. The POSIX root-name test
+  remains for Ubuntu CI; it was not run locally. Logs:
+  `agent-python/sqlite-path-focused.log` and `agent-python/sqlite-path-full.log`.
