@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.sqlite.SQLiteDataSource;
 import org.tyler.filesandbox.IFileSandboxPath;
+import org.tyler.filesandbox.SandboxedSqliteDataSource;
 
 import javax.sql.DataSource;
 
@@ -18,9 +18,7 @@ public class WorkoutDatabaseConfig {
     @Bean
     public DataSource workoutDataSource(IFileSandboxPath sandbox,
             @Value("${workout.database-path:workout-record.sqlite}") String dbFile) {
-        SQLiteDataSource source = new SQLiteDataSource();
-        source.setUrl("jdbc:sqlite:" + sandbox.resolve(dbFile));
-        return source;
+        return new SandboxedSqliteDataSource(sandbox, dbFile);
     }
 
     @Bean
