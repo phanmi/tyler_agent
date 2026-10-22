@@ -8,9 +8,14 @@ package org.tyler.filesandbox;
  */
 public interface IFileSandboxWrite {
 
-    /** Checks for a sandbox file; blank or out-of-bounds paths are rejected. */
+    /** Returns false for missing paths; rejects traversal and linked/special components. */
     boolean exists(String relativePath);
 
-    /** Writes a sandbox file and creates parent directories as needed. */
+    /**
+     * Replaces UTF-8 text and creates checked parent directories as needed.
+     * Invalid paths and pre-existing links raise IllegalArgumentException before writing;
+     * I/O failures raise FileWriteException with a safe message. See FILE_SANDBOX.md
+     * for limitations when another process concurrently changes directories.
+     */
     void write(String relativePath, String content);
 }
