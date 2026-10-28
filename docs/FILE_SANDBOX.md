@@ -13,11 +13,15 @@ resolved once. Retargeting that alias does not redirect an existing sandbox.
 
 Below the real root, **symbolic links, junctions and other special/reparse entries
 are rejected**, including links pointing inside the workspace and dangling links.
-Every existing component is inspected without following links; real-path comparison
-also rejects redirection. Canonical root ancestors are checked on each operation for
+Every existing component is inspected without following links; one real-path
+comparison of the deepest existing component also rejects redirection through any
+component above it. Canonical root ancestors are checked on each operation for
 redirection only: the root and its ancestors may be non-link reparse directories such
 as OneDrive/cloud-sync folders, but must not become links.
-A changed root identity is rejected where the provider supplies a file key. A root
+A changed root identity is rejected on every platform: the identity is the provider's
+file key, or on Windows (whose NIO reports none) the directory's creation time. The
+Windows check is best effort; it detects a directory recreated in place, but a filesystem
+that reuses or does not record creation times can mask a replacement. A root
 deleted while the application runs reads as absent; the next `write` recreates it
 as a real directory (its ancestors must still exist) and adopts its new identity.
 Windows NIO reports non-symlink reparse points as `isOther()`; these are rejected
@@ -30,7 +34,7 @@ a capability boundary around private files already inside the root.
 | Operation | Contract |
 | --- | --- |
 | `resolve` | Returns an absolute path under the real root. Validates existing ancestors even for missing targets. Does not create files or directories. |
-| `exists` | Returns false for an absent target or ancestor. Rejects linked/special components; inspection failures are file-read failures rather than apparent absence. |
+| `exists` | Returns false for an absent target or ancestor, including a path below a regular file (which POSIX reports as `ENOTDIR`). Rejects linked/special components; inspection failures are file-read failures rather than apparent absence. |
 | `read` | Reads UTF-8 text; missing files raise `FileReadException`. |
 | `write` | Replaces UTF-8 text and creates missing parents one component at a time after checks. Encodes first, stages the bytes in a new hidden sibling (`.<name>.<random>.tmp`, created no-follow and create-new), forces it to storage, revalidates the target, then atomically renames it over the target. See [Replacement writes](#replacement-writes). |
 
@@ -42,11 +46,17 @@ a capability boundary around private files already inside the root.
   attached to that cause as a suppressed exception and logged as a warning.
 - **No non-atomic fallback.** If the filesystem cannot rename atomically
   (`AtomicMoveNotSupportedException`), the write fails and the old content is kept.
-- **Windows sharing locks.** A rename denied because another program (antivirus, sync
-  client, editor) holds the target open is retried 3 times with 25/50/100 ms back-off,
-  then fails with the old content kept. Windows cannot rename over a file with an open
-  handle, so this process's reads hold a shared lock while the file is open and the
-  rename holds the exclusive lock; in-process reads therefore never block a save.
+- **Windows sharing locks.** A rename blocked because another program (antivirus, sync
+  client, editor) holds the target open, reported as access denied or as a sharing
+  violation (a plain `FileSystemException`), is retried 3 times with 25/50/100 ms
+  back-off, then fails with the old content kept. Specific failures such as a missing
+  file are not retried. Windows cannot rename over a file with an open handle, so this
+  process's reads hold a shared lock while the file is open and the rename holds the
+  exclusive lock. Locks are striped by path (64 stripes): an in-flight read of the same
+  file, or rarely of another file on the same stripe, delays a save until it finishes but
+  never makes it fail.
+- **Long names.** The staged name shortens `<name>` as needed to stay within 255 UTF-8
+  bytes, so any target name the filesystem accepts can be replaced.
 - **Concurrency.** Readers observe the complete old or complete new content. Concurrent
   writers to one path each publish atomically and the last rename wins; read-modify-write
   callers (for example chat history) still need their own lost-update protection.
@@ -65,8 +75,11 @@ a capability boundary around private files already inside the root.
 
 Paths are normalized before use: `notes/../file.txt` means `file.txt` and does not
 traverse `notes`. Absolute paths inside the configured or canonical root remain
-accepted. Blank, malformed, out-of-bounds and linked paths raise
-`IllegalArgumentException`. I/O failures retain their causes in `FileReadException`
+accepted. Blank, malformed, out-of-bounds and linked paths, and a changed root, raise
+`WorkspacePathException`. It extends `IllegalArgumentException`, so request- and
+model-supplied paths remain client errors (HTTP 400, `INVALID_ARGUMENT`); services
+whose path is configuration (API key, profile, chat history) catch this type alone and
+report it as a storage failure. I/O failures retain their causes in `FileReadException`
 or `FileWriteException` with public messages containing no supplied or absolute
 path. Success logs report operation and character count without paths or contents.
 
@@ -74,7 +87,9 @@ path. Success logs report operation and character count without paths or content
 
 Food and workout persistence use `SandboxedSqliteDataSource`. It validates the
 database and its `-journal`, `-wal` and `-shm` paths at construction and before
-each connection, including connections requested with credentials. Connection-time
+each connection, including connections requested with credentials. Each check walks
+the database path once and then inspects only the sidecar entries, which share its
+already validated directory. Connection-time
 rejection becomes `SQLException` with a safe message and retained cause, preserving
 existing DAO read/write exception translation. Workout JDBC and transactions still
 share the same data source. No schema or data migration is involved. Linked

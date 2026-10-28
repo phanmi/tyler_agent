@@ -24,10 +24,14 @@ public interface IChatHistoryService {
      */
     List<ChatMessage> get();
 
-    /** Appends a user or assistant message and returns the resulting history. */
+    /**
+     * Appends a user or assistant message and returns the resulting history. Fails with
+     * {@link IllegalStateException}, leaving the file unchanged, if existing history cannot
+     * be read; invalid JSON is replaced.
+     */
     List<ChatMessage> append(String role, String content);
 
-    /** Appends a complete user/assistant exchange and returns the resulting history. */
+    /** Like {@link #append}, but saves a complete user/assistant exchange in one write. */
     List<ChatMessage> appendExchange(String userMessage, String assistantReply);
 
     /** Clears history and returns an empty list. */

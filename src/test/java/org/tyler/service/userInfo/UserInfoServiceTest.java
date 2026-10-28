@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
@@ -38,7 +39,7 @@ class UserInfoServiceTest {
     void rejectedProfilePathLoadsEmptyAndSaveFailsAsStorageError() {
         IFileSandboxRead reader = mock(IFileSandboxRead.class);
         IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
-        var rejected = new IllegalArgumentException("Workspace links and special files are not allowed");
+        var rejected = new WorkspacePathException("Workspace links and special files are not allowed");
         when(reader.exists("userinfo.json")).thenThrow(rejected);
         doThrow(rejected).when(writer).write(eq("userinfo.json"), anyString());
         UserInfoService service = new UserInfoService(reader, writer, "userinfo.json");

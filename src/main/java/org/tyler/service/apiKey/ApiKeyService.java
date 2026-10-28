@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 
@@ -48,7 +49,7 @@ public class ApiKeyService implements IApiKeyService {
             }
             String key = reader.read(relativePath);
             return key == null ? "" : key.trim();
-        } catch (IllegalArgumentException e) {
+        } catch (WorkspacePathException e) {
             // The path is configuration, not request input: report a rejected
             // (e.g. linked) key file as a read failure, not a client error.
             throw new FileReadException("Unable to read API key file", e);
@@ -60,7 +61,7 @@ public class ApiKeyService implements IApiKeyService {
         String normalized = apiKey == null ? "" : apiKey.trim();
         try {
             writer.write(relativePath, normalized);
-        } catch (IllegalArgumentException e) {
+        } catch (WorkspacePathException e) {
             throw new FileWriteException("Unable to write API key file", e);
         }
         log.info("Saved the OpenAI API key to {}", relativePath);

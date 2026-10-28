@@ -7,7 +7,9 @@ import org.tyler.exceptionHandler.exception.FileWriteException;
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
@@ -92,6 +94,54 @@ class FileSandboxReplacementTest {
         sandbox.write("notes/data.txt", "new");
         assertEquals(3, publishAttempts.get());
         assertOnlyTarget("new");
+    }
+
+    @Test
+    void sharingViolationIsRetriedLikeAccessDenied() throws IOException {
+        sandbox(FileSandbox.WriteFaults.NONE).write("notes/data.txt", "old");
+        AtomicInteger publishAttempts = new AtomicInteger();
+        FileSandbox sandbox = sandbox(step -> {
+            if (step == FileSandbox.WriteStep.PUBLISH && publishAttempts.incrementAndGet() <= 2) {
+                // How NIO reports Windows ERROR_SHARING_VIOLATION from MoveFileEx.
+                throw new FileSystemException("data.txt", null,
+                        "The process cannot access the file because it is being used by another process");
+            }
+        });
+        sandbox.write("notes/data.txt", "new");
+        assertEquals(3, publishAttempts.get());
+        assertOnlyTarget("new");
+    }
+
+    @Test
+    void specificFileSystemFailureIsNotRetried() throws IOException {
+        sandbox(FileSandbox.WriteFaults.NONE).write("notes/data.txt", "old");
+        AtomicInteger publishAttempts = new AtomicInteger();
+        var missing = new NoSuchFileException("data.txt");
+        FileSandbox sandbox = sandbox(step -> {
+            if (step == FileSandbox.WriteStep.PUBLISH) {
+                publishAttempts.incrementAndGet();
+                throw missing;
+            }
+        });
+
+        FileWriteException error = assertThrowsExactly(FileWriteException.class,
+                () -> sandbox.write("notes/data.txt", "new"));
+        assertSame(missing, error.getCause());
+        assertEquals(1, publishAttempts.get());
+        assertOnlyTarget("old");
+    }
+
+    @Test
+    void targetNameNearLengthLimitIsStillReplaced() throws IOException {
+        FileSandbox sandbox = sandbox(FileSandbox.WriteFaults.NONE);
+        // 244 bytes: valid on its own, but too long with the 18-byte staging decoration.
+        String name = "n".repeat(240) + ".txt";
+        sandbox.write("notes/" + name, "old");
+        sandbox.write("notes/" + name, "new");
+        assertEquals("new", sandbox.read("notes/" + name));
+        try (var entries = Files.list(workspace().resolve("notes"))) {
+            assertEquals(List.of(name), entries.map(p -> p.getFileName().toString()).toList());
+        }
     }
 
     @Test

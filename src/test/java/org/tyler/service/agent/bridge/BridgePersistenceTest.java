@@ -11,6 +11,7 @@ import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.dao.workout.WorkoutDAOSqlite;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.model.workout.Workout;
 import org.tyler.service.food.FoodService;
@@ -108,9 +109,9 @@ class BridgePersistenceTest {
             assertEquals(write.path("content"), dispatcher.dispatch("file.read", input("file_read")).path("content"));
             String outside = workspace.getParent().resolve("outside-bridge.txt").toString();
             for (String path : new String[]{"../outside-bridge.txt", outside, " "}) {
-                assertThrowsExactly(IllegalArgumentException.class,
+                assertThrowsExactly(WorkspacePathException.class,
                         () -> dispatcher.dispatch("file.write", input("file_write").put("path", path)));
-                assertThrowsExactly(IllegalArgumentException.class,
+                assertThrowsExactly(WorkspacePathException.class,
                         () -> dispatcher.dispatch("file.read", input("file_read").put("path", path)));
             }
             assertFalse(Files.exists(Path.of(outside)));

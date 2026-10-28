@@ -12,7 +12,8 @@ public interface IFileSandboxRead {
     boolean exists(String relativePath);
 
     /**
-     * Reads UTF-8 text. Invalid or linked paths raise IllegalArgumentException;
+     * Reads UTF-8 text. Invalid or linked paths raise WorkspacePathException (an
+     * IllegalArgumentException);
      * missing files and other I/O failures raise FileReadException with a safe message.
      */
     String read(String relativePath);

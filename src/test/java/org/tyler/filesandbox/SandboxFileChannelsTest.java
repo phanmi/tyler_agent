@@ -5,6 +5,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -77,7 +79,7 @@ class SandboxFileChannelsTest {
         assumeTrue(originalKey != null, "Provider has no stable file key");
         Files.move(root, tempDir.resolve("original"));
         Files.createDirectory(root);
-        assertThrowsExactly(IllegalArgumentException.class, () -> {
+        assertThrowsExactly(WorkspacePathException.class, () -> {
             try (var ignored = SandboxFileChannels.open(root, root.resolve("file.txt"), originalKey,
                     Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE, LinkOption.NOFOLLOW_LINKS))) {
                 fail("Replaced root must not be opened");

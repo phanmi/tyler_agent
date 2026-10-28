@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
@@ -90,6 +91,35 @@ class FileSandboxTest {
                 () -> sandbox.write("history.json", "broken \ud83d emoji"));
         assertInstanceOf(CharacterCodingException.class, write.getCause());
         assertEquals("keep", Files.readString(tempDir.resolve("history.json")));
+    }
+
+    @Test
+    void pathBelowRegularFileIsAbsentAndCannotBeWritten() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        sandbox.write("file.txt", "keep");
+
+        // POSIX reports ENOTDIR for these lookups; they must still read as absent.
+        assertFalse(sandbox.exists("file.txt/child.txt"));
+        assertFalse(sandbox.exists("file.txt/nested/child.txt"));
+        assertThrowsExactly(FileReadException.class, () -> sandbox.read("file.txt/child.txt"));
+        assertThrowsExactly(FileWriteException.class, () -> sandbox.write("file.txt/child.txt", "x"));
+        assertThrowsExactly(FileWriteException.class, () -> sandbox.write("file.txt/nested/child.txt", "x"));
+        assertEquals("keep", Files.readString(tempDir.resolve("file.txt")));
+    }
+
+    @Test
+    void rootReplacedByAnotherDirectoryIsRejectedOnEveryPlatform() throws IOException {
+        Path root = tempDir.resolve("workspace");
+        FileSandbox sandbox = new FileSandbox(root.toString());
+        sandbox.write("a.txt", "old");
+        Files.move(root, tempDir.resolve("original"));
+        Files.createDirectory(root);
+
+        assertThrowsExactly(WorkspacePathException.class, () -> sandbox.exists("a.txt"));
+        assertThrowsExactly(WorkspacePathException.class, () -> sandbox.write("a.txt", "new"));
+        try (var entries = Files.list(root)) {
+            assertEquals(0, entries.count());
+        }
     }
 
     @Test

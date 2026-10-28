@@ -7,6 +7,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
+
 import java.io.IOException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
@@ -123,10 +125,10 @@ class FileSandboxLinkTest {
     }
 
     static void assertRejected(FileSandbox sandbox, String path) {
-        assertSafe(assertThrowsExactly(IllegalArgumentException.class, () -> sandbox.resolve(path)));
-        assertSafe(assertThrowsExactly(IllegalArgumentException.class, () -> sandbox.exists(path)));
-        assertSafe(assertThrowsExactly(IllegalArgumentException.class, () -> sandbox.read(path)));
-        assertSafe(assertThrowsExactly(IllegalArgumentException.class, () -> sandbox.write(path, "overwrite")));
+        assertSafe(assertThrowsExactly(WorkspacePathException.class, () -> sandbox.resolve(path)));
+        assertSafe(assertThrowsExactly(WorkspacePathException.class, () -> sandbox.exists(path)));
+        assertSafe(assertThrowsExactly(WorkspacePathException.class, () -> sandbox.read(path)));
+        assertSafe(assertThrowsExactly(WorkspacePathException.class, () -> sandbox.write(path, "overwrite")));
     }
 
     private static void assertSafe(IllegalArgumentException error) {

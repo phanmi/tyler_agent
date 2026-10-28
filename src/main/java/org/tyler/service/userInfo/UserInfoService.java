@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.model.userInfo.Other;
 import org.tyler.model.userInfo.User;
 import org.tyler.model.userInfo.UserInfo;
@@ -103,7 +104,7 @@ public class UserInfoService implements IUserInfoService {
             writer.write(relativePath, json);
             log.info("Saved profile to {}", relativePath);
             return normalized;
-        } catch (IOException | FileWriteException | IllegalArgumentException e) {
+        } catch (IOException | FileWriteException | WorkspacePathException e) {
             // The path is configuration, not request input, so a sandbox path rejection
             // is a storage failure rather than a client error.
             log.error("Failed to write profile: {}", relativePath, e);
