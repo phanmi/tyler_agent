@@ -59,17 +59,18 @@ public class ChatHistoryService implements IChatHistoryService {
 
     @Override
     public List<ChatMessage> get() {
-        // Check existence before reading to avoid an error for a missing file.
-        if (!reader.exists(relativePath)) {
-            return List.of();
-        }
         try {
+            // Check existence before reading to avoid an error for a missing file.
+            if (!reader.exists(relativePath)) {
+                return List.of();
+            }
             List<ChatMessage> history = objectMapper.readValue(
                     reader.read(relativePath),
                     new TypeReference<List<ChatMessage>>() {});
             return normalize(history);
         } catch (Exception e) {
-            // Return empty history if the file is unreadable or contains invalid JSON.
+            // Return empty history if the file cannot be inspected or read (including
+            // sandbox link rejection) or contains invalid JSON.
             log.warn("Failed to read chat history; returning empty history: {}", relativePath, e);
             return List.of();
         }
@@ -138,7 +139,9 @@ public class ChatHistoryService implements IChatHistoryService {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(history);
             writer.write(relativePath, json);
             log.debug("Saved {} chat messages to {}", history.size(), relativePath);
-        } catch (IOException | FileWriteException e) {
+        } catch (IOException | FileWriteException | IllegalArgumentException e) {
+            // The path is configuration, not request input, so a sandbox path rejection
+            // is a storage failure rather than a client error.
             log.error("Failed to write chat history: {}", relativePath, e);
             // GenericExceptionHandler maps IllegalStateException to HTTP 500.
             throw new IllegalStateException("Failed to save chat history. Please try again later", e);

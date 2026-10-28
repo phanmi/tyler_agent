@@ -9,6 +9,8 @@ import org.tyler.exceptionHandler.exception.FileWriteException;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
@@ -38,7 +40,8 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
 
     private final Path configuredRoot;
     private final Path root;
-    private final Object rootKey;
+    // Replaced only when a root deleted while running is recreated by write().
+    private volatile Object rootKey;
 
     public FileSandbox(@Value("${agent.workspace-dir:}") String workspaceDir) throws IOException {
         configuredRoot = resolveRoot(workspaceDir);
@@ -97,16 +100,21 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
     public void write(String relativePath, String content) {
         Objects.requireNonNull(content, "File content must not be null");
         try {
+            // Encode before opening so unencodable text (e.g. an unpaired surrogate)
+            // fails without truncating the existing file.
+            ByteBuffer bytes = StandardCharsets.UTF_8.newEncoder().encode(CharBuffer.wrap(content));
             Path target = checkedPath(relativePath);
+            recreateMissingRoot();
             createParents(target.getParent());
             inspect(target);
             // Open without truncation, then recheck before modifying an existing file.
             try (var channel = SandboxFileChannels.open(root, target, rootKey,
-                    Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE, NOFOLLOW));
-                 var writer = Channels.newWriter(channel, StandardCharsets.UTF_8)) {
+                    Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE, NOFOLLOW))) {
                 inspect(target);
                 channel.truncate(0);
-                writer.write(content);
+                while (bytes.hasRemaining()) {
+                    channel.write(bytes);
+                }
             }
             log.debug("Workspace file write completed ({} characters)", content.length());
         } catch (IOException e) {
@@ -134,7 +142,13 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
         return target;
     }
 
-    /** Checks every existing component, including ancestors of missing write targets. */
+    /**
+     * Checks every existing component, including ancestors of missing write targets.
+     * Returns false when the target, an ancestor below the root, or the root itself is absent.
+     * Links and special entries are rejected below the root only; the root and its ancestors
+     * may be non-link reparse directories (such as cloud-sync folders), while redirection
+     * through any component is still rejected by the real-path comparison.
+     */
     private boolean inspect(Path target) throws IOException {
         Path current = root.getRoot();
         for (Path component : current.relativize(target)) {
@@ -143,12 +157,14 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
             try {
                 entry = attributes(current);
             } catch (NoSuchFileException e) {
-                if (current.startsWith(root) && !current.equals(root)) {
+                if (current.startsWith(root)) {
                     return false;
                 }
                 throw e;
             }
-            rejectLink(entry);
+            if (current.startsWith(root) && !current.equals(root)) {
+                rejectLink(entry);
+            }
             if (!current.toRealPath().equals(current)) {
                 throw new IllegalArgumentException("Workspace path redirects through a link");
             }
@@ -158,6 +174,31 @@ public class FileSandbox implements IFileSandboxRead, IFileSandboxWrite, IFileSa
             }
         }
         return true;
+    }
+
+    /**
+     * Recreates a workspace root that was deleted while the application runs, then adopts
+     * the new directory's identity. Its ancestors must still exist; a root replaced by a link
+     * or a file is rejected rather than adopted.
+     */
+    private synchronized void recreateMissingRoot() throws IOException {
+        try {
+            attributes(root);
+            return;
+        } catch (NoSuchFileException e) {
+            // Deleted while running; recreate below.
+        }
+        try {
+            Files.createDirectory(root);
+        } catch (FileAlreadyExistsException e) {
+            // Another writer recreated it. Validate before adopting it.
+        }
+        BasicFileAttributes entry = attributes(root);
+        if (entry.isSymbolicLink() || !entry.isDirectory() || !root.toRealPath().equals(root)) {
+            throw new IllegalArgumentException("Workspace root has changed");
+        }
+        rootKey = entry.fileKey();
+        log.info("Recreated missing workspace root");
     }
 
     private void createParents(Path parent) throws IOException {

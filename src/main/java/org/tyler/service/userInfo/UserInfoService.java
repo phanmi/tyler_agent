@@ -50,12 +50,12 @@ public class UserInfoService implements IUserInfoService {
 
     @Override
     public UserInfo get() {
-        // Check existence before reading to avoid an error for a missing file.
-        if (!reader.exists(relativePath)) {
-            log.info("Profile file is missing; returning an empty profile: {}", relativePath);
-            return empty();
-        }
         try {
+            // Check existence before reading to avoid an error for a missing file.
+            if (!reader.exists(relativePath)) {
+                log.info("Profile file is missing; returning an empty profile: {}", relativePath);
+                return empty();
+            }
             UserInfo info = objectMapper.readValue(reader.read(relativePath), UserInfo.class);
             log.debug("Loaded profile from {}", relativePath);
             if (info != null && info.user() != null) {
@@ -65,7 +65,8 @@ public class UserInfoService implements IUserInfoService {
             }
             return info;
         } catch (Exception e) {
-            // Return an empty profile if the file is unreadable or contains invalid JSON.
+            // Return an empty profile if the file cannot be inspected or read (including
+            // sandbox link rejection) or contains invalid JSON.
             log.warn("Failed to read profile; returning an empty profile: {}", relativePath, e);
             return empty();
         }
@@ -102,7 +103,9 @@ public class UserInfoService implements IUserInfoService {
             writer.write(relativePath, json);
             log.info("Saved profile to {}", relativePath);
             return normalized;
-        } catch (IOException | FileWriteException e) {
+        } catch (IOException | FileWriteException | IllegalArgumentException e) {
+            // The path is configuration, not request input, so a sandbox path rejection
+            // is a storage failure rather than a client error.
             log.error("Failed to write profile: {}", relativePath, e);
             // GenericExceptionHandler maps IllegalStateException to HTTP 500.
             throw new IllegalStateException("Failed to save profile. Please try again later", e);

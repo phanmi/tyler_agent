@@ -14,8 +14,12 @@ resolved once. Retargeting that alias does not redirect an existing sandbox.
 Below the real root, **symbolic links, junctions and other special/reparse entries
 are rejected**, including links pointing inside the workspace and dangling links.
 Every existing component is inspected without following links; real-path comparison
-also rejects redirection. Canonical root ancestors are checked on each operation.
-A changed root identity is rejected where the provider supplies a file key.
+also rejects redirection. Canonical root ancestors are checked on each operation for
+redirection only: the root and its ancestors may be non-link reparse directories such
+as OneDrive/cloud-sync folders, but must not become links.
+A changed root identity is rejected where the provider supplies a file key. A root
+deleted while the application runs reads as absent; the next `write` recreates it
+as a real directory (its ancestors must still exist) and adopts its new identity.
 Windows NIO reports non-symlink reparse points as `isOther()`; these are rejected
 conservatively, so cloud placeholders and other special files are not supported
 as workspace entries. This policy does not detect hard-link aliases or establish
@@ -28,7 +32,7 @@ a capability boundary around private files already inside the root.
 | `resolve` | Returns an absolute path under the real root. Validates existing ancestors even for missing targets. Does not create files or directories. |
 | `exists` | Returns false for an absent target or ancestor. Rejects linked/special components; inspection failures are file-read failures rather than apparent absence. |
 | `read` | Reads UTF-8 text; missing files raise `FileReadException`. |
-| `write` | Replaces UTF-8 text and creates missing parents one component at a time after checks. Validates before opening and again before truncation. |
+| `write` | Replaces UTF-8 text and creates missing parents one component at a time after checks. Encodes the text before opening, so unencodable content (such as an unpaired surrogate) fails without truncating the existing file. Validates before opening and again before truncation. |
 
 Paths are normalized before use: `notes/../file.txt` means `file.txt` and does not
 traverse `notes`. Absolute paths inside the configured or canonical root remain

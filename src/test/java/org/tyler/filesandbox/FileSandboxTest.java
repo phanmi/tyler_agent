@@ -6,6 +6,7 @@ import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -79,5 +80,31 @@ class FileSandboxTest {
                 () -> sandbox.write("directory", "not a file"));
         assertInstanceOf(IOException.class, write.getCause());
         assertEquals("Unable to write workspace file", write.getMessage());
+    }
+
+    @Test
+    void unencodableContentLeavesExistingFileUnchanged() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        sandbox.write("history.json", "keep");
+        FileWriteException write = assertThrowsExactly(FileWriteException.class,
+                () -> sandbox.write("history.json", "broken \ud83d emoji"));
+        assertInstanceOf(CharacterCodingException.class, write.getCause());
+        assertEquals("keep", Files.readString(tempDir.resolve("history.json")));
+    }
+
+    @Test
+    void rootDeletedWhileRunningReadsAsAbsentAndIsRecreatedByWrite() throws IOException {
+        Path root = tempDir.resolve("workspace");
+        FileSandbox sandbox = new FileSandbox(root.toString());
+        sandbox.write("notes/a.txt", "old");
+        Files.delete(root.resolve("notes/a.txt"));
+        Files.delete(root.resolve("notes"));
+        Files.delete(root);
+
+        assertFalse(sandbox.exists("notes/a.txt"));
+        assertThrowsExactly(FileReadException.class, () -> sandbox.read("notes/a.txt"));
+        sandbox.write("notes/a.txt", "new");
+        assertEquals("new", sandbox.read("notes/a.txt"));
+        assertEquals("new", Files.readString(root.resolve("notes/a.txt")));
     }
 }
