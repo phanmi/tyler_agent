@@ -21,6 +21,17 @@ class SandboxFileChannelsTest {
     @TempDir
     Path tempDir;
 
+    @Test
+    void replaceAtomicallyRenamesStagedSiblingOverNestedTarget() throws Exception {
+        Path root = Files.createDirectory(tempDir.resolve("workspace")).toRealPath();
+        Path directory = Files.createDirectories(root.resolve("a/b"));
+        Path target = Files.writeString(directory.resolve("data.txt"), "old");
+        Path staged = Files.writeString(directory.resolve(".data.txt.1.tmp"), "new");
+        SandboxFileChannels.replace(root, staged, target, key(root));
+        assertEquals("new", Files.readString(target));
+        assertFalse(Files.exists(staged));
+    }
+
     @ParameterizedTest
     @EnumSource(value = StandardOpenOption.class, names = {"READ", "WRITE"})
     void noFollowOpenRejectsLeafSubstitutedAfterValidation(StandardOpenOption operation) throws Exception {

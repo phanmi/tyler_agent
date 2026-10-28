@@ -32,7 +32,36 @@ a capability boundary around private files already inside the root.
 | `resolve` | Returns an absolute path under the real root. Validates existing ancestors even for missing targets. Does not create files or directories. |
 | `exists` | Returns false for an absent target or ancestor. Rejects linked/special components; inspection failures are file-read failures rather than apparent absence. |
 | `read` | Reads UTF-8 text; missing files raise `FileReadException`. |
-| `write` | Replaces UTF-8 text and creates missing parents one component at a time after checks. Encodes the text before opening, so unencodable content (such as an unpaired surrogate) fails without truncating the existing file. Validates before opening and again before truncation. |
+| `write` | Replaces UTF-8 text and creates missing parents one component at a time after checks. Encodes first, stages the bytes in a new hidden sibling (`.<name>.<random>.tmp`, created no-follow and create-new), forces it to storage, revalidates the target, then atomically renames it over the target. See [Replacement writes](#replacement-writes). |
+
+## Replacement writes
+
+- **Failure preservation.** Any encoding, staging, validation or publish failure leaves
+  the previously committed content unchanged and deletes the staged file. The
+  `FileWriteException` retains the original cause; a failure to delete the staged file is
+  attached to that cause as a suppressed exception and logged as a warning.
+- **No non-atomic fallback.** If the filesystem cannot rename atomically
+  (`AtomicMoveNotSupportedException`), the write fails and the old content is kept.
+- **Windows sharing locks.** A rename denied because another program (antivirus, sync
+  client, editor) holds the target open is retried 3 times with 25/50/100 ms back-off,
+  then fails with the old content kept. Windows cannot rename over a file with an open
+  handle, so this process's reads hold a shared lock while the file is open and the
+  rename holds the exclusive lock; in-process reads therefore never block a save.
+- **Concurrency.** Readers observe the complete old or complete new content. Concurrent
+  writers to one path each publish atomically and the last rename wins; read-modify-write
+  callers (for example chat history) still need their own lost-update protection.
+- **Durability.** The staged file is forced to storage before the rename. Java cannot
+  force the directory entry on Windows, so the rename itself may not survive power loss;
+  after a crash the target holds either the complete old or new content where the
+  filesystem orders the rename after the data.
+- **Leftovers.** Only a process crash or failed cleanup can leave a `.<name>.<random>.tmp`
+  sibling. The application never reads these and they are not removed automatically.
+- **Permissions.** Replacing creates a new file, so attributes, ACLs and hard links of
+  the previous file are not carried over. Where POSIX permissions exist the staged file
+  is created owner-only (`rw-------`), so a save never makes a file (such as the API key)
+  readable by other users; on Windows it inherits the workspace directory's ACL. Model
+  supplied paths cannot overwrite an in-flight staged file: names carry a random suffix
+  and are created with create-new semantics.
 
 Paths are normalized before use: `notes/../file.txt` means `file.txt` and does not
 traverse `notes`. Absolute paths inside the configured or canonical root remain
@@ -72,7 +101,9 @@ already opened directory.
 
 Windows NIO has no secure directory streams. The fallback checks absolute paths
 and opens the leaf with no-follow. Ancestors are checked before opening and again
-before reading/truncating, but **checks and opens are not atomic**. Directory
+before reading/publishing, but **checks and opens are not atomic**. Publishing renames
+relative to secure directory handles where available and with `Files.move(ATOMIC_MOVE)`
+on Windows; a rename replaces a substituted target link rather than following it. Directory
 creation uses path-based NIO on all platforms. A hostile writer can still race
 ancestor replacement, including creating an external file before the post-open
 check rejects it.
@@ -99,7 +130,7 @@ missing privileges; other failures fail the suite. Junction tests must pass on
 Windows. Secure-directory tests explicitly skip on unsupported providers.
 
 ```shell
-mvn -Dtest=FileSandboxTest,FileSandboxLinkTest,SandboxFileChannelsTest,SandboxedSqliteDataSourceTest,FoodRecordDAOSqliteTest,WorkoutDAOSqliteTest test
+mvn -Dtest=FileSandboxTest,FileSandboxReplacementTest,FileSandboxLinkTest,SandboxFileChannelsTest,SandboxedSqliteDataSourceTest,FoodRecordDAOSqliteTest,WorkoutDAOSqliteTest test
 mvn test
 ```
 
