@@ -94,3 +94,7 @@ userinfo.json
 
 ### Bundled Java Runtime (Phase 6) ###
 resources/runtime/
+
+### Local agent tooling ###
+.agents/tmp/
+.claude/settings.local.json

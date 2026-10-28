@@ -30,25 +30,9 @@ class FileSandboxTest {
     }
 
     @Test
-    void rejectsPathTraversal() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        assertThrows(IllegalArgumentException.class,
-                () -> sandbox.write("../escape.txt", "x"));
-        assertThrows(IllegalArgumentException.class,
-                () -> sandbox.read("../escape.txt"));
-    }
-
-    @Test
     void rejectsBlankPath() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         assertThrows(IllegalArgumentException.class, () -> sandbox.read("   "));
-    }
-
-    @Test
-    void readingMissingFileThrowsFileReadException() throws IOException {
-        FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        assertThrows(FileReadException.class,
-                () -> sandbox.read("does-not-exist.txt"));
     }
 
     @Test

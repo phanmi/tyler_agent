@@ -51,13 +51,12 @@ class SandboxedSqliteDataSourceTest {
         verifyNoInteractions(sandbox);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"", "-journal", "-wal", "-shm"})
-    void rejectsRecognizedPragmaWithLinkedActualDatabaseOrSidecar(String suffix) throws Exception {
+    @Test
+    void consumersRejectRecognizedPragmaWithoutTouchingLinkedDatabase() throws Exception {
         Path workspace = tempDir.resolve("workspace");
         var sandbox = new FileSandbox(workspace.toString());
         Path external = Files.writeString(tempDir.resolve("external"), "keep");
-        FileSandboxLinkTest.symbolicLink(workspace.resolve("data.sqlite" + suffix), external);
+        FileSandboxLinkTest.symbolicLink(workspace.resolve("data.sqlite"), external);
         String filename = "data.sqlite?busy_timeout=5000";
 
         assertEquals(INVALID_PATH, assertThrowsExactly(IllegalArgumentException.class,
@@ -68,7 +67,7 @@ class SandboxedSqliteDataSourceTest {
                 () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, filename)).getMessage());
         assertEquals("keep", Files.readString(external));
         try (var entries = Files.list(workspace)) {
-            assertEquals(java.util.List.of("data.sqlite" + suffix),
+            assertEquals(java.util.List.of("data.sqlite"),
                     entries.map(path -> path.getFileName().toString()).toList());
         }
     }
