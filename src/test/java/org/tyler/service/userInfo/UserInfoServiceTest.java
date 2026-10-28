@@ -8,6 +8,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.tyler.filesandbox.FileSandbox;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.userInfo.Other;
 import org.tyler.model.userInfo.User;
 import org.tyler.model.userInfo.UserInfo;
@@ -17,13 +19,35 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /** Tests English profile values and compatibility with previously saved profiles. */
 class UserInfoServiceTest {
 
     @TempDir
     Path tempDir;
+
+    @Test
+    void rejectedProfilePathLoadsEmptyAndSaveFailsAsStorageError() {
+        IFileSandboxRead reader = mock(IFileSandboxRead.class);
+        IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
+        var rejected = new IllegalArgumentException("Workspace links and special files are not allowed");
+        when(reader.exists("userinfo.json")).thenThrow(rejected);
+        doThrow(rejected).when(writer).write(eq("userinfo.json"), anyString());
+        UserInfoService service = new UserInfoService(reader, writer, "userinfo.json");
+
+        assertEquals(new UserInfo(new User("", "", null, ""), new Other("", "")), service.get());
+        IllegalStateException error = assertThrowsExactly(IllegalStateException.class,
+                () -> service.save(profile("Male")));
+        assertSame(rejected, error.getCause());
+    }
 
     private static UserInfo profile(String gender) {
         return new UserInfo(new User("Taylor", gender, new BigDecimal("30"), "Developer"),

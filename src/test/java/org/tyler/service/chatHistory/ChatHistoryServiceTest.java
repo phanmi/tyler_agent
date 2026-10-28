@@ -3,6 +3,8 @@ package org.tyler.service.chatHistory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.tyler.filesandbox.FileSandbox;
+import org.tyler.filesandbox.IFileSandboxRead;
+import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.chat.ChatMessage;
 
 import java.io.IOException;
@@ -10,7 +12,14 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests chat history persistence in {@link ChatHistoryService}.
@@ -29,6 +38,21 @@ class ChatHistoryServiceTest {
     private ChatHistoryService newService(int maxMessages) throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
         return new ChatHistoryService(sandbox, sandbox, FILE, maxMessages);
+    }
+
+    @Test
+    void rejectedHistoryPathLoadsEmptyAndAppendFailsAsStorageError() {
+        IFileSandboxRead reader = mock(IFileSandboxRead.class);
+        IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
+        var rejected = new IllegalArgumentException("Workspace links and special files are not allowed");
+        when(reader.exists(FILE)).thenThrow(rejected);
+        doThrow(rejected).when(writer).write(eq(FILE), anyString());
+        ChatHistoryService service = new ChatHistoryService(reader, writer, FILE, 20);
+
+        assertTrue(service.get().isEmpty());
+        IllegalStateException error = assertThrowsExactly(IllegalStateException.class,
+                () -> service.append("user", "hi"));
+        assertSame(rejected, error.getCause());
     }
 
     @Test

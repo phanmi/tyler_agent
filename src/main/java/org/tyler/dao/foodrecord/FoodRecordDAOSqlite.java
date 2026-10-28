@@ -6,11 +6,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import org.sqlite.SQLiteDataSource;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.filesandbox.IFileSandboxPath;
+import org.tyler.filesandbox.SandboxedSqliteDataSource;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodRecord;
 import org.tyler.model.food.GenericInfo;
@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -59,8 +58,7 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     public FoodRecordDAOSqlite(
             IFileSandboxPath sandbox,
             @Value("${food.database-path:food-record.sqlite}") String dbFile) {
-        Path dbPath = sandbox.resolve(dbFile);
-        this.jdbcTemplate = new JdbcTemplate(dataSource(dbPath));
+        this.jdbcTemplate = new JdbcTemplate(new SandboxedSqliteDataSource(sandbox, dbFile));
         this.ddlCreateTable = loadSql("create_table.sql");
         this.ddlCreateIndex = loadSql("create_index.sql");
         this.sqlSelectRecordsByDate = loadSql("select_records_by_date.sql");
@@ -68,12 +66,6 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
         this.sqlDeleteByDate = loadSql("delete_by_date.sql");
         this.sqlDeleteById = loadSql("delete_by_id.sql");
         initSchema();
-    }
-
-    private static SQLiteDataSource dataSource(Path dbPath) {
-        SQLiteDataSource dataSource = new SQLiteDataSource();
-        dataSource.setUrl("jdbc:sqlite:" + dbPath);
-        return dataSource;
     }
 
     private static String loadSql(String fileName) {

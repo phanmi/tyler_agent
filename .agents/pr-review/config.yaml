@@ -1,0 +1,26 @@
+version: 1
+posting:
+  severities:
+    - must
+    - should
+review:
+  default_engine: self
+  additional_engines: []
+  output_language: en
+quality:
+  path: .agents/pr-review/quality/code.yaml
+workspace:
+  tmp_dir: .agents/tmp/pr-review
+guidance:
+  # Exact repository-relative paths; missing files are skipped silently.
+  # AGENTS.md / CLAUDE.md next to changed files are also loaded automatically.
+  include_files:
+    - .github/agents/pr-review.agent.md
+    - docs/BACKEND_STANDARDS.md
+    - docs/PYTHON_AGENT_STANDARDS.md
+    - docs/FRONTEND_STANDARDS.md
+    - docs/FILE_SANDBOX.md
+    - docs/DEVELOPMENT.md
+    - .github/pull_request_template.md
+    - AGENTS.md
+    - CLAUDE.md

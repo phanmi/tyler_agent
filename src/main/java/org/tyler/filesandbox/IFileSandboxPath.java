@@ -10,6 +10,12 @@ import java.nio.file.Path;
  */
 public interface IFileSandboxPath {
 
-    /** Resolves an absolute sandbox path; blank or out-of-bounds paths are rejected. */
+    /**
+     * Returns an absolute path under the real configured root, allowing missing targets.
+     * Rejects blank, out-of-bounds and existing linked/special path components with
+     * {@link IllegalArgumentException}; inspection failures raise FileReadException.
+     * This validates a snapshot, not a persistent capability. Native consumers must
+     * revalidate before opening and require trusted ownership of workspace directories.
+     */
     Path resolve(String relativePath);
 }

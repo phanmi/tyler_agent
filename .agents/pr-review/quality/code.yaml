@@ -1,0 +1,199 @@
+id: tyler-agent-code-quality
+version: 1
+
+# Each criterion is a reviewer prompt. `pass` describes the accepted state;
+# `applies_to` says when it applies; `evidence` names the repository source.
+# Full rules live in the guidance files listed in config.yaml; cite BACKEND
+# section numbers, PY-xx, or FE-xx IDs in findings when a rule explains a defect.
+
+review_dimensions:
+  - id: scope-and-contract-compatibility
+    required: true
+    applies_to: All changes.
+    pass: >-
+      The change stays within the linked issue and acceptance criteria and preserves HTTP routes,
+      JSON fields, status codes, tool names, argument/result schemas, IPC APIs, stored data formats,
+      and SQL schemas unless the issue explicitly changes them; unrelated refactors are recorded
+      separately rather than bundled in.
+    evidence: docs/BACKEND_STANDARDS.md §1; PY-01; FE-12; .github/pull_request_template.md
+
+  - id: layer-boundaries
+    required: true
+    applies_to: Java controllers, services, DAL/DAO, operation bridge handlers, and Python tools.
+    pass: >-
+      Java controllers call the feature service interface directly and Python tools reach the same
+      service through the allowlisted Java operation bridge; no controller, tool, or bridge handler
+      injects, instantiates, or locates DAO/DAL types; DAOs depend on no services, HTTP types, or
+      tool schemas; no DAL merely forwards DAO methods; Spring wiring keeps the intended
+      implementation and decorators unambiguous.
+    evidence: docs/BACKEND_STANDARDS.md §2, §4; src/test/java/org/tyler/architecture/ServiceBoundaryTest.java
+
+  - id: failure-classification
+    required: true
+    applies_to: Code that throws, catches, wraps, or serializes failures in Java, Python, the protocol, or the frontend transport.
+    pass: >-
+      Read, write, validation, absence, provider, protocol, and worker failures stay distinguishable
+      with the designated exception types and machine-readable categories; wrapping retains the
+      cause; insert-returning-ID failures are write failures; no empty result, false, or apparent
+      success conceals a failure; public messages contain no SQL, stack traces, credentials, or
+      absolute paths.
+    evidence: docs/BACKEND_STANDARDS.md §7; PY-08; FE-05
+
+  - id: security-boundaries
+    required: true
+    applies_to: File and database path handling, credentials, worker process arguments, logs, model/tool/user content, Electron IPC and navigation.
+    pass: >-
+      Application file and SQLite access goes through the workspace FileSandbox and its link policy;
+      credentials travel only through the private protocol channel and never appear in source,
+      fixtures, process arguments, logs, or error payloads; untrusted model, tool, user, and remote
+      content cannot widen the operation allowlist, file permissions, or Electron privileges.
+    evidence: docs/FILE_SANDBOX.md; PY-09; FE-10; FE-14; docs/BACKEND_STANDARDS.md §8
+
+  - id: test-evidence
+    required: true
+    applies_to: Behavior changes and changes to thrown or caught failure paths.
+    pass: >-
+      Each behavioral claim has one owning test at the narrowest boundary where it is observable;
+      expected thrown failures trigger the real code and assert the exact contract type
+      (assertThrowsExactly / pytest.raises), retained cause, and public message where contractual;
+      caught failures assert the translated result, cleanup, and unchanged records or cache;
+      persistence tests use temporary directories and isolated databases, never the user workspace.
+    evidence: docs/BACKEND_STANDARDS.md §9 (Required final review workflow); PY-12; FE-11
+
+  - id: verification-reporting
+    required: true
+    applies_to: All changes.
+    pass: >-
+      The PR reports the commands actually run and their results, names checks not run and why,
+      and distinguishes local results, CI results, and outstanding migration or packaging gates;
+      no mocked result is presented as integration evidence.
+    evidence: docs/BACKEND_STANDARDS.md §9; PY-13; FE-12; .github/pull_request_template.md (Verification)
+
+project_rules:
+  - id: python-owns-agent-logic
+    applies_to: Any agent, provider, prompt, tool-definition, or orchestration change.
+    pass: >-
+      New agent functionality (provider SDK use, prompts, context assembly, tool-call loops, tool
+      definitions, argument parsing, model-facing serialization) is in agent-python/src/tyler_agent/;
+      Java keeps only HTTP adapters, worker lifecycle, protocol transport and dispatch, domain
+      services, persistence, transactions, the file sandbox, and persisted settings/history. The
+      retired Java agent orchestration, provider clients, and tools are not reintroduced.
+    evidence: docs/BACKEND_STANDARDS.md §2 (Agent implementation language); PY-01
+
+  - id: python-no-direct-persistence
+    applies_to: Python tools and agent code.
+    pass: >-
+      Python never opens application databases, reimplements domain validation or transactions,
+      bypasses the Java file sandbox, or adds a second store for settings, history, or credentials;
+      Python adapters do not tighten or loosen required-field, date, or numeric rules enforced by
+      Java services.
+    evidence: PY-01; PY-04; PY-09
+
+  - id: sql-in-resource-files
+    applies_to: DAO and schema changes.
+    pass: >-
+      All SQL, including table and index creation, lives in .sql files under
+      src/main/resources/db/<feature>/, is loaded from the classpath with explicit encoding, and
+      binds caller values as JDBC parameters; DAOs return no ResultSet, connection, or SQL string.
+    evidence: docs/BACKEND_STANDARDS.md §6
+
+  - id: atomic-persistence-claims
+    applies_to: Operations performing multiple writes or claiming rollback/atomicity.
+    pass: >-
+      The operation states whether it is atomic, partially successful, or compensating; atomic
+      claims use a real transaction on the same data source and transaction manager as the DAOs and
+      are verified against a real temporary database, through the Python-to-Java path when agent
+      operations are affected; mocked bridge replies are not treated as rollback evidence.
+    evidence: docs/BACKEND_STANDARDS.md §6 (Operations involving multiple writes), §9; PY-12
+
+  - id: sandboxed-sqlite-paths
+    applies_to: Changes to FileSandbox, SandboxedSqliteDataSource, database path settings, or their consumers.
+    pass: >-
+      Database settings accept only plain filesystem paths; query syntax, JDBC/file/resource URLs,
+      memory selectors, and trailing whitespace are rejected before sandbox resolution; the database
+      and its -journal, -wal, and -shm sidecars are validated at construction and before every
+      connection; links, junctions, and reparse entries below the real root are rejected with
+      path-free messages and retained causes.
+    evidence: docs/FILE_SANDBOX.md; src/test/java/org/tyler/filesandbox/
+
+  - id: protocol-contract-and-fixtures
+    applies_to: Changes to worker protocol messages, schemas, codecs, or bridge dispatch.
+    pass: >-
+      Messages follow agent protocol version 1 and the shared schema; stdout carries only protocol
+      frames and diagnostics go to stderr; framing, version, direction, allowlisted operation,
+      correlation, and sequence are validated before side effects; decimals, dates, identifiers,
+      nulls, and failure categories round-trip losslessly; protocol changes update the shared
+      fixtures under contracts/agent/ and both Java and Python conformance tests.
+    evidence: docs/AGENT_PROTOCOL.md; contracts/agent/v1/; PY-06; docs/BACKEND_STANDARDS.md §8
+
+  - id: no-unsafe-write-replay
+    applies_to: Timeout, cancellation, worker restart, retry, and frontend mutation paths.
+    pass: >-
+      An interrupted operation with an unknown write outcome is reported as uncertain, not failed;
+      writes, whole conversations, and in-flight requests are never automatically replayed or moved
+      to another implementation unless duplicate execution is demonstrably safe and tested; late
+      completions cannot affect another request.
+    evidence: docs/BACKEND_STANDARDS.md §8; PY-07; PY-08; FE-04; FE-05
+
+  - id: exact-decimal-and-date-values
+    applies_to: Code handling quantities, nutrition/workout numbers, and calendar dates in any language.
+    pass: >-
+      Exact quantities use BigDecimal in Java, Decimal with exact strings in Python, and documented
+      representations in TypeScript, never round-tripped through float; calendar dates stay
+      YYYY-MM-DD date-only values without timezone conversion; empty numeric drafts are not turned
+      into zero.
+    evidence: docs/BACKEND_STANDARDS.md §5; PY-04; FE-02
+
+  - id: test-file-placement
+    applies_to: Added or moved tests, fixtures, and test helpers.
+    pass: >-
+      Java tests are under src/test/java, Python tests and helpers under agent-python/tests/,
+      frontend tests and helpers under frontend/tests/, and cross-language fixtures under
+      contracts/agent/ without per-language duplicates; production code imports no test-only module.
+    evidence: docs/BACKEND_STANDARDS.md §3; PY-02; PY-12; FE-11
+
+  - id: frontend-async-identity
+    applies_to: Frontend reads, mutations, drafts, and destructive actions.
+    pass: >-
+      Reads are keyed by every result-determining input plus request identity, and obsolete
+      completions (including catch/finally) cannot update data, loading, or errors; mutations
+      capture their target ID and submitted draft so completion never resets newer edits or another
+      resource's state; records are addressed by stable IDs; ordering is tested with controlled
+      promises.
+    evidence: FE-03; FE-04; FE-11
+
+  - id: safe-diagnostic-logging
+    applies_to: Changed log statements and failure-handling boundaries.
+    pass: >-
+      Java uses SLF4J and Python uses logging to stderr with parameterized messages naming the
+      operation, outcome, and safe context (record ID, count, error code); success is logged only
+      after confirmation; one stack trace is logged at the handling boundary; no API keys, prompts,
+      conversation history, raw frames, file contents, or absolute workspace paths are logged.
+    evidence: docs/BACKEND_STANDARDS.md §8 (Logging); PY-10; FE-15; docs/FILE_SANDBOX.md
+
+  - id: comments-match-final-code
+    applies_to: Changed functions/classes and their surrounding code.
+    pass: >-
+      Javadoc, docstrings, and comments on the final affected code accurately describe purpose,
+      side effects, absence, and failure contracts, with stale comments outside the changed lines
+      updated or removed; all comments, messages, and logs are in English.
+    evidence: docs/BACKEND_STANDARDS.md §3; PY-10; FE-15
+
+  - id: required-checks-per-surface
+    applies_to: Selecting and reporting verification for a change.
+    pass: >-
+      Java behavior changes run mvn test (mvn clean test after deleting or moving classes); Python
+      changes run the locked uv sync, ruff format --check, ruff check, mypy for both linux and win32,
+      and pytest from agent-python/; frontend changes pass npm ci, type checking, tests, and
+      npm run build; shared-contract or execution-path changes run both languages plus cross-process
+      integration tests; startup, runtime, or packaging changes include the relocated Windows bundle
+      smoke check; documentation-only changes need link and content checks only.
+    evidence: docs/BACKEND_STANDARDS.md §9; PY-13; FE-12; .github/workflows/ci.yml
+
+  - id: single-release-version-source
+    applies_to: Version, dependency, and packaging changes.
+    pass: >-
+      Release versions come only from .mvn/maven.config; Python dependency changes update
+      pyproject.toml and the generated uv.lock together and frontend changes keep package-lock.json
+      consistent with npm ci; no lockfile is hand-edited and no check is weakened to pass.
+    evidence: PY-11; FE-12; docs/BACKEND_STANDARDS.md §8
