@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
@@ -57,7 +58,7 @@ class ApiKeyServiceTest {
     void rejectedKeyPathIsReportedAsFileFailureNotClientError() {
         IFileSandboxRead reader = mock(IFileSandboxRead.class);
         IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
-        var rejected = new IllegalArgumentException("Workspace links and special files are not allowed");
+        var rejected = new WorkspacePathException("Workspace links and special files are not allowed");
         when(reader.exists("apikey.txt")).thenThrow(rejected);
         doThrow(rejected).when(writer).write(eq("apikey.txt"), anyString());
         ApiKeyService service = new ApiKeyService(reader, writer, "apikey.txt");

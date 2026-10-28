@@ -2,23 +2,25 @@ package org.tyler.service.chatHistory;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.tyler.exceptionHandler.exception.FileReadException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.chat.ChatMessage;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,18 +43,59 @@ class ChatHistoryServiceTest {
     }
 
     @Test
-    void rejectedHistoryPathLoadsEmptyAndAppendFailsAsStorageError() {
+    void rejectedHistoryPathLoadsEmptyButAppendFailsWithoutWriting() {
         IFileSandboxRead reader = mock(IFileSandboxRead.class);
         IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
-        var rejected = new IllegalArgumentException("Workspace links and special files are not allowed");
+        var rejected = new WorkspacePathException("Workspace links and special files are not allowed");
         when(reader.exists(FILE)).thenThrow(rejected);
-        doThrow(rejected).when(writer).write(eq(FILE), anyString());
         ChatHistoryService service = new ChatHistoryService(reader, writer, FILE, 20);
 
         assertTrue(service.get().isEmpty());
         IllegalStateException error = assertThrowsExactly(IllegalStateException.class,
                 () -> service.append("user", "hi"));
         assertSame(rejected, error.getCause());
+        verifyNoInteractions(writer);
+    }
+
+    @Test
+    void unreadableHistoryIsNotOverwrittenByAppend() {
+        IFileSandboxRead reader = mock(IFileSandboxRead.class);
+        IFileSandboxWrite writer = mock(IFileSandboxWrite.class);
+        var unreadable = new FileReadException("Unable to read workspace file");
+        when(reader.exists(FILE)).thenReturn(true);
+        when(reader.read(FILE)).thenThrow(unreadable);
+        ChatHistoryService service = new ChatHistoryService(reader, writer, FILE, 20);
+
+        assertTrue(service.get().isEmpty());
+        IllegalStateException error = assertThrowsExactly(IllegalStateException.class,
+                () -> service.appendExchange("hello", "world"));
+        assertSame(unreadable, error.getCause());
+        assertThrowsExactly(IllegalStateException.class, () -> service.append("user", "hi"));
+        verifyNoInteractions(writer);
+    }
+
+    @Test
+    void historyPathThatCannotBeReadFailsAppendAndKeepsEntry() throws IOException {
+        ChatHistoryService service = newService(20);
+        // A directory at the history path exists but cannot be read as a file.
+        Path entry = Files.createDirectory(tempDir.resolve(FILE));
+        Files.writeString(entry.resolve("keep.txt"), "keep");
+
+        assertTrue(service.get().isEmpty());
+        IllegalStateException error = assertThrowsExactly(IllegalStateException.class,
+                () -> service.appendExchange("hello", "world"));
+        assertInstanceOf(FileReadException.class, error.getCause());
+        assertEquals("keep", Files.readString(entry.resolve("keep.txt")));
+    }
+
+    @Test
+    void appendReplacesHistoryThatIsNotValidJson() throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        ChatHistoryService service = new ChatHistoryService(sandbox, sandbox, FILE, 20);
+        sandbox.write(FILE, "not a valid json {{{");
+
+        assertEquals(2, service.appendExchange("hello", "world").size());
+        assertEquals(2, service.get().size());
     }
 
     @Test

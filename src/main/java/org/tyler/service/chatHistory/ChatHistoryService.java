@@ -1,5 +1,6 @@
 package org.tyler.service.chatHistory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -8,7 +9,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
+import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.model.chat.ChatMessage;
 import org.tyler.service.userInfo.UserInfoService;
 
@@ -60,17 +63,10 @@ public class ChatHistoryService implements IChatHistoryService {
     @Override
     public List<ChatMessage> get() {
         try {
-            // Check existence before reading to avoid an error for a missing file.
-            if (!reader.exists(relativePath)) {
-                return List.of();
-            }
-            List<ChatMessage> history = objectMapper.readValue(
-                    reader.read(relativePath),
-                    new TypeReference<List<ChatMessage>>() {});
-            return normalize(history);
-        } catch (Exception e) {
-            // Return empty history if the file cannot be inspected or read (including
-            // sandbox link rejection) or contains invalid JSON.
+            return load();
+        } catch (RuntimeException e) {
+            // Display and context reads degrade to empty history when the file cannot be
+            // inspected or read (including sandbox link rejection).
             log.warn("Failed to read chat history; returning empty history: {}", relativePath, e);
             return List.of();
         }
@@ -81,7 +77,7 @@ public class ChatHistoryService implements IChatHistoryService {
         if (!VALID_ROLES.contains(role)) {
             throw new IllegalArgumentException("role must be user or assistant");
         }
-        List<ChatMessage> history = new ArrayList<>(get());
+        List<ChatMessage> history = new ArrayList<>(load());
         history.add(new ChatMessage(role, content));
         List<ChatMessage> normalized = normalize(history);
         write(normalized);
@@ -92,7 +88,7 @@ public class ChatHistoryService implements IChatHistoryService {
     public List<ChatMessage> appendExchange(String userMessage, String assistantReply) {
         // Read, append a complete user/assistant exchange, normalize, and write once.
         // This avoids leaving an unanswered user message if separate writes were to fail.
-        List<ChatMessage> history = new ArrayList<>(get());
+        List<ChatMessage> history = new ArrayList<>(load());
         history.add(new ChatMessage("user", userMessage));
         history.add(new ChatMessage("assistant", assistantReply));
         List<ChatMessage> normalized = normalize(history);
@@ -104,6 +100,31 @@ public class ChatHistoryService implements IChatHistoryService {
     public List<ChatMessage> clear() {
         write(List.of());
         return List.of();
+    }
+
+    /**
+     * Loads saved history for a read-modify-write. A missing file or invalid JSON is empty
+     * history. Inspection and read failures (including sandbox link rejection) throw, so
+     * appending never overwrites history that exists but could not be read.
+     */
+    private List<ChatMessage> load() {
+        String json;
+        try {
+            // Check existence before reading to avoid an error for a missing file.
+            if (!reader.exists(relativePath)) {
+                return List.of();
+            }
+            json = reader.read(relativePath);
+        } catch (FileReadException | WorkspacePathException e) {
+            // GenericExceptionHandler maps IllegalStateException to HTTP 500.
+            throw new IllegalStateException("Failed to load chat history. Please try again later", e);
+        }
+        try {
+            return normalize(objectMapper.readValue(json, new TypeReference<List<ChatMessage>>() {}));
+        } catch (JsonProcessingException e) {
+            log.warn("Chat history is not valid JSON; treating it as empty: {}", relativePath, e);
+            return List.of();
+        }
     }
 
     /**
@@ -139,7 +160,7 @@ public class ChatHistoryService implements IChatHistoryService {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(history);
             writer.write(relativePath, json);
             log.debug("Saved {} chat messages to {}", history.size(), relativePath);
-        } catch (IOException | FileWriteException | IllegalArgumentException e) {
+        } catch (IOException | FileWriteException | WorkspacePathException e) {
             // The path is configuration, not request input, so a sandbox path rejection
             // is a storage failure rather than a client error.
             log.error("Failed to write chat history: {}", relativePath, e);

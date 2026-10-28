@@ -23,14 +23,12 @@ public final class SandboxedSqliteDataSource extends AbstractDataSource {
             "Database path must be a plain filesystem path without SQLite URL syntax or trailing whitespace";
 
     private final IFileSandboxPath sandbox;
-    private final String databaseFile;
     private final Path databasePath;
     private final SQLiteDataSource delegate;
 
     public SandboxedSqliteDataSource(IFileSandboxPath sandbox, String databaseFile) {
         requirePlainPath(databaseFile);
         this.sandbox = sandbox;
-        this.databaseFile = databaseFile;
         databasePath = sandbox.resolve(databaseFile);
         // The configured root can itself contain '?' on some filesystems.
         requirePlainPath(databasePath.toString());
@@ -74,11 +72,8 @@ public final class SandboxedSqliteDataSource extends AbstractDataSource {
     }
 
     private void validatePaths() {
-        if (!databasePath.equals(sandbox.resolve(databaseFile))) {
-            throw new IllegalArgumentException("Database workspace path has changed");
-        }
-        for (String suffix : SIDECARS) {
-            sandbox.resolve(databasePath + suffix);
-        }
+        // The sandbox root is fixed, so the resolved path cannot change; only the entries
+        // on it can, and those are what this revalidates.
+        sandbox.resolveWithSiblings(databasePath.toString(), SIDECARS);
     }
 }

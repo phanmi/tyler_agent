@@ -13,7 +13,8 @@ public interface IFileSandboxWrite {
 
     /**
      * Replaces UTF-8 text and creates checked parent directories as needed.
-     * Invalid paths and pre-existing links raise IllegalArgumentException before writing;
+     * Invalid paths and pre-existing links raise WorkspacePathException
+     * (an IllegalArgumentException) before writing;
      * I/O failures raise FileWriteException with a safe message. See FILE_SANDBOX.md
      * for limitations when another process concurrently changes directories.
      */

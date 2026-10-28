@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
+import org.tyler.exceptionHandler.exception.WorkspacePathException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -116,9 +117,9 @@ class SandboxedSqliteDataSourceTest {
         var sandbox = new FileSandbox(tempDir.resolve("workspace").toString());
         Path external = Files.writeString(tempDir.resolve("external"), "keep");
         FileSandboxLinkTest.symbolicLink(tempDir.resolve("workspace/data.sqlite"), external);
-        assertThrowsExactly(IllegalArgumentException.class,
+        assertThrowsExactly(WorkspacePathException.class,
                 () -> new FoodRecordDAOSqlite(sandbox, "data.sqlite"));
-        assertThrowsExactly(IllegalArgumentException.class,
+        assertThrowsExactly(WorkspacePathException.class,
                 () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, "data.sqlite"));
         assertEquals("keep", Files.readString(external));
     }
@@ -131,9 +132,9 @@ class SandboxedSqliteDataSourceTest {
         Path junction = tempDir.resolve("workspace/linked");
         FileSandboxLinkTest.junction(junction, external);
         try {
-            assertThrowsExactly(IllegalArgumentException.class,
+            assertThrowsExactly(WorkspacePathException.class,
                     () -> new FoodRecordDAOSqlite(sandbox, "linked/data.sqlite"));
-            assertThrowsExactly(IllegalArgumentException.class,
+            assertThrowsExactly(WorkspacePathException.class,
                     () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, "linked/data.sqlite"));
             assertFalse(Files.exists(external.resolve("data.sqlite")));
         } finally {
