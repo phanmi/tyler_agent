@@ -107,7 +107,7 @@ uv run --locked pytest tests
 The two mypy targets check Linux CI and Windows desktop APIs independently; they
 do not replace runtime tests on those platforms.
 
-Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v1/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
+Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v2/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
 
 From the repository root, run the Java conformance/error-mapping tests and the full backend suite:
 

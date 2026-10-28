@@ -160,7 +160,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 ### Worker protocol and lifecycle
 
-- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 1](AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
+- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 2](AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
 - Validate message shape, protocol version, operation allowlists, and request/call correlation before executing side effects. Bound message sizes, queues, and waits, and reject messages for inactive requests.
 - Java owns worker startup, readiness, cancellation, and shutdown. Make cleanup idempotent and test failure paths without leaving orphan processes or mixing requests.
 - Preserve decimal precision, date formats, identifiers, null semantics, and error categories across serialization. A transport failure must not erase the distinction between a rejected operation and an operation whose result was lost.

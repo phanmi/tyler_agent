@@ -12,6 +12,7 @@ def payload() -> Message:
     return {
         "message": "current",
         "history": [],
+        "provider": "openai",
         "model": "configured-model",
         "apiKey": "SYNTHETIC_FIXTURE_KEY",
         "maxToolRounds": 5,

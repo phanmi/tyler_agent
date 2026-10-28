@@ -35,7 +35,7 @@ The six implementations live in [bridge/handler](../src/main/java/org/tyler/serv
 
 ## Tool parsing and output contracts
 
-Each Python [builtin tool package](../agent-python/src/tyler_agent/tools/builtin) owns its adapter and `definition.json`; shared [argument parsing](../agent-python/src/tyler_agent/tools/parsing.py) and [result rendering](../agent-python/src/tyler_agent/tools/rendering.py) preserve the released compatibility rules. The frozen [release schema fixture](../contracts/agent/v1/fixtures/tool-definitions.json) replaces comparisons against the retired Java builders. `PythonToolContractTest` verifies complete schemas and shared output goldens; Python registry/tool tests check the same contracts. Domain validation stays in Java.
+Each Python [builtin tool package](../agent-python/src/tyler_agent/tools/builtin) owns its adapter and `definition.json`; shared [argument parsing](../agent-python/src/tyler_agent/tools/parsing.py) and [result rendering](../agent-python/src/tyler_agent/tools/rendering.py) preserve the released compatibility rules. The frozen [release schema fixture](../contracts/agent/v2/fixtures/tool-definitions.json) replaces comparisons against the retired Java builders. `PythonToolContractTest` verifies complete schemas and shared output goldens; Python registry/tool tests check the same contracts. Domain validation stays in Java.
 
 ### Adding a Python tool
 
@@ -55,7 +55,7 @@ Discovery reads only the trusted bundled namespace, never a model-supplied modul
 | [writeFile](../agent-python/src/tyler_agent/tools/builtin/file_write/adapter.py) | Malformed JSON, missing/null/blank path, and missing/null content are file-write failures. Path/content preserve the characterized scalar-to-text coercion; empty content is allowed. Extra properties are ignored. Python must distinguish those adapter errors from sandbox argument rejection. | `Wrote ` followed by the requested path. |
 | [getCurrentTime](../agent-python/src/tyler_agent/tools/builtin/time_current/adapter.py) | Ignores arguments. Python requests an empty-input operation instead of substituting its own local clock/time zone. | Server-local time text in the existing format. |
 
-No-argument tools send `{}` to Java after their adapter parsing. Public tool names are not accepted as private operation names. Protocol version 1 already excludes scientific notation and decimal magnitudes above two billion; adapters must honor that documented transport restriction rather than round or silently truncate values. Expanded ISO years remain strings through Python and are interpreted by Java. The seven-day upper-date bound belongs to the shared plan service.
+No-argument tools send `{}` to Java after their adapter parsing. Public tool names are not accepted as private operation names. Protocol version 2 (like version 1) excludes scientific notation and decimal magnitudes above two billion; adapters must honor that documented transport restriction rather than round or silently truncate values. Expanded ISO years remain strings through Python and are interpreted by Java. The seven-day upper-date bound belongs to the shared plan service.
 
 ## Persistence, failures, and file access
 

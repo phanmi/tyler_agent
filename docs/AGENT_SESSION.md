@@ -2,7 +2,7 @@
 
 [Developer guide](DEVELOPMENT.md) | [Protocol contract](AGENT_PROTOCOL.md) | [Migration tracker](AGENT_MIGRATION.md)
 
-This guide explains the session model, the meaning of each state and message type, and the responsibilities of Java and Python. The [version 1 protocol contract](AGENT_PROTOCOL.md) remains authoritative for exact fields, limits, and failure codes.
+This guide explains the session model, the meaning of each state and message type, and the responsibilities of Java and Python. The [version 2 protocol contract](AGENT_PROTOCOL.md) remains authoritative for exact fields, limits, and failure codes.
 
 ## What is implemented today?
 

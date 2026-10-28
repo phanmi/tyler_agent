@@ -87,7 +87,7 @@ class ProtocolFailuresTest {
     }
 
     private static ObjectNode failure(String category, String code) {
-        ObjectNode message = MAPPER.createObjectNode().put("protocolVersion", 1).put("type", "failed")
+        ObjectNode message = MAPPER.createObjectNode().put("protocolVersion", MessageValidator.PROTOCOL_VERSION).put("type", "failed")
                 .put("sessionId", "0123456789abcdef0123456789abcdef").put("requestId", "req-1");
         message.putObject("payload").putObject("error").put("category", category).put("code", code)
                 .put("message", WORKER_DETAIL).put("writeOutcome", "none");

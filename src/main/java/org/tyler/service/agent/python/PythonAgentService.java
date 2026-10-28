@@ -34,8 +34,9 @@ public final class PythonAgentService implements IAgentService {
     private String askOnLane(String message) {
         String key = keys.get(); // Snapshot only when dequeued, so key edits affect waiting requests.
         if (key == null || key.isBlank()) throw new OpenAIKeyException("OpenAI API key is empty; chat is unavailable");
+        // Only OpenAI is wired until the backend stores an active provider (issue #79).
         ObjectNode payload = JsonNodeFactory.instance.objectNode().put("message", message)
-                .put("model", model).put("apiKey", key).put("maxToolRounds", 5)
+                .put("provider", "openai").put("model", model).put("apiKey", key).put("maxToolRounds", 5)
                 .put("timeoutMs", settings.runTimeout().toMillis())
                 .put("operationTimeoutMs", settings.operationTimeout().toMillis());
         var messages = payload.putArray("history");

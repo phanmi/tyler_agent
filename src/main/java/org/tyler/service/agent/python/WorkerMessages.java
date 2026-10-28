@@ -10,6 +10,7 @@ import org.tyler.exceptionHandler.exception.OpenAIKeyException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
+import org.tyler.service.agent.protocol.MessageValidator;
 
 /**
  * Builds private transport envelopes and code-owned failures; never serializes arbitrary exceptions.
@@ -19,7 +20,7 @@ final class WorkerMessages {
     private WorkerMessages() { }
 
     static ObjectNode envelope(String session, String type, String request, JsonNode payload) {
-        ObjectNode message = JsonNodeFactory.instance.objectNode().put("protocolVersion", 1)
+        ObjectNode message = JsonNodeFactory.instance.objectNode().put("protocolVersion", MessageValidator.PROTOCOL_VERSION)
                 .put("sessionId", session).put("type", type).put("requestId", request);
         message.set("payload", payload);
         return message;

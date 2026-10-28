@@ -47,7 +47,10 @@ class PythonAgentServiceTest {
         var worker = mock(PythonWorker.class);
         int expectedSize = maxMessages - maxMessages % 2;
         when(worker.execute(any())).thenAnswer(call -> {
-            var snapshot = ((com.fasterxml.jackson.databind.JsonNode) call.getArgument(0)).path("history");
+            var run = (com.fasterxml.jackson.databind.JsonNode) call.getArgument(0);
+            // The run contract requires a provider; only OpenAI is wired so far (issue #79).
+            assertEquals("openai", run.path("provider").asText());
+            var snapshot = run.path("history");
             assertEquals(expectedSize, snapshot.size());
             for (int i = 0; i < expectedSize; i++) {
                 assertEquals("message-" + (30 - expectedSize + i), snapshot.get(i).path("content").asText());
