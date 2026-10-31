@@ -20,6 +20,17 @@ async function until(check, label, timeout = 45000) {
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
 
+// Windows can hold an exited worker's files open briefly (for example during an antivirus scan).
+async function renameWhenReleased(from, to, timeout = 10000) {
+    const end = Date.now() + timeout
+    for (;;) {
+        try { return fs.renameSync(from, to) } catch (error) {
+            if (!['EPERM', 'EBUSY', 'EACCES'].includes(error.code) || Date.now() >= end) throw error
+            await sleep(250)
+        }
+    }
+}
+
 // A terminated backend or startup dialog is a failure, not a reason to keep polling readiness.
 function backendReady(log, child, name) {
     const failure = /SMOKE_DIALOG ([^\r\n]+)/.exec(log)?.[1]
@@ -200,7 +211,7 @@ async function run() {
         await until(() => app.log().includes('SMOKE_DIALOG'), 'backend exit diagnostic')
         app.debug.socket.close()
     })
-    fs.renameSync(worker, worker + '-production')
+    await renameWhenReleased(worker, worker + '-production')
     await scenario('missing-worker', async (app) => {
         await until(() => app.log().includes('SMOKE_DIALOG'), 'missing worker diagnostic')
         app.debug.socket.close()
