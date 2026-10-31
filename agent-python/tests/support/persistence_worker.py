@@ -5,12 +5,20 @@ tool parsing, orchestration, and lifecycle all use production code.
 """
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.provider import ModelResponse, Provider, ToolCall
+from tyler_agent.provider import (
+    AssistantTurn,
+    Provider,
+    ToolCall,
+    ToolDefinition,
+    ToolResult,
+    TranscriptEntry,
+    responses_input,
+)
 from tyler_agent.worker import main
 
 
@@ -61,26 +69,32 @@ class PersistenceProvider:
         self.scenario: str = value["message"]
         self.history: list[Message] = value["history"]
         self.history_size = len(value["history"])
+        # Reported back so Java can check which provider the run selected.
+        self.provider: str = value["provider"]
 
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
-        if previous_id is None:
-            assert items == self.history + [{"role": "user", "content": self.scenario}]
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        first = not any(isinstance(entry, ToolResult) for entry in transcript)
+        if first:
+            assert responses_input(transcript) == self.history + [
+                {"role": "user", "content": self.scenario}
+            ]
         if self.scenario == "auth_failure":
             raise AgentFailure("authentication", "PROVIDER_AUTH")
         if self.scenario == "provider_failure" or (
-            self.scenario == "food_then_failure" and previous_id is not None
+            self.scenario == "food_then_failure" and not first
         ):
             raise AgentFailure("provider", "PROVIDER_FAILURE")
-        if previous_id is None:
+        if first:
             calls = calls_for(self.scenario)
             if calls:
-                return ModelResponse("tools", calls, "")
-        outputs = [item["output"] for item in items if item.get("type") == "function_call_output"]
-        return ModelResponse(
-            "reply", (), json.dumps(dict(historySize=self.history_size, outputs=outputs))
+                return AssistantTurn(calls, "")
+        outputs = [entry.output for entry in transcript if isinstance(entry, ToolResult)]
+        reply = dict(
+            historySize=self.history_size, outputs=outputs, provider=self.provider, model=model
         )
+        return AssistantTurn((), json.dumps(reply))
 
 
 @asynccontextmanager

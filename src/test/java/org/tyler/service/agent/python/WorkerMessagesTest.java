@@ -16,7 +16,7 @@ class WorkerMessagesTest {
         return Stream.of(new SQLReadException("synthetic-secret"), new SQLPersistentException("synthetic-secret"),
                 new SQLDataValidationException("synthetic-secret"), new IllegalArgumentException("synthetic-secret"),
                 new FileReadException("synthetic-secret"), new FileWriteException("synthetic-secret"),
-                new IllegalStateException("synthetic-secret"), new OpenAIKeyException("synthetic-secret"));
+                new IllegalStateException("synthetic-secret"), new ApiKeyMissingException("synthetic-secret"));
     }
 
     @ParameterizedTest

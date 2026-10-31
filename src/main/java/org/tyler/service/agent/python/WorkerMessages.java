@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DataAccessException;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
-import org.tyler.exceptionHandler.exception.OpenAIKeyException;
+import org.tyler.exceptionHandler.exception.ApiKeyMissingException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
@@ -49,7 +49,7 @@ final class WorkerMessages {
         String code = switch (failure) {
             case SQLDataValidationException ignored -> "SQL_DATA_VALIDATION";
             case IllegalArgumentException ignored -> "INVALID_ARGUMENT";
-            case OpenAIKeyException ignored -> "API_KEY_MISSING";
+            case ApiKeyMissingException ignored -> "API_KEY_MISSING";
             case SQLReadException ignored -> "SQL_READ";
             case SQLPersistentException ignored -> "SQL_WRITE";
             case DataAccessException ignored -> "SQL_ACCESS";

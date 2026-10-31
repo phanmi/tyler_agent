@@ -233,6 +233,30 @@ class AgentPersistenceIntegrationTest {
         }
     }
 
+    @Test
+    void settingsSavedOverHttpChooseTheProviderModelAndKeyForTheRealWorker() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            JsonNode openai = reply(app.chat("reply", 200));
+            assertEquals("openai", openai.path("provider").asText());
+            assertEquals("gpt-6-sol", openai.path("model").asText());
+
+            app.http("PUT", "/api/llm/settings", """
+                    {"activeProvider":"anthropic","models":{"openai":"gpt-6-sol",
+                     "anthropic":"claude-haiku-5-5","deepseek":"deepseek-flash"}}""", 200);
+            // The saved OpenAI key never substitutes for the missing Claude key.
+            assertEquals("Claude API key is empty; chat is unavailable",
+                    app.chat("reply", 401).path("error").asText());
+            assertEquals(2, app.get(HISTORY).size());
+
+            app.http("PUT", "/api/llm/keys/anthropic", "{\"apiKey\":\"SYNTHETIC_CLAUDE_KEY\"}", 200);
+            JsonNode claude = reply(app.chat("reply", 200));
+            assertEquals("anthropic", claude.path("provider").asText());
+            assertEquals("claude-haiku-5-5", claude.path("model").asText());
+            assertEquals(2, claude.path("historySize").asInt());
+            assertEquals(4, app.get(HISTORY).size());
+        }
+    }
+
     private static JsonNode reply(JsonNode response) throws Exception {
         assertEquals(1, response.size());
         return JSON.readTree(response.path("reply").asText());

@@ -1,7 +1,7 @@
 """Controlled request/operation ordering, cancellation, deadlines, and safe completion."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 import pytest
@@ -9,7 +9,7 @@ from support.agent_fakes import FakeProvider, call, payload
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message, ProtocolError
-from tyler_agent.provider import ModelResponse, Provider
+from tyler_agent.provider import AssistantTurn, Provider, ToolDefinition, TranscriptEntry
 from tyler_agent.runtime import WorkerRuntime
 
 
@@ -45,8 +45,7 @@ def test_failed_read_after_successful_write_reports_run_commit() -> None:
     async def scenario() -> None:
         provider = FakeProvider(
             [
-                ModelResponse(
-                    "r",
+                AssistantTurn(
                     (
                         call("writeFile", '{"path":"x","content":"saved"}', "write"),
                         call("readFile", '{"path":"missing"}', "read"),
@@ -84,7 +83,7 @@ def test_failed_read_after_successful_write_reports_run_commit() -> None:
 
 def test_completed_and_each_run_uses_new_key_history_and_client_scope() -> None:
     async def scenario() -> None:
-        provider = FakeProvider([ModelResponse("r1", (), "one"), ModelResponse("r2", (), "two")])
+        provider = FakeProvider([AssistantTurn((), "one"), AssistantTurn((), "two")])
         h = Harness(provider)
         try:
             for i in (1, 2):
@@ -100,7 +99,7 @@ def test_completed_and_each_run_uses_new_key_history_and_client_scope() -> None:
                 "synthetic-key-1",
                 "synthetic-key-2",
             ]
-            assert [r["input"][0]["content"] for r in provider.requests] == ["1", "2"]
+            assert [r["transcript"][0].text for r in provider.requests] == ["1", "2"]
         finally:
             await h.runtime.close()
 
@@ -118,7 +117,7 @@ def test_completed_and_each_run_uses_new_key_history_and_client_scope() -> None:
 )
 def test_java_failure_forwarded_without_later_tools(category: str, code: str) -> None:
     async def scenario() -> None:
-        provider = FakeProvider([ModelResponse("r", (call(), call()), "")])
+        provider = FakeProvider([AssistantTurn((call(), call()), "")])
         h = Harness(provider)
         try:
             await h.runtime.accept(message("run", payload()))
@@ -146,7 +145,7 @@ def test_failure_after_write_reports_commit_without_replay(
     async def scenario() -> None:
         provider = FakeProvider(
             [
-                ModelResponse("r", (call("writeFile", '{"path":"x","content":"secret"}'),), ""),
+                AssistantTurn((call("writeFile", '{"path":"x","content":"secret"}'),), ""),
                 failure,
             ]
         )
@@ -173,8 +172,8 @@ def test_cancel_pending_write_keeps_unknown_and_ignores_late_result(reason: str,
     async def scenario() -> None:
         provider = FakeProvider(
             [
-                ModelResponse("r", (call("writeFile", '{"path":"x","content":"y"}'), call()), ""),
-                ModelResponse("next", (), "next reply"),
+                AssistantTurn((call("writeFile", '{"path":"x","content":"y"}'), call()), ""),
+                AssistantTurn((), "next reply"),
             ]
         )
         h = Harness(provider)
@@ -199,9 +198,7 @@ def test_cancel_pending_write_keeps_unknown_and_ignores_late_result(reason: str,
 
 def test_wrong_or_duplicate_operation_result_is_rejected() -> None:
     async def scenario() -> None:
-        h = Harness(
-            FakeProvider([ModelResponse("r", (call(),), ""), ModelResponse("r2", (), "done")])
-        )
+        h = Harness(FakeProvider([AssistantTurn((call(),), ""), AssistantTurn((), "done")]))
         try:
             await h.runtime.accept(message("run", payload()))
             request = await h.next()
@@ -226,7 +223,7 @@ def test_wrong_or_duplicate_operation_result_is_rejected() -> None:
 )
 def test_second_run_rejected_while_active(request_id: str, code: str) -> None:
     async def scenario() -> None:
-        h = Harness(FakeProvider([ModelResponse("r", (call(),), "")]))
+        h = Harness(FakeProvider([AssistantTurn((call(),), "")]))
         try:
             await h.runtime.accept(message("run", payload()))
             await h.next()
@@ -244,8 +241,8 @@ class BlockedProvider:
         self.closed = asyncio.Event()
 
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
         self.started.set()
         await asyncio.Event().wait()
         raise AssertionError("Unreachable")
@@ -294,7 +291,7 @@ def test_operation_timeout_leaves_write_uncertain_and_does_not_continue() -> Non
     async def scenario() -> None:
         h = Harness(
             FakeProvider(
-                [ModelResponse("r", (call("writeFile", '{"path":"x","content":"y"}'), call()), "")]
+                [AssistantTurn((call("writeFile", '{"path":"x","content":"y"}'), call()), "")]
             )
         )
         try:

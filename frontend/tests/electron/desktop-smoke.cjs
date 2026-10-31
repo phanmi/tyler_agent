@@ -110,6 +110,14 @@ async function launch(executable, directory, name, args = []) {
             async ready() {
                 return until(() => backendReady(log, child, name), `backend ready (${name})`)
             },
+            // Read the token the way the window does, through its preload bridge.
+            async accessToken() {
+                const token = await until(async () => (await debug.send('Runtime.evaluate', {
+                    expression: "globalThis.__smokeElectron.BrowserWindow.getAllWindows()[0]?.webContents.executeJavaScript('window.tylerBackend.getAccessToken()')",
+                    awaitPromise: true, returnByValue: true,
+                })).result?.value, `access token (${name})`)
+                return { 'X-Tyler-Token': token }
+            },
             async quit() {
                 // Disconnect before exit so Node's inspector cannot keep the app alive.
                 debug.socket.send(JSON.stringify({ id: 999999, method: 'Runtime.evaluate', params: { expression: "setImmediate(() => globalThis.__smokeElectron.app.quit())" } }))
@@ -181,7 +189,8 @@ async function run() {
     }
     await scenario('production-ready-quit', async (app) => {
         const url = await app.ready()
-        assert.equal((await fetch(url + '/api/agent/history')).status, 200)
+        assert.equal((await fetch(url + '/api/agent/history')).status, 401, 'API must require the access token')
+        assert.equal((await fetch(url + '/api/agent/history', { headers: await app.accessToken() })).status, 200)
         assert.equal(app.pids().length, 2)
         await app.quit()
     })
@@ -221,8 +230,9 @@ async function run() {
     fs.writeFileSync(path.join(worker, 'scenario.txt'), 'active')
     await scenario('quit-during-active-request', async (app) => {
         const url = await app.ready()
-        await fetch(url + '/api/apikey', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: 'SYNTHETIC_SMOKE_KEY' }) })
-        const pending = fetch(url + '/api/agent/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'write then wait' }) }).catch(() => null)
+        const auth = await app.accessToken()
+        await fetch(url + '/api/apikey', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: 'SYNTHETIC_SMOKE_KEY' }) })
+        const pending = fetch(url + '/api/agent/chat', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'write then wait' }) }).catch(() => null)
         await until(() => fs.existsSync(path.join(app.data, 'smoke.txt')), 'real committed sandbox write')
         await app.quit()
         await pending

@@ -10,7 +10,8 @@ import org.tyler.service.agent.python.PythonWorker;
 import org.tyler.service.agent.python.WorkerTestSupport;
 import org.tyler.service.chatHistory.ChatHistoryService;
 import org.tyler.service.chatHistory.IChatHistoryService;
-import org.tyler.service.apiKey.IApiKeyService;
+import org.tyler.service.llm.ILlmKeyService;
+import org.tyler.service.llm.ILlmSettingsService;
 import org.tyler.service.agent.python.IOperationDispatcher;
 import org.tyler.service.agent.bridge.ServiceOperationDispatcher;
 import org.tyler.service.food.IFoodService;
@@ -26,10 +27,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PythonAgentConfigurationTest {
-    private final IApiKeyService keys = mock(IApiKeyService.class);
+    private final ILlmKeyService keys = mock(ILlmKeyService.class);
+    private final ILlmSettingsService llmSettings = mock(ILlmSettingsService.class);
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(PythonAgentConfiguration.class, AgentController.class)
-            .withBean(IApiKeyService.class, () -> keys)
+            .withBean(ILlmKeyService.class, () -> keys)
+            .withBean(ILlmSettingsService.class, () -> llmSettings)
             .withBean(IFoodService.class, () -> mock(IFoodService.class))
             .withBean(IWorkoutPlanService.class, () -> mock(IWorkoutPlanService.class))
             .withBean(IUserInfoService.class, () -> mock(IUserInfoService.class))
@@ -45,7 +48,7 @@ class PythonAgentConfigurationTest {
                     assertInstanceOf(PythonAgentService.class, context.getBean(IAgentService.class));
                     assertEquals(1, context.getBeansOfType(IOperationDispatcher.class).size());
                     assertTrue(context.getBean(PythonWorker.class).pid() > 0);
-                    verifyNoInteractions(keys);
+                    verifyNoInteractions(keys, llmSettings);
                 });
     }
 
@@ -62,7 +65,7 @@ class PythonAgentConfigurationTest {
             assertInstanceOf(ServiceOperationDispatcher.class, dispatcher);
             dispatcher.dispatch("file.write", WorkerTestSupport.fixture("file_write_request").path("payload").path("input"));
             verify(context.getBean(IFileSandboxWrite.class)).write(eq("notes/session.txt"), anyString());
-            verifyNoInteractions(keys);
+            verifyNoInteractions(keys, llmSettings);
         });
     }
 

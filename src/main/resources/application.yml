@@ -9,12 +9,24 @@ server:
   port: 0
 
 openai:
-  model: gpt-5.6
   # Sandbox-relative API key path; override with OPENAI_KEY_FILE_PATH.
   key-file-path: ${OPENAI_KEY_FILE_PATH:apikey.txt}
 
+llm:
+  # Sandbox-relative non-secret settings: active provider and each provider's model.
+  settings-file-path: ${LLM_SETTINGS_FILE_PATH:llm-settings.json}
+  anthropic:
+    # Sandbox-relative Claude API key path; override with ANTHROPIC_KEY_FILE_PATH.
+    key-file-path: ${ANTHROPIC_KEY_FILE_PATH:anthropic-key.txt}
+  deepseek:
+    # Sandbox-relative DeepSeek API key path; override with DEEPSEEK_KEY_FILE_PATH.
+    key-file-path: ${DEEPSEEK_KEY_FILE_PATH:deepseek-key.txt}
+
 agent:
   workspace-dir: ${AGENT_WORKSPACE_DIR:}
+  # Per-launch token required on every /api request; the desktop launcher sets it.
+  # Unset (a backend started by hand) leaves /api open with a startup warning.
+  access-token: ${TYLER_ACCESS_TOKEN:}
 
 userinfo:
   # Sandbox-relative profile JSON path; override with USERINFO_FILE_PATH.

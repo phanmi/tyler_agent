@@ -1,11 +1,17 @@
 """Deterministic provider/operation doubles; never use credentials or network transport."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from copy import deepcopy
 
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.provider import ModelResponse, Provider, ToolCall
+from tyler_agent.provider import (
+    AssistantTurn,
+    Provider,
+    ToolCall,
+    ToolDefinition,
+    TranscriptEntry,
+)
 
 
 def payload() -> Message:
@@ -26,18 +32,16 @@ def call(name: str = "getCurrentTime", raw: str = "{}", call_id: str = "call-1")
 
 
 class FakeProvider:
-    def __init__(self, responses: list[ModelResponse | Exception]) -> None:
+    def __init__(self, responses: list[AssistantTurn | Exception]) -> None:
         self.responses = list(responses)
         self.requests: list[Message] = []
         self.snapshots: list[Message] = []
         self.closed = 0
 
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
-        self.requests.append(
-            deepcopy(dict(model=model, input=items, tools=tools, previous=previous_id))
-        )
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        self.requests.append(deepcopy(dict(model=model, transcript=transcript, tools=list(tools))))
         response = self.responses.pop(0)
         if isinstance(response, Exception):
             raise response

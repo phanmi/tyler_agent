@@ -97,9 +97,28 @@ npm run dev
 - `npm ci` installs the frontend versions recorded in `package-lock.json`. Run it from `frontend/` and wait for it to finish successfully.
 - `npm run dev` launches the backend and frontend together. Open the local URL printed in the terminal; its port may vary. Leave the terminal running and press **Ctrl+C** when you want to stop development.
 
-The first build needs an internet connection and may take several minutes. Maven installs Spring Boot, the OpenAI SDK, and the SQLite driver; npm installs React, Vite, TypeScript, Electron, and the other frontend packages. You do not need a separate SQLite database server. You can start the app and run backend tests without an API key; enter one in **Settings** when you want to use chat.
+The first build needs an internet connection and may take several minutes. Maven installs Spring Boot and the SQLite driver; uv (step 5) installs the OpenAI and Anthropic Python SDKs; npm installs React, Vite, TypeScript, Electron, and the other frontend packages. You do not need a separate SQLite database server. You can start the app and run backend tests without an API key; when you want to use chat, [get an API key](#7-get-an-api-key) and enter it in **Settings**.
 
 For a packaged desktop installer, there is an additional Java runtime bundling step in [Release version and packaging](DEVELOPMENT.md#release-version-and-packaging).
+
+## 7. Get an API key
+
+Chat needs an API key from at least one model provider. You only need a key for the provider you choose for chat in **Settings**; keys for the others are optional. Automated tests never need a key.
+
+| Provider | Where to create a key | Default model in Tyler |
+|---|---|---|
+| OpenAI | [OpenAI API keys](https://platform.openai.com/api-keys) | `gpt-6-sol` |
+| Claude (Anthropic) | [Claude Console](https://platform.claude.com/) (see [Get an API key](https://platform.claude.com/docs/en/get-api-key)) | `claude-sonnet-5-5` |
+| DeepSeek | [DeepSeek API keys](https://platform.deepseek.com/api_keys) | `deepseek-flash` |
+
+1. Sign in to the provider's developer platform, add billing or credit if it asks, and create a new API key.
+2. Copy the key right away; most platforms show it only when it is created.
+3. In Tyler, open **Settings → Model providers**, paste the key into that provider's **API key** field, and select **Save key**.
+4. Choose the same provider under **Provider used for chat**.
+
+**Subscriptions are not supported.** ChatGPT Plus/Pro, Claude Pro/Max, and the DeepSeek chat app are consumer subscriptions billed separately from the API. Tyler can't use their sign-ins: it needs an API key, and each provider bills API use per token to your API account.
+
+Tyler stores each key as plain text in its workspace folder: `apikey.txt` for OpenAI, `anthropic-key.txt` for Claude, and `deepseek-key.txt` for DeepSeek. Settings never shows a saved key again. A key may contain only visible ASCII characters (no spaces), up to 512 characters. Keep the workspace folder private, and revoke a key on the provider's platform if it may have been exposed.
 
 ## Installation troubleshooting
 

@@ -60,7 +60,7 @@ All payload fields listed below are required; no additional fields are permitted
 | `cancel` | Java to Python | `reason: user_cancelled | deadline_exceeded | shutdown` | Request cancellation of the active run, never a rollback instruction. |
 | `shutdown` | Java to Python | `reason: application_exit | startup_cancelled | protocol_error | worker_recycle` | Stop accepting work and exit. There is no shutdown reply; process exit is the acknowledgement. |
 
-Java validates a missing/blank API key before sending `run`, preserving the existing authentication error. Request body validation and trimming remain at the HTTP adapter. An empty `message` is structurally valid because the service transport does not add an HTTP validation rule. The worker constructs provider messages from history and the current message. Java must not construct provider-specific objects or send prompts/tool schemas in this protocol.
+Java reads the active provider, its model, and that provider's key from the saved LLM settings when the request leaves the queue, and fills `provider`, `model`, and `apiKey` from them. A missing/blank key for the active provider fails before `run` is sent with `ApiKeyMissingException` (HTTP 401) and the message `<Provider> API key is empty; chat is unavailable`, where `<Provider>` is OpenAI, Claude, or DeepSeek; another provider's key is never used. Request body validation and trimming remain at the HTTP adapter. An empty `message` is structurally valid because the service transport does not add an HTTP validation rule. The worker constructs provider messages from history and the current message. Java must not construct provider-specific objects or send prompts/tool schemas in this protocol.
 
 ## Allowed Java operations and data representations
 
@@ -139,7 +139,7 @@ Java computes the effective outcome from its own ledger, never downgrading uncer
 | Category | Codes | Java mapping and HTTP behavior |
 |---|---|---|
 | `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | Remote failures map to `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with Java-owned `Invalid agent request` / `Invalid agent record data`. |
-| `authentication` | `API_KEY_MISSING`, `PROVIDER_AUTH` | `OpenAIKeyException`; HTTP 401. Preserve `OpenAI API key is empty; chat is unavailable` and `This API key is invalid or unavailable`, respectively. Provider unauthorized and permission-denied failures both use the latter. |
+| `authentication` | `API_KEY_MISSING`, `PROVIDER_AUTH` | `ApiKeyMissingException`; HTTP 401. `API key is empty; chat is unavailable` and `This API key is invalid or unavailable`, respectively. Provider unauthorized and permission-denied failures both use the latter. |
 | `provider` | `PROVIDER_FAILURE` | Unexpected provider/transport/rate-limit/server failure; HTTP 500 with `Internal server error. Please try again later`. Preserve the existing HTTP mapping, not the provider's 429/5xx status. |
 | `storage` | `SQL_READ`, `SQL_WRITE`, `SQL_ACCESS` | Existing SQL read/write/Spring data-access mapping; HTTP 500 with `Database operation failed. Please try again later`. |
 | `storage` | `FILE_READ`, `FILE_WRITE` | Remote failures map to existing file exceptions; HTTP 500 with `Failed to read file: Agent file read failed` / `Failed to write file: Agent file write failed`. Worker detail is not appended. |

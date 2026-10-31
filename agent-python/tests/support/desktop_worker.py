@@ -4,22 +4,28 @@ import asyncio
 import json
 import os
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.provider import ModelResponse, Provider, ToolCall
+from tyler_agent.provider import (
+    AssistantTurn,
+    Provider,
+    ToolCall,
+    ToolDefinition,
+    ToolResult,
+    TranscriptEntry,
+)
 from tyler_agent.worker import main
 
 
 class BlockedProvider:
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
-        if previous_id is None:
-            return ModelResponse(
-                "first",
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        if not any(isinstance(entry, ToolResult) for entry in transcript):
+            return AssistantTurn(
                 (ToolCall("write", "writeFile", '{"path":"smoke.txt","content":"saved"}'),),
                 "",
             )

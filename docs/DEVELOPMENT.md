@@ -39,7 +39,7 @@ The desktop launcher and installer configuration target Windows. Build requireme
 | JDK | Java 26, configured in [pom.xml](../pom.xml). |
 | Maven | Used to compile, test, and package the backend. |
 | Node.js and npm | Node.js 22.12.0 or newer, required by the Electron dependency in [package-lock.json](../frontend/package-lock.json). |
-| OpenAI API key | Required for chat; enter it in the app's Settings page. |
+| Model provider API key | Required for chat: an OpenAI, Claude (Anthropic), or DeepSeek key for the provider chosen in Settings. See [Get an API key](SETUP.md#7-get-an-api-key). Tests never need one. |
 
 Before either development launch below, prepare Python from the repository root:
 
@@ -103,7 +103,7 @@ The backend uses an available loopback port by default. A saved API key is neede
 | Area | Technologies |
 |---|---|
 | Backend | Java 26, Spring Boot 4.1.1, Spring JDBC, SQLite. |
-| Agent | Python 3.12.14, OpenAI Python SDK 3.31.0, private Java/Python process protocol. |
+| Agent | Python 3.12.14, OpenAI Python SDK 3.31.0 (OpenAI and DeepSeek), Anthropic Python SDK 1.14.0 (Claude), private Java/Python process protocol. |
 | Frontend | React 18, TypeScript, Vite, react-calendar. |
 | Desktop | Electron, Electron Forge, Squirrel.Windows. |
 | Build | Maven, npm, uv, and PyInstaller. |
@@ -117,7 +117,7 @@ flowchart TB
     Controllers --> Adapter[Java agent adapter]
     Java -->|Owns private-pipe worker| Python[Python agent and tool adapters]
     Adapter <-->|Run and reply| Python
-    Python <--> OpenAI[OpenAI API]
+    Python <--> Provider[Active provider: OpenAI, Claude, or DeepSeek API]
     Python <-->|Allowlisted operations| Bridge[Java operation bridge]
     Controllers --> Services[Shared Java services]
     Bridge --> Services
@@ -126,7 +126,7 @@ flowchart TB
     Bridge --> Files
 ```
 
-For a chat request, the Java adapter reads the current key and bounded history and sends a request snapshot to Python. Python assembles model input, calls OpenAI, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. There is no Java provider client or alternate agent implementation.
+For a chat request, the Java adapter reads the active provider, its model, that provider's key, and bounded history when the request leaves the queue, and sends that snapshot to Python. Python assembles model input for that provider, calls it, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. There is no Java provider client or alternate agent implementation.
 
 Controllers and services are grouped by feature. The food controller and Python recording tool share `IFoodService` through the bridge. Plan HTTP/tool operations share `IWorkoutPlanService`, which coordinates persistence through `IWorkoutService`; workout CRUD also uses `IWorkoutService`. The food and workout persistence services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
@@ -162,7 +162,7 @@ tyler_agent/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
 │  │  ├─ food/                   # FoodCalendar
 │  │  ├─ workout/                # WorkoutPage
-│  │  ├─ settings/               # SettingsPage, ApiKeyForm, and UserInfoForm
+│  │  ├─ settings/               # SettingsPage, UserInfoForm, provider/key/model forms, useLlmSettings
 │  │  ├─ layout/                 # Sidebar and TitleBar
 │  │  └─ common/                 # Shared ConfirmDialog
 │  ├─ src/styles/                 # Shared theme and page styles
@@ -200,7 +200,7 @@ The calendar calls the plan service's `previewPlan` method through `GET /api/wor
 
 ## HTTP API
 
-All routes use the running backend's assigned address. JSON errors generally contain an `error` field. Invalid bodies and validation failures return HTTP 400; database failures return HTTP 500.
+All routes use the running backend's assigned address. When the launcher set an access token, every `/api` request must send it in the `X-Tyler-Token` header (see [Networking and desktop startup](#networking-and-desktop-startup)). JSON errors generally contain an `error` field. Invalid bodies and validation failures return HTTP 400; database failures return HTTP 500.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -208,8 +208,11 @@ All routes use the running backend's assigned address. JSON errors generally con
 | GET | `/api/agent/history` | Read retained conversation history. |
 | DELETE | `/api/agent/history` | Clear conversation history. |
 | GET / POST | `/api/userinfo` | Read or save the user profile. |
-| GET | `/api/apikey/status` | Return whether a key is configured. |
-| POST | `/api/apikey` | Save `{ "apiKey": "..." }`; return configuration status. |
+| GET | `/api/llm/settings` | Return `activeProvider` and, per provider, `id`, `name`, `model`, `defaultModel`, `suggestedModels`, and `configured`. Never returns a key. HTTP 500 if `llm-settings.json` is invalid. |
+| PUT | `/api/llm/settings` | Replace settings with `{ "activeProvider": "anthropic", "models": { "openai": "...", "anthropic": "...", "deepseek": "..." } }`. All three models are required. |
+| PUT | `/api/llm/keys/{provider}` | Save `{ "apiKey": "..." }` for `openai`, `anthropic`, or `deepseek`; a blank key clears it. Returns `{ "provider", "configured" }`. |
+| GET | `/api/apikey/status` | Older OpenAI-only key status, kept for compatibility. |
+| POST | `/api/apikey` | Older OpenAI-only key save, kept for compatibility; same key rules as above. |
 | GET | `/api/food?date=YYYY-MM-DD` | List food entries with their database IDs. |
 | DELETE | `/api/food/{id}` | Delete one food entry. |
 | DELETE | `/api/food/date/{date}` | Delete all food entries for a date. |
@@ -242,22 +245,35 @@ Defaults are in [application.yml](../src/main/resources/application.yml). The wo
 |---|---|---|
 | `server.address` | `SERVER_ADDRESS` | `127.0.0.1` |
 | `server.port` | `SERVER_PORT` | `0` (assigned by the OS) |
-| `openai.model` | `OPENAI_MODEL` | `gpt-5.6` |
 | `openai.key-file-path` | `OPENAI_KEY_FILE_PATH` | `apikey.txt` |
+| `llm.anthropic.key-file-path` | `ANTHROPIC_KEY_FILE_PATH` | `anthropic-key.txt` |
+| `llm.deepseek.key-file-path` | `DEEPSEEK_KEY_FILE_PATH` | `deepseek-key.txt` |
+| `llm.settings-file-path` | `LLM_SETTINGS_FILE_PATH` | `llm-settings.json` |
 | `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | Default workspace above |
+| `agent.access-token` | `TYLER_ACCESS_TOKEN` | Unset (set per launch by Electron and `npm run dev`) |
 | `userinfo.file-path` | `USERINFO_FILE_PATH` | `userinfo.json` |
 | `chat.history-file-path` | `CHAT_HISTORY_FILE_PATH` | `chat-history.json` |
 | `chat.max-messages` | `CHAT_MAX_MESSAGES` | `20` |
 | `food.database-path` | `FOOD_DATABASE_PATH` | `food-record.sqlite` |
 | `workout.database-path` | `WORKOUT_DATABASE_PATH` | `workout-record.sqlite` |
 
-The workout database default is declared in its database configuration. `OPENAI_MODEL` and `WORKOUT_DATABASE_PATH` use Spring's environment property binding. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
-
-The API key is stored as a local text file. The key status API returns only whether a key is configured. Conversation requests go to OpenAI and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local.
+The workout database default is declared in its database configuration. `WORKOUT_DATABASE_PATH` uses Spring's environment property binding. The active provider and each provider's model are chosen in Settings and saved in `llm-settings.json`; the former `openai.model` / `OPENAI_MODEL` setting is no longer read. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
 
 SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food reads and writes use the sole `IFoodRecordDAO` implementation directly against SQLite.
 
 Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
+
+### Model providers
+
+| Provider id | Name in the app | Key file | Default model | Other suggestions | Endpoint and SDK |
+|---|---|---|---|---|---|
+| `openai` | OpenAI | `apikey.txt` | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-5.6` | `https://api.openai.com/v1`, Responses API, `openai` SDK |
+| `anthropic` | Claude | `anthropic-key.txt` | `claude-sonnet-5-5` | `claude-opus-5-5`, `claude-haiku-5-5` | `https://api.anthropic.com`, Messages API, `anthropic` SDK |
+| `deepseek` | DeepSeek | `deepseek-key.txt` | `deepseek-flash` | `deepseek-v4-pro` | `https://api.deepseek.com`, Chat Completions, `openai` SDK |
+
+`llm-settings.json` holds only the active provider and each provider's model, for example `{"activeProvider":"openai","models":{"openai":"gpt-6-sol",...}}`. A missing file means OpenAI with the defaults above; a provider missing from the file uses its default model. An invalid file is a read failure (HTTP 500), never a silent fallback to another provider; saving settings in the app replaces it. Model IDs are 1–100 characters from letters, digits, and `. _ : / -`. The backend refuses to start if two key files, or a key file and the settings file, resolve to the same file.
+
+Each key is stored as a plain-text file, written atomically and owner-only on POSIX. Keys are trimmed; a blank key clears it, and anything other than visible ASCII up to 512 characters is rejected. The settings API returns only whether each key is configured. Only Java reads key files; it sends the active provider's key to the worker for one run over the private pipe. Conversation requests go to the active provider and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local. Only API keys are supported, not ChatGPT, Claude, or DeepSeek subscription sign-ins.
 
 ### Food persistence decision
 
@@ -269,7 +285,7 @@ The backend binds to `127.0.0.1` and asks the OS for an available port. Vite als
 
 Electron and the combined development launcher start their own backend child process. A startup message containing a per-process nonce identifies the child's assigned port. Browser development uses Vite's same-origin `/api` proxy; packaged Electron receives the backend address through the preload bridge before React mounts.
 
-CORS allows the Electron file origin (`null`) for `/api/**` without credentials. Loopback binding limits network exposure, but neither loopback binding nor CORS authenticates other programs on the same computer.
+CORS allows the Electron file origin (`null`) for `/api/**` without credentials. Loopback binding limits network exposure, but neither loopback binding nor CORS authenticates other callers: other programs, sandboxed web pages (which also send `Origin: null`), and DNS-rebinding pages can reach the port. The launcher (Electron or `npm run dev`) therefore generates a random 64-character token for each backend process and passes it in `TYLER_ACCESS_TOKEN`. Every `/api` request must send it in the `X-Tyler-Token` header, or the backend answers 401 before any controller runs; CORS preflights pass without it. Electron hands the token only to its own window through the preload bridge, and in browser development the Vite proxy adds it, so the page never holds it. A backend started by hand without the variable leaves `/api` open and logs a startup warning; a malformed value stops startup. The token is never logged. It does not protect against software running as the same user, which can already read the workspace files.
 
 Packaged Electron uses only its bundled `resources/runtime/bin/java.exe`, versioned backend JAR, and Python worker. It does not fall back to an installed Java runtime or accept the development `BACKEND_JAR_PATH` override. Development launchers retain the local runtime, `JAVA_HOME`, `.jdks`, and `PATH` search and the JAR override. See [desktop packaging](DESKTOP_PACKAGING.md) for the resource layout and offline acceptance procedure.
 
@@ -325,7 +341,10 @@ Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`.
 | Java missing or incompatible | In development, check `java -version` and `JAVA_HOME`. For a packaged app, restore the complete artifact; host Java does not replace the bundled runtime. |
 | `TYLER_BACKEND_URL` is missing | Use `npm run dev` or `npm run preview`, which start the backend and supply its address. |
 | A familiar port is already occupied | Use the address printed by the launcher; the app selects available ports. |
-| Chat reports an empty API key | Save the key on the Settings page. |
+| Chat reports `<Provider> API key is empty` | Save that provider's key under **Settings → Model providers**, or choose a provider that has one. Only the active provider's key is used. |
+| Chat reports `This API key is invalid or unavailable` | The provider rejected the key. Create a new key on its platform (see [Get an API key](SETUP.md#7-get-an-api-key)) and save it. |
+| Settings shows `LLM settings file is invalid` | `llm-settings.json` was edited by hand or is damaged. Choose a provider and save a model in Settings to rewrite it, or delete the file to return to the defaults. |
+| Backend startup fails with `UNSUPPORTED_VERSION` | The worker in `agent-python/dist` predates protocol version 2. Rebuild it with `uv run --locked pyinstaller --noconfirm worker.spec` in `agent-python/`. |
 | A suggestion is absent from saved exercises | Use **Add to calendar**, or ask the agent to create and save the plan. Changing preview options alone does not save it. |
 | Existing exercise values survive regeneration | The tool preserves records matching the same date and name. Edit the saved exercise to change those values. |
 | Packaging cannot find the runtime or worker | Set `JAVA_HOME` to Java 26 and follow the packaging guide to build the worker/JAR before running Forge. |

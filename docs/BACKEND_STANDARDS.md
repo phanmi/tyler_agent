@@ -170,7 +170,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 - Use existing Spring configuration properties and defaults for Java. Define and validate Python worker configuration at startup, with explicit ownership and precedence; do not introduce competing defaults for shared settings. Document newly introduced settings in the developer guide.
 - Preserve the documented network binding and endpoint-discovery behavior. Read configurable addresses and ports from configuration or discovery results.
-- Loopback binding and CORS do not authenticate other programs on the same computer. Any authentication requirement needs an explicit design.
+- Loopback binding and CORS do not authenticate other programs on the same computer. `/api` is authenticated by the per-launch access token described in the [developer guide](DEVELOPMENT.md); keep new endpoints under `/api` so they inherit it, and never log the token.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
 - Use the project's shared release-version source; do not introduce competing version definitions.
 - When changing an implementation default, test omitted, explicit, and invalid selections, including startup failure without silent fallback. Keep dormant migration components inactive unless explicitly selected. Preserve any documented release rollback window, record restart/data-compatibility evidence, and inventory callers before retirement; passing local tests does not complete a release window.
@@ -194,7 +194,7 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities for J
 | Service | Use-case results, failure propagation, and preservation of existing records after rejected changes. |
 | Controller | Request/response shape, status codes, invalid input, and missing records. |
 | Tool | Function definition, argument validation, output, saving, preview without writes, repeated execution, and failure cleanup where applicable. |
-| Python agent | Model requests, response chaining, tool-call ordering and limits, result extraction, cancellation, and classified provider/tool failures with a fake model provider. |
+| Python agent | Model requests, the per-run transcript, tool-call ordering and limits, result extraction, cancellation, and classified provider/tool failures with a fake model provider. |
 | Worker protocol / Java bridge | Real subprocess communication, schema and version checks, request isolation, service delegation, failure translation, startup/shutdown, and uncertain write outcomes. |
 | Cache / wiring | Correct implementation selection, invalidation, failed writes, and isolation of returned collections. |
 

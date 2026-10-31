@@ -19,7 +19,7 @@ A personal desktop assistant for conversations, food tracking, and weekly workou
 If you have a packaged Windows build, run its `Setup.exe` installer and open Tyler. To build and run the app from this repository, follow the [developer setup guide](docs/DEVELOPMENT.md#run-from-source).
 
 1. Open **Settings** in the side panel.
-2. Enter and save your **OpenAI API key** to enable chat. Chat needs an internet connection.
+2. Under **Model providers**, choose the provider Tyler uses for chat (OpenAI, Claude, or DeepSeek), then enter and save that provider's **API key**. Chat needs an internet connection. See [how to get an API key](docs/SETUP.md#7-get-an-api-key); a ChatGPT, Claude, or DeepSeek chat subscription can't be used instead of a key.
 3. Optionally fill in your profile and preferences.
 4. Open **Chat** and tell Tyler what you would like to do.
 
@@ -57,11 +57,25 @@ New suggestions use weight `0` as a placeholder. Set your training weight when e
 
 ### Settings
 
-Update your profile, preferences, and API key from **Settings**. Tyler can use your saved profile when responding to you.
+Update your profile and preferences from **Settings**. Tyler can use your saved profile when responding to you.
+
+Under **Model providers** you can:
+
+- Choose the provider used for chat. The change applies to your next message.
+- Save an API key for each provider. Keys are never shown again after saving; a provider without a key is marked **No key**.
+- Pick each provider's model from the suggestions, or enter a custom model ID.
+
+| Provider | Default model | Other suggestions |
+|---|---|---|
+| OpenAI | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-5.6` |
+| Claude | `claude-sonnet-5-5` | `claude-opus-5-5`, `claude-haiku-5-5` |
+| DeepSeek | `deepseek-flash` | `deepseek-v4-pro` |
+
+The defaults are lower-cost models that suit Tyler's everyday tasks. If the provider used for chat has no key, chat tells you which key is missing, for example "Claude API key is empty; chat is unavailable".
 
 ## Your data
 
-Your profile, API key, recent chat history, food diary, and saved workouts are stored on your computer. Chat messages and any profile information or tool results used in a conversation are sent to OpenAI to produce replies.
+Your profile, API keys, provider settings, recent chat history, food diary, and saved workouts are stored on your computer. Chat messages and any profile information or tool results used in a conversation are sent to the provider you chose for chat (OpenAI, Anthropic for Claude, or DeepSeek) to produce replies. Each provider bills your API account for that use under its own terms.
 
 Tyler can also read and write text files in its own workspace when requested through chat. See the developer guide for [storage locations and configuration](docs/DEVELOPMENT.md#configuration-and-data-storage).
 
