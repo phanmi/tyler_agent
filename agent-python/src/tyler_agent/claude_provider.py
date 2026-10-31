@@ -39,8 +39,9 @@ ADAPTIVE_FROM = (4, 6)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # Returned when the requested model and its fallback both decline.
 REFUSAL_REPLY = "Sorry, I can't help with that request."
-# Model output replayed within the run. Fallback markers are audit-only and are not echoed.
-REPLAYED_BLOCKS = frozenset({"text", "thinking", "redacted_thinking", "tool_use"})
+# Model output replayed within the run. A fallback marker is replayed in place: the API uses its
+# position to validate the thinking blocks around it.
+REPLAYED_BLOCKS = frozenset({"text", "thinking", "redacted_thinking", "tool_use", "fallback"})
 # Blocks from a declining model that must not be echoed once a fallback took over.
 DECLINED_BLOCKS = frozenset({"thinking", "redacted_thinking", "tool_use"})
 COMPLETE_STOPS = frozenset({"end_turn", "stop_sequence", "tool_use"})
@@ -158,8 +159,9 @@ class ClaudeProvider:
                 tools=cast(list[BetaToolParam], claude_tools(tools)),
                 **request_features(model),
             )
-            # Only fields the server sent, so replayed blocks are valid request input.
-            return parse_message(message.model_dump(mode="json", exclude_unset=True))
+            # Only fields the server sent, under their wire names (a fallback block's "from"), so
+            # replayed blocks are valid request input.
+            return parse_message(message.model_dump(mode="json", by_alias=True, exclude_unset=True))
 
 
 @asynccontextmanager

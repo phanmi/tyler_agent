@@ -37,6 +37,12 @@ TOOL = ToolDefinition(
     {"type": "object", "properties": {}, "additionalProperties": False, "required": []},
 )
 THINKING = {"type": "thinking", "thinking": "", "signature": "opaque-signature"}
+FALLBACK = {
+    "type": "fallback",
+    "from": {"model": "claude-sonnet-5-5"},
+    "to": {"model": "claude-sonnet-5"},
+    "trigger": {"type": "refusal"},
+}
 
 
 def message(content: list[Message], stop: str | None = "end_turn") -> Message:
@@ -234,17 +240,31 @@ def test_incomplete_stops_fail_before_content_is_read(stop: str | None) -> None:
 
 
 def test_declined_blocks_before_a_fallback_are_not_replayed_or_run() -> None:
-    fallback = {
-        "type": "fallback",
-        "from": {"model": "claude-sonnet-5-5"},
-        "to": {"model": "claude-sonnet-5"},
-        "trigger": {"type": "refusal"},
-    }
-    content = [THINKING, tool_use("declined"), text("Partial."), fallback, text("Answer.")]
+    content = [THINKING, tool_use("declined"), text("Partial."), FALLBACK, text("Answer.")]
     turn = parse_message(message(content))
     assert turn.calls == ()
     assert turn.text == "Partial.Answer."
-    assert turn.native == (text("Partial."), text("Answer."))
+    assert turn.native == (text("Partial."), FALLBACK, text("Answer."))
+
+
+def test_a_fallback_marker_is_replayed_in_place_on_the_next_tool_round() -> None:
+    first = message(
+        [text("Partial."), FALLBACK, THINKING, tool_use("a", value={"path": "x"})],
+        stop="tool_use",
+    )
+    server = Server(
+        [httpx2.Response(200, json=first), httpx2.Response(200, json=message([text("Done")]))]
+    )
+
+    async def scenario(provider: ClaudeProvider) -> AssistantTurn:
+        turn = await provider.respond("claude-sonnet-5-5", [UserTurn("go")], [TOOL])
+        assert [call.call_id for call in turn.calls] == ["a"] and turn.text == "Partial."
+        transcript: list[TranscriptEntry] = [UserTurn("go"), turn, ToolResult("a", "one")]
+        return await provider.respond("claude-sonnet-5-5", transcript, [TOOL])
+
+    assert run(server, scenario).text == "Done"
+    # The marker keeps its wire name ("from", not the SDK's "from_") and its position.
+    assert server.body(1)["messages"][1] == {"role": "assistant", "content": first["content"]}
 
 
 @pytest.mark.parametrize(
