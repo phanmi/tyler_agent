@@ -14,13 +14,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.tyler.config.CorsConfig;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Requires the per-launch access token on every {@code /api} request.
+ * Requires the per-launch access token on every request except CORS preflights.
  *
  * <p>Loopback binding and CORS do not stop other local programs, or web pages that send
  * {@code Origin: null} (sandboxed frames) or rebind DNS to 127.0.0.1, from calling the API.
@@ -32,6 +33,12 @@ import java.security.MessageDigest;
  * the actual request that follows still needs the token. When no token is configured (a
  * backend started by hand for development), the API stays open and a warning is logged.
  * The token is never logged.
+ *
+ * <p>Every path is checked, not only {@code /api}: the container routes {@code /api;x/...} and
+ * percent-encoded paths to the same controllers, so a prefix test on the raw URI could be
+ * bypassed. Nothing outside the API is served. A rejection repeats the CORS header Spring would
+ * add for the desktop window's {@code file://} origin, so the window reads the 401 instead of a
+ * network error.
  */
 @Component
 // Reject before request-ID setup, body binding, or any controller work.
@@ -47,7 +54,7 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
     public ApiAccessTokenFilter(@Value("${agent.access-token:}") String token) {
         if (token == null || token.isEmpty()) {
             this.token = null;
-            log.warn("No API access token is configured; /api accepts requests from any local caller");
+            log.warn("No API access token is configured; the API accepts requests from any local caller");
             return;
         }
         // 32 random bytes from the launcher. Refuse to start rather than run unprotected.
@@ -59,8 +66,7 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        return token == null || !(path.equals("/api") || path.startsWith("/api/")) || isPreflight(request);
+        return token == null || isPreflight(request);
     }
 
     @Override
@@ -75,6 +81,10 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
         log.warn("Rejected an API request without a valid access token: {} {}",
                 request.getMethod(), request.getRequestURI());
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        if (CorsConfig.DESKTOP_ORIGIN.equals(request.getHeader(HttpHeaders.ORIGIN))) {
+            response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, CorsConfig.DESKTOP_ORIGIN);
+            response.addHeader(HttpHeaders.VARY, HttpHeaders.ORIGIN);
+        }
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"error\":\"Unauthorized\"}");

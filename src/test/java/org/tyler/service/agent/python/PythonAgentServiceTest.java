@@ -146,7 +146,7 @@ class PythonAgentServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"failed_provider, IllegalStateException", "failed_authentication, ApiKeyMissingException",
+    @CsvSource({"failed_provider, IllegalStateException", "failed_authentication, ProviderAuthException",
             "failed_storage, SQLReadException", "crash, ProtocolException"})
     void failureCategoriesDoNotWriteHistoryOrFallback(String mode, String type) {
         var settings = settings(mode);
@@ -175,7 +175,7 @@ class PythonAgentServiceTest {
             mvc.perform(delete("/api/agent/history")).andExpect(status().isOk()).andExpect(content().json("[]"));
             when(keys.get(LlmProvider.OPENAI)).thenReturn("");
             mvc.perform(post("/api/agent/chat").contentType("application/json").content("{\"message\":\"hi\"}"))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isBadRequest());
         }
     }
 

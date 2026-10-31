@@ -38,6 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -160,6 +161,25 @@ class LlmControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Unknown provider"));
         verifyNoInteractions(keys);
+    }
+
+    @Test
+    void resettingRepairsAnInvalidSettingsFileAndKeepsKeys(@TempDir Path tempDir) throws Exception {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, "llm-settings.json"),
+                new LlmKeyService(sandbox, sandbox, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json"));
+        Files.writeString(tempDir.resolve("anthropic-key.txt"), KEY);
+        Files.writeString(tempDir.resolve("llm-settings.json"), "{\"activeProvider\":\"mistral\"}");
+        real.perform(get("/api/llm/settings")).andExpect(status().isInternalServerError());
+
+        real.perform(delete("/api/llm/settings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeProvider").value("openai"))
+                .andExpect(jsonPath("$.providers[1].model").value("claude-sonnet-5-5"))
+                .andExpect(jsonPath("$.providers[1].configured").value(true));
+
+        real.perform(get("/api/llm/settings")).andExpect(status().isOk());
+        assertEquals(KEY, Files.readString(tempDir.resolve("anthropic-key.txt")));
     }
 
     @Test

@@ -16,6 +16,8 @@ import org.tyler.filesandbox.IFileSandboxWrite;
 import java.time.Clock;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
+
 /** Explicit isolated test assembly; production discovers handlers through Spring. */
 final class BridgeTestSupport {
     private BridgeTestSupport() { }
@@ -23,9 +25,11 @@ final class BridgeTestSupport {
     static ServiceOperationDispatcher dispatcher(IFoodService food, IWorkoutPlanService plans,
             IUserInfoService profile, IFileSandboxRead reader, IFileSandboxWrite writer, Clock clock) {
         var mapper = new OperationPayloadMapper();
+        var protectedFiles = mock(ProtectedWorkspaceFiles.class);
         return new ServiceOperationDispatcher(List.of(new FoodInsertHandler(food, mapper),
                 new WorkoutPlanSaveHandler(plans, mapper), new UserInfoReadHandler(profile, mapper),
-                new FileReadHandler(reader), new FileWriteHandler(writer), new CurrentTimeHandler(clock)),
+                new FileReadHandler(reader, protectedFiles), new FileWriteHandler(writer, protectedFiles),
+                new CurrentTimeHandler(clock)),
                 new MessageValidator());
     }
 }

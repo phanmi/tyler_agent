@@ -5,14 +5,17 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.springframework.stereotype.Component;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.service.agent.bridge.IOperationHandler;
+import org.tyler.service.agent.bridge.ProtectedWorkspaceFiles;
 
 /** Reads text through the existing sandbox; path checks and storage failures stay with it. */
 @Component
 public final class FileReadHandler implements IOperationHandler {
     private final IFileSandboxRead reader;
+    private final ProtectedWorkspaceFiles protectedFiles;
 
-    public FileReadHandler(IFileSandboxRead reader) {
+    public FileReadHandler(IFileSandboxRead reader, ProtectedWorkspaceFiles protectedFiles) {
         this.reader = reader;
+        this.protectedFiles = protectedFiles;
     }
 
     @Override
@@ -22,6 +25,9 @@ public final class FileReadHandler implements IOperationHandler {
 
     @Override
     public JsonNode execute(JsonNode input) {
-        return JsonNodeFactory.instance.objectNode().put("content", reader.read(input.get("path").textValue()));
+        String path = input.get("path").textValue();
+        // Keys, provider settings and chat history never reach the model or its provider.
+        protectedFiles.requireUnprotected(path);
+        return JsonNodeFactory.instance.objectNode().put("content", reader.read(path));
     }
 }

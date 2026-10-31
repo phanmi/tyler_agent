@@ -8,7 +8,13 @@ import { useLlmSettings } from '../../src/components/settings/useLlmSettings'
 // Keep the real constants and error class; replace only the network calls.
 vi.mock('../../src/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/api')>()
-  return { ...actual, loadLlmSettings: vi.fn(), saveLlmSettings: vi.fn(), saveProviderKey: vi.fn() }
+  return {
+    ...actual,
+    loadLlmSettings: vi.fn(),
+    saveLlmSettings: vi.fn(),
+    saveProviderKey: vi.fn(),
+    resetLlmSettings: vi.fn(),
+  }
 })
 
 const KEY = 'SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER'
@@ -59,6 +65,7 @@ beforeEach(() => {
   vi.mocked(api.loadLlmSettings).mockReset()
   vi.mocked(api.saveLlmSettings).mockReset()
   vi.mocked(api.saveProviderKey).mockReset()
+  vi.mocked(api.resetLlmSettings).mockReset()
 })
 afterEach(cleanup)
 
@@ -75,15 +82,47 @@ describe('loading', () => {
 
   it('shows a load failure with a retry instead of empty settings', async () => {
     vi.mocked(api.loadLlmSettings)
-      .mockRejectedValueOnce(new api.ApiError('Failed to read file: LLM settings file is invalid', 500))
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
       .mockResolvedValueOnce(settings())
     render(<Harness />)
 
-    expect((await screen.findByRole('alert')).textContent).toContain('LLM settings file is invalid')
+    expect((await screen.findByRole('alert')).textContent).toContain('Failed to fetch')
     expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reset provider settings' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('group', { name: 'Provider used for chat' })).toBeTruthy()
+  })
+
+  it('offers a reset for an invalid settings file and shows the restored defaults', async () => {
+    vi.mocked(api.loadLlmSettings)
+      .mockRejectedValueOnce(new api.ApiError('Failed to read file: LLM settings file is invalid', 500))
+    vi.mocked(api.resetLlmSettings).mockResolvedValue(settings())
+    render(<Harness />)
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Your saved API keys are kept')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reset provider settings' }))
+    })
+
+    expect(await screen.findByRole('group', { name: 'Provider used for chat' })).toBeTruthy()
+    expect(api.resetLlmSettings).toHaveBeenCalledTimes(1)
+    expect(api.saveLlmSettings).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reset offer and shows the error when a reset fails', async () => {
+    vi.mocked(api.loadLlmSettings)
+      .mockRejectedValueOnce(new api.ApiError('Failed to read file: LLM settings file is invalid', 500))
+    vi.mocked(api.resetLlmSettings).mockRejectedValue(new api.ApiError('Failed to write file', 500))
+    render(<Harness />)
+
+    await screen.findByRole('alert')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reset provider settings' }))
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('Failed to write file')
+    expect((screen.getByRole('button', { name: 'Reset provider settings' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
 

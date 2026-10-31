@@ -44,7 +44,7 @@ class BackendReadinessIntegrationTest {
                 var chat = client.send(HttpRequest.newBuilder(URI.create(base + "/api/agent/chat"))
                         .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"message\":\"test\"}")).build(),
                         HttpResponse.BodyHandlers.ofString());
-                assertEquals(401, chat.statusCode());
+                assertEquals(400, chat.statusCode());
             }
         } finally {
             owner.destroyForcibly(); assertTrue(owner.waitFor(5, TimeUnit.SECONDS));

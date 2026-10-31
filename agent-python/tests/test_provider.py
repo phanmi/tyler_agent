@@ -3,6 +3,8 @@
 import asyncio
 import json
 import logging
+import subprocess
+import sys
 
 import httpx2
 import pytest
@@ -293,3 +295,12 @@ def test_neutral_tools_render_as_strict_functions() -> None:
             "strict": True,
         }
     ]
+
+
+def test_worker_startup_does_not_load_the_anthropic_sdk() -> None:
+    # A fresh interpreter: importing the provider boundary must leave anthropic unloaded.
+    code = "import sys, tyler_agent.provider; print('anthropic' in sys.modules)"
+    output = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout
+    assert output.strip() == "False"

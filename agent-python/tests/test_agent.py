@@ -17,6 +17,7 @@ from tyler_agent.provider import (
     parse_response,
 )
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.registry import MALFORMED_CALL_RESULT
 
 
 async def clock_operation(name: str, value: Message) -> Message:
@@ -117,9 +118,8 @@ def test_exactly_five_rounds_returns_last_text_without_sixth_tool(text: str) -> 
     assert len(provider.requests) == 6
 
 
-@pytest.mark.parametrize("raw", ["not-json", "null", "[]", '{"goal":3}'])
-def test_adapter_shape_failure_does_not_call_java_or_continue(raw: str) -> None:
-    provider = FakeProvider([AssistantTurn((call("generateWorkoutPlan", raw),), "")])
+def test_adapter_shape_failure_does_not_call_java_or_continue() -> None:
+    provider = FakeProvider([AssistantTurn((call("generateWorkoutPlan", '{"goal":3}'),), "")])
     with pytest.raises(AgentFailure) as error:
         asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation)))
     assert error.value.code == "INVALID_ARGUMENT"
@@ -173,12 +173,40 @@ def test_provider_failure_never_replays(after_tool: bool, category: str, code: s
     assert len(provider.requests) == (2 if after_tool else 1)
 
 
-def test_unknown_tool_does_not_use_java_or_continue() -> None:
-    provider = FakeProvider([AssistantTurn((call("unexpected"),), "")])
-    with pytest.raises(AgentFailure) as error:
-        asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation)))
-    assert error.value.code == "UNKNOWN_TOOL"
-    assert len(provider.requests) == 1
+@pytest.mark.parametrize(
+    "name,raw",
+    [
+        ("read_file", "{}"),
+        ("readFile", '{"path": "a.txt"'),
+        ("generateWorkoutPlan", "[]"),
+        ("recordFood", "NaN"),
+    ],
+)
+def test_malformed_calls_go_back_to_the_model_without_java(name: str, raw: str) -> None:
+    used: list[str] = []
+
+    async def operation(operation_name: str, value: Message) -> Message:
+        used.append(operation_name)
+        return {"text": "clock"}
+
+    provider = FakeProvider([AssistantTurn((call(name, raw, "bad"),), ""), AssistantTurn((), "ok")])
+    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(operation))) == "ok"
+    assert used == []
+    assert provider.requests[1]["transcript"][-1] == ToolResult("bad", MALFORMED_CALL_RESULT)
+
+
+def test_no_argument_tools_still_ignore_malformed_arguments() -> None:
+    provider = FakeProvider([AssistantTurn((call(raw="not json"),), ""), AssistantTurn((), "ok")])
+    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation))) == "ok"
+    assert provider.requests[1]["transcript"][-1] == ToolResult("call-1", "clock")
+
+
+def test_repeated_malformed_calls_stop_at_the_round_limit() -> None:
+    rounds = payload()["maxToolRounds"]
+    bad = AssistantTurn((call("read_file"),), "")
+    provider = FakeProvider([bad] * (rounds + 1))
+    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation))) == ""
+    assert len(provider.requests) == rounds + 1
 
 
 @pytest.mark.parametrize(

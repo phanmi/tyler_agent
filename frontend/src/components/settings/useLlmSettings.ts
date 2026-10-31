@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadLlmSettings, saveLlmSettings, saveProviderKey } from '../../api'
+import { isInvalidSettingsFile, loadLlmSettings, resetLlmSettings, saveLlmSettings, saveProviderKey } from '../../api'
 import type { LlmProviderId, LlmSettings, ProviderSettings } from '../../api'
 
 export type LlmSettingsState =
   | { status: 'loading' }
-  | { status: 'error'; message: string }
+  | { status: 'error'; message: string; invalidFile: boolean }
   | { status: 'ready'; settings: LlmSettings }
 
 export interface LlmSettingsController {
   state: LlmSettingsState
   // Retry after a failed load.
   reload: () => void
+  // Replace an invalid settings file with the defaults; saved keys are kept.
+  reset: () => Promise<void>
   // Each save resolves with the backend's confirmed settings or rejects with its error.
   saveActiveProvider: (provider: LlmProviderId) => Promise<void>
   saveModel: (provider: LlmProviderId, model: string) => Promise<void>
@@ -73,6 +75,7 @@ export function useLlmSettings(): LlmSettingsController {
         setState({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to load provider settings',
+          invalidFile: isInvalidSettingsFile(error),
         })
       })
     return () => controller.abort()
@@ -80,9 +83,21 @@ export function useLlmSettings(): LlmSettingsController {
 
   const reload = useCallback(() => setLoadRequest((request) => request + 1), [])
 
+  // Settings writes run one at a time; a failed one must not block later ones.
+  const enqueue = useCallback((task: () => Promise<void>) => {
+    const run = settingsQueue.current.then(task)
+    settingsQueue.current = run.catch(() => undefined)
+    return run
+  }, [])
+
+  const reset = useCallback(
+    () => enqueue(async () => apply(await resetLlmSettings())),
+    [enqueue, apply],
+  )
+
   const queueSettingsSave = useCallback(
-    (change: (current: LlmSettings) => { activeProvider: LlmProviderId; models: Record<LlmProviderId, string> }) => {
-      const run = settingsQueue.current.then(async () => {
+    (change: (current: LlmSettings) => { activeProvider: LlmProviderId; models: Record<LlmProviderId, string> }) =>
+      enqueue(async () => {
         const current = confirmed.current
         if (!current) throw new Error('Provider settings are not loaded')
         const revisions = { ...keyRevisions.current }
@@ -97,12 +112,8 @@ export function useLlmSettings(): LlmSettingsController {
               : { ...provider, configured: findProvider(latest, provider.id).configured },
           ),
         })
-      })
-      // A failed save must not block later ones.
-      settingsQueue.current = run.catch(() => undefined)
-      return run
-    },
-    [apply],
+      }),
+    [enqueue, apply],
   )
 
   const saveActiveProvider = useCallback(
@@ -136,5 +147,5 @@ export function useLlmSettings(): LlmSettingsController {
     [apply],
   )
 
-  return { state, reload, saveActiveProvider, saveModel, saveKey }
+  return { state, reload, reset, saveActiveProvider, saveModel, saveKey }
 }

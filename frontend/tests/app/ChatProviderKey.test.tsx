@@ -72,7 +72,7 @@ it('sends when the active provider has a key, even if another provider has none'
 
 it('lets the backend decide when provider settings could not be loaded', async () => {
   vi.mocked(api.loadLlmSettings).mockRejectedValue(new Error('Failed to load provider settings (HTTP 500)'))
-  vi.mocked(api.sendMessage).mockRejectedValue(new api.ApiError('OpenAI API key is empty; chat is unavailable', 401))
+  vi.mocked(api.sendMessage).mockRejectedValue(new api.ApiError('OpenAI API key is empty; chat is unavailable', 400))
   await act(async () => { render(<App />) })
 
   await send('hello')

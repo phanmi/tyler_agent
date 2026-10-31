@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.exceptionHandler.exception.WorkspacePathException;
+import org.tyler.filesandbox.IApplicationOwnedFiles;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.llm.LlmProvider;
@@ -27,7 +28,7 @@ import java.util.Set;
  * atomically and owner-only on POSIX. Keys and their file contents are never logged.
  */
 @Service
-public class LlmKeyService implements ILlmKeyService {
+public class LlmKeyService implements ILlmKeyService, IApplicationOwnedFiles {
 
     private static final Logger log = LoggerFactory.getLogger(LlmKeyService.class);
 
@@ -63,6 +64,11 @@ public class LlmKeyService implements ILlmKeyService {
                         "Each provider's API key file and the LLM settings file must be different files");
             }
         }
+    }
+
+    @Override
+    public List<String> ownedPaths() {
+        return List.copyOf(relativePaths.values());
     }
 
     @Override

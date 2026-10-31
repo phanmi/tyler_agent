@@ -16,6 +16,13 @@ public interface ILlmController {
     /** Replaces the active provider and every provider's model, then returns the new settings. */
     SettingsResponse saveSettings(SettingsRequest request);
 
+    /**
+     * Replaces the settings file with the default provider and models, keeping saved keys.
+     * This is how the app recovers from an invalid settings file, which {@link #settings()}
+     * reports as an error rather than silently falling back.
+     */
+    SettingsResponse resetSettings();
+
     /** Saves or, when blank, clears one provider's key and returns its configuration status. */
     KeyStatusResponse saveKey(String provider, KeyRequest request);
 

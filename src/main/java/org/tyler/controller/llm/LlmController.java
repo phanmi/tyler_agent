@@ -1,5 +1,6 @@
 package org.tyler.controller.llm;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -45,6 +46,12 @@ public class LlmController implements ILlmController {
     @PutMapping("/settings")
     public SettingsResponse saveSettings(@RequestBody SettingsRequest request) {
         return response(settingsService.save(toSettings(request)));
+    }
+
+    @Override
+    @DeleteMapping("/settings")
+    public SettingsResponse resetSettings() {
+        return response(settingsService.save(LlmSettings.defaults()));
     }
 
     @Override

@@ -119,7 +119,7 @@ class AgentPersistenceIntegrationTest {
         try (var app = new PersistenceTestApplication(workspace)) {
             var keys = app.context.getBean(IApiKeyService.class);
             keys.save("");
-            app.chat("food", 401);
+            app.chat("food", 400);
             assertEquals(0, app.gate.foodCalls.get());
             keys.save("SYNTHETIC_NEW_KEY");
             app.chat("food_then_failure", 500);
@@ -245,7 +245,7 @@ class AgentPersistenceIntegrationTest {
                      "anthropic":"claude-haiku-5-5","deepseek":"deepseek-flash"}}""", 200);
             // The saved OpenAI key never substitutes for the missing Claude key.
             assertEquals("Claude API key is empty; chat is unavailable",
-                    app.chat("reply", 401).path("error").asText());
+                    app.chat("reply", 400).path("error").asText());
             assertEquals(2, app.get(HISTORY).size());
 
             app.http("PUT", "/api/llm/keys/anthropic", "{\"apiKey\":\"SYNTHETIC_CLAUDE_KEY\"}", 200);

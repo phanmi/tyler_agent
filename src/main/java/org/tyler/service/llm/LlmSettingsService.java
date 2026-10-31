@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.exceptionHandler.exception.WorkspacePathException;
+import org.tyler.filesandbox.IApplicationOwnedFiles;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.llm.LlmProvider;
@@ -18,6 +19,7 @@ import org.tyler.model.llm.LlmSettings;
 
 import java.util.EnumMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,7 +30,7 @@ import java.util.Map;
  * than a silent fallback, so chats never move to a provider or model the user didn't choose.
  */
 @Service
-public class LlmSettingsService implements ILlmSettingsService {
+public class LlmSettingsService implements ILlmSettingsService, IApplicationOwnedFiles {
 
     private static final Logger log = LoggerFactory.getLogger(LlmSettingsService.class);
 
@@ -48,6 +50,11 @@ public class LlmSettingsService implements ILlmSettingsService {
         this.writer = writer;
         // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
+    }
+
+    @Override
+    public List<String> ownedPaths() {
+        return List.of(relativePath);
     }
 
     @Override

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import ActiveProviderField from './ActiveProviderField'
 import ModelPicker from './ModelPicker'
 import ProviderKeyForm from './ProviderKeyForm'
@@ -11,6 +12,20 @@ interface ProviderSettingsPanelProps {
 // Each form saves only its own change; App owns the shared state through useLlmSettings.
 export default function ProviderSettingsPanel({ llm }: ProviderSettingsPanelProps) {
   const { state } = llm
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  const reset = async () => {
+    setResetting(true)
+    setResetError(null)
+    try {
+      await llm.reset()
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : 'Failed to reset provider settings')
+    } finally {
+      setResetting(false)
+    }
+  }
 
   return (
     <section className="llm-card" aria-labelledby="llm-card-title">
@@ -25,7 +40,19 @@ export default function ProviderSettingsPanel({ llm }: ProviderSettingsPanelProp
       {state.status === 'error' && (
         <div className="llm-load-error" role="alert">
           <p className="llm-msg llm-msg--err">{state.message}</p>
-          <button type="button" onClick={llm.reload}>Try again</button>
+          {state.invalidFile ? (
+            <>
+              <p className="llm-msg">
+                Resetting restores the default provider and models. Your saved API keys are kept.
+              </p>
+              <button type="button" onClick={reset} disabled={resetting}>
+                {resetting ? 'Resetting…' : 'Reset provider settings'}
+              </button>
+              {resetError && <p className="llm-msg llm-msg--err">{resetError}</p>}
+            </>
+          ) : (
+            <button type="button" onClick={llm.reload}>Try again</button>
+          )}
         </div>
       )}
 

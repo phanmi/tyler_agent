@@ -51,17 +51,7 @@ export async function sendMessage(message: string): Promise<Message> {
     body: JSON.stringify({ message } satisfies ChatRequest),
   })
 
-  // For non-2xx responses, try to read a useful error message from the body.
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Request failed (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Request failed')
 
   const data = (await res.json()) as ChatResponse
 
@@ -95,17 +85,7 @@ export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
     body: JSON.stringify(data),
   })
 
-  // As in sendMessage, try to read an error message from non-2xx responses.
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to save (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Failed to save')
 
   return (await res.json()) as UserInfo
 }
@@ -157,15 +137,17 @@ export class ApiError extends Error {
   }
 }
 
-// Use the backend's error text when present. It never contains a key: the backend's
+// Every failed call reports the backend's `error` (or Spring's `message`) text when present,
+// else the caller's fallback with the HTTP status. It never contains a key: the backend's
 // messages are fixed text and do not echo request values.
 async function apiError(res: Response, fallback: string): Promise<ApiError> {
   let detail = ''
   try {
-    const body = (await res.json()) as { error?: unknown }
+    const body = (await res.json()) as { error?: unknown; message?: unknown }
     if (typeof body.error === 'string') detail = body.error
+    else if (typeof body.message === 'string') detail = body.message
   } catch {
-    // Ignore invalid JSON and use the fallback message.
+    // Ignore empty or invalid JSON and use the fallback message.
   }
   return new ApiError(detail || `${fallback} (HTTP ${res.status})`, res.status)
 }
@@ -223,6 +205,23 @@ export async function saveLlmSettings(update: LlmSettingsUpdate): Promise<LlmSet
   return parseLlmSettings(await res.json())
 }
 
+// Restore the default provider and models after an invalid settings file: DELETE /api/llm/settings.
+// Saved keys are kept.
+export async function resetLlmSettings(): Promise<LlmSettings> {
+  const res = await apiFetch(`/api/llm/settings`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res, 'Failed to reset provider settings')
+  return parseLlmSettings(await res.json())
+}
+
+// LlmSettingsService.INVALID_FILE_MESSAGE, sent with HTTP 500 for an unreadable llm-settings.json.
+// There is no shared contract for error text, so this copy is the one place the frontend depends on it.
+const INVALID_SETTINGS_FILE_MESSAGE = 'LLM settings file is invalid'
+
+// Reset repairs this error, so the Settings page offers it only here.
+export function isInvalidSettingsFile(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 500 && error.message.includes(INVALID_SETTINGS_FILE_MESSAGE)
+}
+
 // Save one provider's key: PUT /api/llm/keys/{provider}. The response holds only the status.
 export async function saveProviderKey(provider: LlmProviderId, apiKey: string): Promise<KeyStatus> {
   const res = await apiFetch(`/api/llm/keys/${provider}`, {
@@ -276,74 +275,36 @@ export async function clearChatHistory(): Promise<void> {
 // The backend returns an empty array with HTTP 200 when no records exist.
 export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
   const res = await apiFetch(`/api/food?date=${encodeURIComponent(date)}`)
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to load food records (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Failed to load food records')
   return (await res.json()) as FoodEntry[]
 }
 
 // Delete one food record: DELETE /api/food/{id}.
 export async function deleteFood(id: number): Promise<boolean> {
   const res = await apiFetch(`/api/food/${id}`, { method: 'DELETE' })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Failed to delete')
   return (await res.json()) as boolean
 }
 
 // Delete all food records for a date: DELETE /api/food/date/YYYY-MM-DD.
 export async function deleteFoodByDate(date: string): Promise<boolean> {
   const res = await apiFetch(`/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Failed to delete')
   return (await res.json()) as boolean
 }
 
 // ===== Workouts =====
 
-async function workoutResponseError(res: Response, fallback: string): Promise<Error> {
-  let detail = ''
-  try {
-    const body = (await res.json()) as { error?: string; message?: string }
-    detail = body.error ?? body.message ?? ''
-  } catch {
-    // Use the fallback for empty or non-JSON responses.
-  }
-  return new Error(detail || `${fallback} (HTTP ${res.status})`)
-}
-
 export async function loadWorkoutsByDate(date: string): Promise<WorkoutEntry[]> {
   const res = await apiFetch(`/api/workouts?date=${encodeURIComponent(date)}`)
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workouts')
+  if (!res.ok) throw await apiError(res, 'Failed to load workouts')
   return (await res.json()) as WorkoutEntry[]
 }
 
 export async function loadWorkoutPlan(startDate: string, goal: string, equipment: string): Promise<WorkoutPlan> {
   const params = new URLSearchParams({ startDate, goal, equipment })
   const res = await apiFetch(`/api/workouts/plan?${params}`)
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workout plan')
+  if (!res.ok) throw await apiError(res, 'Failed to load workout plan')
   return (await res.json()) as WorkoutPlan
 }
 
@@ -353,7 +314,7 @@ export async function createWorkout(workout: Workout): Promise<WorkoutEntry> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(workout),
   })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to save workout')
+  if (!res.ok) throw await apiError(res, 'Failed to save workout')
   return (await res.json()) as WorkoutEntry
 }
 
@@ -363,11 +324,11 @@ export async function updateWorkout(id: number, workout: Workout): Promise<Worko
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(workout),
   })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to update workout')
+  if (!res.ok) throw await apiError(res, 'Failed to update workout')
   return (await res.json()) as WorkoutEntry
 }
 
 export async function deleteWorkout(id: number): Promise<void> {
   const res = await apiFetch(`/api/workouts/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to delete workout')
+  if (!res.ok) throw await apiError(res, 'Failed to delete workout')
 }

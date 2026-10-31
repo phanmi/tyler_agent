@@ -32,8 +32,8 @@ class ProtocolFailuresTest {
     @CsvSource({
             "validation, INVALID_ARGUMENT, 400, Invalid agent request, IllegalArgumentException",
             "validation, SQL_DATA_VALIDATION, 400, Invalid agent record data, SQLDataValidationException",
-            "authentication, API_KEY_MISSING, 401, API key is empty; chat is unavailable, ApiKeyMissingException",
-            "authentication, PROVIDER_AUTH, 401, This API key is invalid or unavailable, ApiKeyMissingException",
+            "authentication, API_KEY_MISSING, 400, API key is empty; chat is unavailable, ApiKeyMissingException",
+            "authentication, PROVIDER_AUTH, 401, This API key is invalid or unavailable, ProviderAuthException",
             "storage, SQL_READ, 500, Database operation failed. Please try again later, SQLReadException",
             "storage, SQL_WRITE, 500, Database operation failed. Please try again later, SQLPersistentException",
             "storage, SQL_ACCESS, 500, Database operation failed. Please try again later, DataAccessResourceFailureException",

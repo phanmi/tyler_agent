@@ -5,7 +5,8 @@ conversation state between requests.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -86,6 +87,20 @@ def checked_calls(calls: list[ToolCall]) -> tuple[ToolCall, ...]:
     if any(not call.call_id or not call.name for call in calls):
         raise AgentFailure("provider", "PROVIDER_FAILURE")
     return tuple(calls)
+
+
+@contextmanager
+def provider_errors(auth: tuple[type[Exception], ...], api: type[Exception]) -> Iterator[None]:
+    """Map one SDK's errors to protocol failures; each SDK passes its own exception classes.
+
+    The authentication classes subclass the SDK's base API error, so they are checked first.
+    """
+    try:
+        yield
+    except auth as error:
+        raise AgentFailure("authentication", "PROVIDER_AUTH") from error
+    except api as error:
+        raise AgentFailure("provider", "PROVIDER_FAILURE") from error
 
 
 def suppress_sdk_logs(prefixes: Sequence[str]) -> None:

@@ -5,6 +5,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.exceptionHandler.exception.ApiKeyMissingException;
+import org.tyler.exceptionHandler.exception.ProviderAuthException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
@@ -28,7 +29,7 @@ public final class ProtocolFailures {
             case "SQL_DATA_VALIDATION" -> new SQLDataValidationException("Invalid agent record data");
             // The code carries no provider; Java names the provider in its own pre-run check.
             case "API_KEY_MISSING" -> new ApiKeyMissingException("API key is empty; chat is unavailable");
-            case "PROVIDER_AUTH" -> new ApiKeyMissingException("This API key is invalid or unavailable");
+            case "PROVIDER_AUTH" -> new ProviderAuthException("This API key is invalid or unavailable");
             case "SQL_READ" -> new SQLReadException("Agent database read failed");
             case "SQL_WRITE" -> new SQLPersistentException("Agent database write failed");
             case "SQL_ACCESS" -> new DataAccessResourceFailureException("Agent database access failed");

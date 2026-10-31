@@ -17,9 +17,11 @@ import org.tyler.service.agent.bridge.ServiceOperationDispatcher;
 import org.tyler.service.food.IFoodService;
 import org.tyler.service.workout.IWorkoutPlanService;
 import org.tyler.service.userInfo.IUserInfoService;
+import org.tyler.filesandbox.IFileSandboxPath;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +40,7 @@ class PythonAgentConfigurationTest {
             .withBean(IUserInfoService.class, () -> mock(IUserInfoService.class))
             .withBean(IFileSandboxRead.class, () -> mock(IFileSandboxRead.class))
             .withBean(IFileSandboxWrite.class, () -> mock(IFileSandboxWrite.class))
+            .withBean(IFileSandboxPath.class, () -> path -> Path.of("workspace").toAbsolutePath().resolve(path).normalize())
             .withBean(ChatHistoryService.class, () -> mock(ChatHistoryService.class));
 
     @Test

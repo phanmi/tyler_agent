@@ -1,10 +1,11 @@
 """Claude Messages API boundary. One cancellable client belongs to one run; no automatic retries."""
 
 import json
+import re
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from typing import cast
+from typing import Any, cast
 
 from anthropic import APIError, AsyncAnthropic, AuthenticationError, PermissionDeniedError
 from anthropic.types.beta import BetaMessageParam, BetaToolParam
@@ -13,7 +14,6 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.transcript import (
     MAX_OUTPUT_ITEMS,
-    PROVIDER_TIMEOUT_SECONDS,
     AssistantTurn,
     Provider,
     ToolCall,
@@ -23,12 +23,18 @@ from tyler_agent.transcript import (
     UserTurn,
     checked_calls,
     checked_text,
+    provider_errors,
     suppress_sdk_logs,
 )
 
 CLAUDE_BASE_URL = "https://api.anthropic.com"
-# Non-streaming requests stay well inside the SDK's HTTP timeout at this output ceiling.
+# Requests do not stream, so a long thinking reply at this ceiling can take minutes; the client
+# timeout is the whole run budget rather than the shorter cap used for the other providers.
 MAX_TOKENS = 16000
+# Adaptive thinking and server-side fallback exist from Claude 4.6 on. Custom IDs outside these
+# families, such as claude-sonnet-4-5-20250929, get a plain request so they still work.
+CLAUDE_FAMILY_ID = re.compile(r"claude-[a-z]+-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?")
+ADAPTIVE_FROM = (4, 6)
 # Server-side fallback re-runs a declined request on Anthropic's recommended model.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # Returned when the requested model and its fallback both decline.
@@ -119,8 +125,23 @@ def parse_message(value: Message) -> AssistantTurn:
     return AssistantTurn(checked_calls(calls), checked_text("".join(text)), tuple(native))
 
 
+def supports_adaptive_features(model: str) -> bool:
+    """True for Claude 4.6 and later IDs, such as claude-sonnet-5-5 or claude-opus-4-6-20260101."""
+    match = CLAUDE_FAMILY_ID.fullmatch(model)
+    if match is None:
+        return False
+    return (int(match[1]), int(match[2] or 0)) >= ADAPTIVE_FROM
+
+
+def request_features(model: str) -> dict[str, Any]:
+    if not supports_adaptive_features(model):
+        return {}
+    return {"thinking": {"type": "adaptive"}, "fallbacks": "default", "betas": [FALLBACK_BETA]}
+
+
 class ClaudeProvider:
-    """Adaptive thinking at the model's default effort, with server-side refusal fallback."""
+    """Adaptive thinking at the model's default effort, with server-side refusal fallback,
+    for the models that support them."""
 
     def __init__(self, client: AsyncAnthropic) -> None:
         self._client = client
@@ -128,23 +149,17 @@ class ClaudeProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
-        try:
+        with provider_errors((AuthenticationError, PermissionDeniedError), APIError):
             # These casts bridge validated application dictionaries to SDK TypedDict unions.
             message = await self._client.beta.messages.create(
                 model=model,
                 max_tokens=MAX_TOKENS,
                 messages=cast(list[BetaMessageParam], claude_messages(transcript)),
                 tools=cast(list[BetaToolParam], claude_tools(tools)),
-                thinking={"type": "adaptive"},
-                fallbacks="default",
-                betas=[FALLBACK_BETA],
+                **request_features(model),
             )
             # Only fields the server sent, so replayed blocks are valid request input.
             return parse_message(message.model_dump(mode="json", exclude_unset=True))
-        except (AuthenticationError, PermissionDeniedError) as error:
-            raise AgentFailure("authentication", "PROVIDER_AUTH") from error
-        except APIError as error:
-            raise AgentFailure("provider", "PROVIDER_FAILURE") from error
 
 
 @asynccontextmanager
@@ -155,7 +170,7 @@ async def open_claude(payload: Message) -> AsyncIterator[Provider]:
         api_key=payload["apiKey"],
         base_url=CLAUDE_BASE_URL,
         max_retries=0,
-        timeout=min(PROVIDER_TIMEOUT_SECONDS, payload["timeoutMs"] / 1000),
+        timeout=payload["timeoutMs"] / 1000,
         open_telemetry={"traces": False, "propagation": False},
     ) as client:
         yield ClaudeProvider(client)

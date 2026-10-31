@@ -123,6 +123,42 @@ def test_text_reply_request_shape() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("claude-sonnet-5-5", True),
+        ("claude-opus-5-5", True),
+        ("claude-haiku-5-5", True),
+        ("claude-fable-5-1", True),
+        ("claude-opus-5", True),
+        ("claude-opus-4-6", True),
+        ("claude-sonnet-4-6-20260101", True),
+        ("claude-sonnet-4-5-20250929", False),
+        ("claude-haiku-4-5", False),
+        ("claude-3-5-sonnet-20241022", False),
+        ("my-proxy/claude-sonnet-5-5", False),
+        ("custom-model", False),
+    ],
+)
+def test_adaptive_features_only_for_models_that_support_them(model: str, expected: bool) -> None:
+    assert module.supports_adaptive_features(model) is expected
+
+
+def test_older_custom_models_get_a_plain_request() -> None:
+    server = Server([httpx2.Response(200, json=message([text("Hi")]))])
+
+    turn = run(
+        server,
+        lambda provider: provider.respond("claude-sonnet-4-5-20250929", [UserTurn("hi")], [TOOL]),
+    )
+
+    assert turn.text == "Hi"
+    assert "anthropic-beta" not in server.requests[0].headers
+    body = server.body(0)
+    assert "thinking" not in body and "fallbacks" not in body
+    assert body["model"] == "claude-sonnet-4-5-20250929" and body["max_tokens"] == 16000
+
+
 def test_multi_round_tool_use_replays_content_and_groups_results() -> None:
     first = message(
         [THINKING, text("Checking."), tool_use("a", value={"path": "x"}), tool_use("b")],
@@ -304,7 +340,7 @@ def test_production_factory_explicit_settings_cleanup_and_sdk_log_redaction(
             "api_key": "SYNTHETIC_FIXTURE_KEY",
             "base_url": "https://api.anthropic.com",
             "max_retries": 0,
-            "timeout": 60.0,
+            "timeout": 300.0,
             "open_telemetry": {"traces": False, "propagation": False},
         }
         client = AsyncAnthropic(

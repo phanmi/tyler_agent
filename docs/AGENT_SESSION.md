@@ -35,7 +35,7 @@ The run and operation timeouts must be between 1,000 and 3,600,000 ms, with the 
 |---|---|
 | `PythonAgentConfiguration` | Select exactly one `IAgentService`; create/start the worker before `ApplicationReadyEvent`. The existing `TYLER_READY <nonce> <port>` reporter is unchanged. Startup reads no API key. |
 | `ConversationLane` | One FIFO lane for chat and history operations. Reject excess work with `WORKER_BUSY`; expire queued work without executing it. Nested history calls on the owner thread execute directly. |
-| `PythonAgentService` | Read the current key and history after dequeue, send a per-request snapshot, and append exactly one successful exchange. Missing keys retain HTTP 401. History failure never replays tools. |
+| `PythonAgentService` | Read the current key and history after dequeue, send a per-request snapshot, and append exactly one successful exchange. A missing key for the active provider fails with HTTP 400; a key the provider rejects fails with HTTP 401. History failure never replays tools. |
 | `CoordinatedChatHistoryService` | Serialize clear/read/append with chat. A clear queued during a run executes after its history append, so that older run cannot later repopulate cleared history. History requests share the queue capacity/deadline. |
 | `PythonWorker` | Own the process, session ledger, monotonic timers, callback execution, startup/shutdown, and cancellation. A new request can start a replacement worker after a failure, but the failed request is never retried. |
 | `WorkerPipe` | Read stdout and write stdin independently; bound incomplete frames and the four-frame output queue. Drain stderr in fixed-size chunks and log only the byte count, never arbitrary worker text. |

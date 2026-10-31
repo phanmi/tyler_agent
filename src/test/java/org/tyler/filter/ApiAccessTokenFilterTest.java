@@ -6,19 +6,20 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.tyler.config.CorsConfig;
 import org.tyler.controller.llm.LlmController;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.llm.ILlmKeyService;
 import org.tyler.service.llm.ILlmSettingsService;
 
-import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,9 +30,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Tests that /api requires the per-launch token, and what stays reachable without it. */
+/** Tests that every request requires the per-launch token, and what stays reachable without it. */
 @ExtendWith(OutputCaptureExtension.class)
 class ApiAccessTokenFilterTest {
 
@@ -88,9 +90,20 @@ class ApiAccessTokenFilterTest {
         mvc(TOKEN).perform(options("/api/llm/settings")).andExpect(status().isUnauthorized());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/apix", "/api;x/llm/settings", "/%61pi/llm/settings", "/API/llm/settings", "/"})
+    void everyPathNeedsTheTokenSoRoutingAliasesCannotSkipTheCheck(String path) throws Exception {
+        mvc(TOKEN).perform(get(path)).andExpect(status().isUnauthorized());
+    }
+
     @Test
-    void pathsOutsideTheApiAreNotFiltered() throws Exception {
-        mvc(TOKEN).perform(get("/apix")).andExpect(status().is(not(401)));
+    void theDesktopWindowCanReadARejection() throws Exception {
+        mvc(TOKEN).perform(get("/api/llm/settings").header(HttpHeaders.ORIGIN, CorsConfig.DESKTOP_ORIGIN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, CorsConfig.DESKTOP_ORIGIN));
+        mvc(TOKEN).perform(get("/api/llm/settings").header(HttpHeaders.ORIGIN, "http://evil.example"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
     }
 
     @Test

@@ -11,7 +11,6 @@ from typing import cast
 from openai import APIError, AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from openai.types.responses import ResponseInputParam, ToolParam
 
-from tyler_agent.claude_provider import open_claude
 from tyler_agent.deepseek_provider import open_deepseek
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
@@ -27,6 +26,7 @@ from tyler_agent.transcript import (
     UserTurn,
     checked_calls,
     checked_text,
+    provider_errors,
     suppress_sdk_logs,
 )
 
@@ -139,7 +139,7 @@ class ResponsesProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
-        try:
+        with provider_errors((AuthenticationError, PermissionDeniedError), APIError):
             # These casts bridge validated application dictionaries to SDK TypedDict unions.
             response = await self._client.responses.create(
                 model=model,
@@ -150,10 +150,6 @@ class ResponsesProvider:
             )
             # Only fields the server sent, so replayed items are valid request input.
             return parse_response(response.model_dump(mode="json", exclude_unset=True))
-        except (AuthenticationError, PermissionDeniedError) as error:
-            raise AgentFailure("authentication", "PROVIDER_AUTH") from error
-        except APIError as error:
-            raise AgentFailure("provider", "PROVIDER_FAILURE") from error
 
 
 @asynccontextmanager
@@ -168,9 +164,17 @@ async def _open_openai(payload: Message) -> AsyncIterator[Provider]:
         yield ResponsesProvider(client)
 
 
+def _open_claude(payload: Message) -> AbstractAsyncContextManager[Provider]:
+    # Imported per run: the anthropic SDK is large, and worker startup counts against a timeout
+    # even when another provider is active. DeepSeek reuses the already loaded openai SDK.
+    from tyler_agent.claude_provider import open_claude
+
+    return open_claude(payload)
+
+
 OPENERS: dict[str, Callable[[Message], AbstractAsyncContextManager[Provider]]] = {
     "openai": _open_openai,
-    "anthropic": open_claude,
+    "anthropic": _open_claude,
     "deepseek": open_deepseek,
 }
 

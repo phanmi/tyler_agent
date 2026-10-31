@@ -115,6 +115,22 @@ describe('provider settings calls', () => {
     await expect(api.loadLlmSettings()).rejects.toThrow('Failed to load provider settings (HTTP 500)')
   })
 
+  it('resets settings with DELETE and recognises only the invalid-file error', async () => {
+    const api = await freshApi()
+    const fetchMock = stubFetch(SETTINGS)
+
+    expect((await api.resetLlmSettings()).activeProvider).toBe('openai')
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/llm/settings')
+    expect(init.method).toBe('DELETE')
+
+    stubFetch({ error: 'Failed to read file: LLM settings file is invalid' }, 500)
+    expect(api.isInvalidSettingsFile(await api.loadLlmSettings().catch((error: unknown) => error))).toBe(true)
+    stubFetch({ error: 'Failed to read file: LLM settings file is invalid' }, 400)
+    expect(api.isInvalidSettingsFile(await api.loadLlmSettings().catch((error: unknown) => error))).toBe(false)
+    expect(api.isInvalidSettingsFile(new Error('LLM settings file is invalid'))).toBe(false)
+  })
+
   it('rejects a key status for another provider', async () => {
     const api = await freshApi()
     stubFetch({ provider: 'openai', configured: true })

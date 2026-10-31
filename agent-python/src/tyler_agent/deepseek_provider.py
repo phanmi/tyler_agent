@@ -28,6 +28,7 @@ from tyler_agent.transcript import (
     UserTurn,
     checked_calls,
     checked_text,
+    provider_errors,
     suppress_sdk_logs,
 )
 
@@ -120,7 +121,7 @@ class DeepSeekProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
-        try:
+        with provider_errors((AuthenticationError, PermissionDeniedError), APIError):
             # These casts bridge validated application dictionaries to SDK TypedDict unions.
             completion = await self._client.chat.completions.create(
                 model=model,
@@ -129,10 +130,6 @@ class DeepSeekProvider:
                 extra_body=THINKING_DISABLED,
             )
             return parse_completion(completion.model_dump(mode="json", exclude_unset=True))
-        except (AuthenticationError, PermissionDeniedError) as error:
-            raise AgentFailure("authentication", "PROVIDER_AUTH") from error
-        except APIError as error:
-            raise AgentFailure("provider", "PROVIDER_FAILURE") from error
 
 
 @asynccontextmanager
