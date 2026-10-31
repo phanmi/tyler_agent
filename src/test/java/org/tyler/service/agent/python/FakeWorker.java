@@ -21,7 +21,7 @@ public final class FakeWorker {
         if (mode.equals("startup_exit")) return;
         if (!mode.equals("no_ready")) {
             ObjectNode ready = WorkerTestSupport.fixture("ready");
-            if (mode.equals("mismatch")) ready.put("protocolVersion", 2);
+            if (mode.equals("mismatch")) ready.put("protocolVersion", 1); // Retired version.
             send(ready);
         }
         if (mode.equals("stderr")) {

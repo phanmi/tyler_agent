@@ -160,7 +160,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 ### Worker protocol and lifecycle
 
-- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 1](AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
+- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 2](AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
 - Validate message shape, protocol version, operation allowlists, and request/call correlation before executing side effects. Bound message sizes, queues, and waits, and reject messages for inactive requests.
 - Java owns worker startup, readiness, cancellation, and shutdown. Make cleanup idempotent and test failure paths without leaving orphan processes or mixing requests.
 - Preserve decimal precision, date formats, identifiers, null semantics, and error categories across serialization. A transport failure must not erase the distinction between a rejected operation and an operation whose result was lost.
@@ -170,7 +170,8 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 - Use existing Spring configuration properties and defaults for Java. Define and validate Python worker configuration at startup, with explicit ownership and precedence; do not introduce competing defaults for shared settings. Document newly introduced settings in the developer guide.
 - Preserve the documented network binding and endpoint-discovery behavior. Read configurable addresses and ports from configuration or discovery results.
-- Loopback binding and CORS do not authenticate other programs on the same computer. Any authentication requirement needs an explicit design.
+- Loopback binding and CORS do not authenticate other programs on the same computer. Every request except a CORS preflight is authenticated by the per-launch access token described in the [developer guide](DEVELOPMENT.md); never log the token. Keep new endpoints under `/api`, the only path the CORS mapping allows.
+- The model's file tools must never reach application-owned workspace files: provider keys, provider settings, and chat history are refused by `ProtectedWorkspaceFiles` before the sandbox is touched. A service that keeps its own workspace file implements `IApplicationOwnedFiles`, which protects the file automatically.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
 - Use the project's shared release-version source; do not introduce competing version definitions.
 - When changing an implementation default, test omitted, explicit, and invalid selections, including startup failure without silent fallback. Keep dormant migration components inactive unless explicitly selected. Preserve any documented release rollback window, record restart/data-compatibility evidence, and inventory callers before retirement; passing local tests does not complete a release window.
@@ -194,7 +195,7 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities for J
 | Service | Use-case results, failure propagation, and preservation of existing records after rejected changes. |
 | Controller | Request/response shape, status codes, invalid input, and missing records. |
 | Tool | Function definition, argument validation, output, saving, preview without writes, repeated execution, and failure cleanup where applicable. |
-| Python agent | Model requests, response chaining, tool-call ordering and limits, result extraction, cancellation, and classified provider/tool failures with a fake model provider. |
+| Python agent | Model requests, the per-run transcript, tool-call ordering and limits, result extraction, cancellation, and classified provider/tool failures with a fake model provider. |
 | Worker protocol / Java bridge | Real subprocess communication, schema and version checks, request isolation, service delegation, failure translation, startup/shutdown, and uncertain write outcomes. |
 | Cache / wiring | Correct implementation selection, invalidation, failed writes, and isolation of returned collections. |
 
@@ -238,6 +239,19 @@ Use the repository's [pull request template](../.github/pull_request_template.md
 ## 10. Project-specific additions
 
 Add future decisions here, then incorporate stable rules into the relevant section.
+
+```text
+Rule:       Every file or output the application generates (API keys, provider settings, chat
+            history, the SQLite database, files written by agent tools, and logs that hold user
+            content) must be encrypted at rest.
+Reason:     Workspace files are plain text today. Any software running as the user, a backup, or
+            a synced folder can read keys and conversation content.
+Scope:      Java storage behind the file sandbox and SQLite; Python writes go through Java.
+Example:    Not yet implemented.
+Exceptions or migration needed: Existing plain-text files need a one-time migration; key
+            management (for example the OS credential store) is part of the design.
+Verification: Pending. Tracked in issue #81 (opened from issue #79's security review).
+```
 
 ```text
 Rule:

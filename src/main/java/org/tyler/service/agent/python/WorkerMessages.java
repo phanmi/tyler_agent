@@ -6,10 +6,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DataAccessException;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
-import org.tyler.exceptionHandler.exception.OpenAIKeyException;
+import org.tyler.exceptionHandler.exception.ApiKeyMissingException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
+import org.tyler.service.agent.protocol.MessageValidator;
 
 /**
  * Builds private transport envelopes and code-owned failures; never serializes arbitrary exceptions.
@@ -19,7 +20,7 @@ final class WorkerMessages {
     private WorkerMessages() { }
 
     static ObjectNode envelope(String session, String type, String request, JsonNode payload) {
-        ObjectNode message = JsonNodeFactory.instance.objectNode().put("protocolVersion", 1)
+        ObjectNode message = JsonNodeFactory.instance.objectNode().put("protocolVersion", MessageValidator.PROTOCOL_VERSION)
                 .put("sessionId", session).put("type", type).put("requestId", request);
         message.set("payload", payload);
         return message;
@@ -48,7 +49,7 @@ final class WorkerMessages {
         String code = switch (failure) {
             case SQLDataValidationException ignored -> "SQL_DATA_VALIDATION";
             case IllegalArgumentException ignored -> "INVALID_ARGUMENT";
-            case OpenAIKeyException ignored -> "API_KEY_MISSING";
+            case ApiKeyMissingException ignored -> "API_KEY_MISSING";
             case SQLReadException ignored -> "SQL_READ";
             case SQLPersistentException ignored -> "SQL_WRITE";
             case DataAccessException ignored -> "SQL_ACCESS";

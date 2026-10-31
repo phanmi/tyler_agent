@@ -6,6 +6,8 @@ const { handleInstallerEvent } = require('./installer-events.cjs')
 
 let backendProcess = null
 let backendBaseUrl = null
+// Given only to this app's own window through IPC; never logged.
+let backendAccessToken = null
 let stopping = false
 const startup = new AbortController()
 
@@ -35,6 +37,7 @@ async function startBackend() {
                 if (!stopping) {
                     backendProcess = null
                     backendBaseUrl = null
+                    backendAccessToken = null
                     dialog.showErrorBox('Tyler backend stopped', 'The backend process exited unexpectedly.')
                     app.quit()
                 }
@@ -44,6 +47,7 @@ async function startBackend() {
     if (started.child.exitCode !== null) throw new Error('Backend exited immediately after startup')
     backendProcess = started.child
     backendBaseUrl = started.baseUrl
+    backendAccessToken = started.accessToken
     console.log(`[backend] Ready at ${backendBaseUrl}`)
 }
 
@@ -55,6 +59,7 @@ function stopBackend() {
     const p = backendProcess
     backendProcess = null
     backendBaseUrl = null
+    backendAccessToken = null
     try {
         p.kill()
     } catch (e) {
@@ -90,6 +95,10 @@ function registerWindowControls() {
     ipcMain.handle('backend:get-url', () => {
         if (!backendBaseUrl) throw new Error('Backend is not ready')
         return backendBaseUrl
+    })
+    ipcMain.handle('backend:get-access-token', () => {
+        if (!backendAccessToken) throw new Error('Backend is not ready')
+        return backendAccessToken
     })
     ipcMain.on('window:minimize', (event) => {
         BrowserWindow.fromWebContents(event.sender)?.minimize()

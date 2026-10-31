@@ -13,7 +13,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
-/** Strict version 1 transport codec; domain validation remains in the application services. */
+/** Strict protocol version 2 transport codec; domain validation remains in the application services. */
 public final class MessageCodec {
     public static final int MAX_FRAME_BYTES = MessageValidator.MAX_FRAME_BYTES;
     private final ObjectMapper mapper;

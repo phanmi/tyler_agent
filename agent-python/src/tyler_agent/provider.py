@@ -1,80 +1,87 @@
-"""Responses SDK boundary. One cancellable client belongs to one run; no automatic retries."""
+"""Provider SDK boundary for OpenAI, and the run's provider choice.
 
-import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from typing import Protocol, cast
+One cancellable client belongs to one run; no automatic retries.
+"""
+
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from copy import deepcopy
+from typing import cast
 
 from openai import APIError, AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from openai.types.responses import ResponseInputParam, ToolParam
 
+from tyler_agent.deepseek_provider import open_deepseek
 from tyler_agent.failures import AgentFailure
-from tyler_agent.protocol.protocol import MAX_FRAME_BYTES, Message
+from tyler_agent.protocol.protocol import Message
+from tyler_agent.transcript import (
+    MAX_OUTPUT_ITEMS,
+    PROVIDER_TIMEOUT_SECONDS,
+    AssistantTurn,
+    Provider,
+    ToolCall,
+    ToolDefinition,
+    ToolResult,
+    TranscriptEntry,
+    UserTurn,
+    checked_calls,
+    checked_text,
+    provider_errors,
+    suppress_sdk_logs,
+)
 
-MAX_CALLS_PER_RESPONSE = 100
-MAX_OUTPUT_ITEMS = 1000
-PROVIDER_TIMEOUT_SECONDS = 60.0
+# Re-exported so callers keep one import location for the provider boundary.
+__all__ = [
+    "AssistantTurn",
+    "Provider",
+    "ResponsesProvider",
+    "ToolCall",
+    "ToolDefinition",
+    "ToolResult",
+    "TranscriptEntry",
+    "UserTurn",
+    "open_provider",
+    "parse_response",
+    "responses_input",
+    "responses_tools",
+]
+
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+# Output item kinds replayed to OpenAI; reasoning must stay paired with its function calls.
+OPENAI_REPLAYED_ITEMS = frozenset({"reasoning", "message", "function_call"})
 
 
-@dataclass(frozen=True)
-class ToolCall:
-    call_id: str
-    name: str
-    arguments: str
+def parse_response(value: Message) -> AssistantTurn:
+    """Preserve ordered text/refusals and function calls; ignore other provider item kinds.
 
-
-@dataclass(frozen=True)
-class ModelResponse:
-    response_id: str
-    calls: tuple[ToolCall, ...]
-    text: str
-
-
-class Provider(Protocol):
-    async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse: ...
-
-
-def _text(value: object) -> str:
-    if not isinstance(value, str):
-        raise AgentFailure("provider", "PROVIDER_FAILURE")
-    try:
-        if len(value.encode("utf-8")) > MAX_FRAME_BYTES:
-            raise AgentFailure("provider", "PROVIDER_FAILURE")
-    except UnicodeError as error:
-        raise AgentFailure("provider", "PROVIDER_FAILURE") from error
-    return value
-
-
-def parse_response(value: Message) -> ModelResponse:
-    """Preserve ordered text/refusals and function calls; ignore other provider item kinds."""
-    response_id = _text(value.get("id"))
+    A response that did not complete (cut off at the output limit, filtered, or failed) is a
+    provider failure, so partial text is never answered and partial tool calls never run.
+    """
+    response_id = checked_text(value.get("id"))
     output = value.get("output")
     if not response_id or not isinstance(output, list) or len(output) > MAX_OUTPUT_ITEMS:
         raise AgentFailure("provider", "PROVIDER_FAILURE")
+    if value.get("status") != "completed":
+        raise AgentFailure("provider", "PROVIDER_FAILURE")
     calls: list[ToolCall] = []
     text: list[str] = []
+    native: list[Message] = []
     for item in output:
         if not isinstance(item, dict):
             raise AgentFailure("provider", "PROVIDER_FAILURE")
         if item.get("type") == "function_call":
             calls.append(
                 ToolCall(
-                    _text(item.get("call_id")),
-                    _text(item.get("name")),
-                    _text(item.get("arguments")),
+                    checked_text(item.get("call_id")),
+                    checked_text(item.get("name")),
+                    checked_text(item.get("arguments")),
                 )
             )
         elif item.get("type") == "message":
             text.extend(_message_text(item))
-    if len(calls) > MAX_CALLS_PER_RESPONSE:
-        raise AgentFailure("provider", "PROVIDER_FAILURE")
-    if any(not call.call_id or not call.name for call in calls):
-        raise AgentFailure("provider", "PROVIDER_FAILURE")
-    return ModelResponse(response_id, tuple(calls), _text("".join(text)))
+        if item.get("type") in OPENAI_REPLAYED_ITEMS:
+            native.append(item)
+    return AssistantTurn(checked_calls(calls), checked_text("".join(text)), tuple(native))
 
 
 def _message_text(item: Message) -> list[str]:
@@ -90,41 +97,64 @@ def _message_text(item: Message) -> list[str]:
             raise AgentFailure("provider", "PROVIDER_FAILURE")
         field = {"output_text": "text", "refusal": "refusal"}.get(kind)
         if field is not None:
-            parts.append(_text(part.get(field)))
+            parts.append(checked_text(part.get(field)))
     return parts
 
 
+def responses_input(transcript: Sequence[TranscriptEntry]) -> list[Message]:
+    """Render the transcript as Responses input items, replaying this run's output exactly."""
+    items: list[Message] = []
+    for entry in transcript:
+        match entry:
+            case UserTurn(text):
+                items.append({"role": "user", "content": text})
+            case AssistantTurn(native=native) if native:
+                items.extend(deepcopy(list(native)))
+            case AssistantTurn(text=text):
+                items.append({"role": "assistant", "content": text})
+            case ToolResult(call_id, output):
+                items.append({"type": "function_call_output", "call_id": call_id, "output": output})
+    return items
+
+
+def responses_tools(tools: Sequence[ToolDefinition]) -> list[Message]:
+    return [
+        {
+            "type": "function",
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": deepcopy(tool.parameters),
+            "strict": True,
+        }
+        for tool in tools
+    ]
+
+
 class ResponsesProvider:
+    """OpenAI Responses API without server-side storage; reasoning returns encrypted for replay."""
+
     def __init__(self, client: AsyncOpenAI) -> None:
         self._client = client
 
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
-        try:
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        with provider_errors((AuthenticationError, PermissionDeniedError), APIError):
             # These casts bridge validated application dictionaries to SDK TypedDict unions.
             response = await self._client.responses.create(
                 model=model,
-                input=cast(ResponseInputParam, items),
-                tools=cast(list[ToolParam], tools),
-                previous_response_id=previous_id,
+                input=cast(ResponseInputParam, responses_input(transcript)),
+                tools=cast(list[ToolParam], responses_tools(tools)),
+                store=False,
+                include=["reasoning.encrypted_content"],
             )
-            return parse_response(response.model_dump(mode="json"))
-        except (AuthenticationError, PermissionDeniedError) as error:
-            raise AgentFailure("authentication", "PROVIDER_AUTH") from error
-        except APIError as error:
-            raise AgentFailure("provider", "PROVIDER_FAILURE") from error
+            # Only fields the server sent, so replayed items are valid request input.
+            return parse_response(response.model_dump(mode="json", exclude_unset=True))
 
 
 @asynccontextmanager
-async def open_provider(payload: Message) -> AsyncIterator[Provider]:
-    """No credential reads at readiness; the Java snapshot is used only for this run."""
-    # SDK debug output can contain full requests. Suppress third-party payload diagnostics.
-    for prefix in ("openai", "httpx", "httpx2", "httpcore"):
-        logging.getLogger(prefix).setLevel(logging.CRITICAL + 1)
-        for name in list(logging.Logger.manager.loggerDict):
-            if name == prefix or name.startswith(prefix + "."):
-                logging.getLogger(name).disabled = True
+async def _open_openai(payload: Message) -> AsyncIterator[Provider]:
+    suppress_sdk_logs(("openai", "httpx", "httpx2", "httpcore"))
     async with AsyncOpenAI(
         api_key=payload["apiKey"],
         base_url=OPENAI_BASE_URL,
@@ -132,3 +162,28 @@ async def open_provider(payload: Message) -> AsyncIterator[Provider]:
         timeout=min(PROVIDER_TIMEOUT_SECONDS, payload["timeoutMs"] / 1000),
     ) as client:
         yield ResponsesProvider(client)
+
+
+def _open_claude(payload: Message) -> AbstractAsyncContextManager[Provider]:
+    # Imported per run: the anthropic SDK is large, and worker startup counts against a timeout
+    # even when another provider is active. DeepSeek reuses the already loaded openai SDK.
+    from tyler_agent.claude_provider import open_claude
+
+    return open_claude(payload)
+
+
+OPENERS: dict[str, Callable[[Message], AbstractAsyncContextManager[Provider]]] = {
+    "openai": _open_openai,
+    "anthropic": _open_claude,
+    "deepseek": open_deepseek,
+}
+
+
+@asynccontextmanager
+async def open_provider(payload: Message) -> AsyncIterator[Provider]:
+    """No credential reads at readiness; the Java snapshot is used only for this run."""
+    opener = OPENERS.get(payload["provider"])
+    if opener is None:
+        raise AgentFailure("provider", "PROVIDER_FAILURE")
+    async with opener(payload) as provider:
+        yield provider

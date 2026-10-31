@@ -49,10 +49,15 @@ function backendArguments(packaged = false, resourcesPath = '') {
 }
 
 // Start one backend and accept a port only from its own ready message.
+// The access token authenticates this launcher's own clients on every /api request;
+// loopback binding and CORS alone do not stop other local callers or web pages.
 function startBackendProcess(command, args, options = {}) {
     const nonce = randomBytes(16).toString('hex')
+    const accessToken = randomBytes(32).toString('hex')
     const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS
-    const environment = { ...process.env, ...options.env, TYLER_STARTUP_NONCE: nonce }
+    const environment = {
+        ...process.env, ...options.env, TYLER_STARTUP_NONCE: nonce, TYLER_ACCESS_TOKEN: accessToken,
+    }
     // Development uses the repository cwd for its worker. Keep an explicit workspace
     // anchored to the caller's directory so settings and databases do not move.
     if (options.cwd && environment.AGENT_WORKSPACE_DIR?.trim()) {
@@ -107,7 +112,7 @@ function startBackendProcess(command, args, options = {}) {
             settled = true
             clearTimeout(timer)
             options.signal?.removeEventListener('abort', abort)
-            resolve({ child, baseUrl: `http://127.0.0.1:${port}`, port })
+            resolve({ child, baseUrl: `http://127.0.0.1:${port}`, port, accessToken })
         })
 
         child.stdout.on('data', (data) => options.onStdout?.(data))

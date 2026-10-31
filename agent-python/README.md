@@ -2,7 +2,7 @@
 
 [Migration tracker](../docs/AGENT_MIGRATION.md) | [Protocol contract](../docs/AGENT_PROTOCOL.md) | [Backend standards](../docs/BACKEND_STANDARDS.md) | [Python agent standards](../docs/PYTHON_AGENT_STANDARDS.md)
 
-Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. Python is the only agent implementation; Java retains HTTP, process supervision, and shared services. See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
+Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. Python is the only agent implementation; Java retains HTTP, process supervision, and shared services. Issue #79 adds Claude and DeepSeek alongside OpenAI: each run's `provider` field selects one, and the worker keeps the whole transcript itself, so no provider stores conversation state. See [provider behavior](../docs/AGENT_OPERATIONS.md#python-execution-and-operational-limits). See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
 
 ## Source layout
 
@@ -12,8 +12,11 @@ src/tyler_agent/
   __main__.py          # Executable entry point
   worker.py            # Pipe entry point and owned event-loop thread
   runtime.py           # Active run, operation futures, cancellation and completion
-  agent.py             # Context, ordered tool rounds and response chaining
-  provider.py          # Request-owned Responses SDK client and safe failures
+  agent.py             # Transcript, ordered tool rounds and reply text
+  transcript.py        # Provider-neutral transcript/tool types and shared limits
+  provider.py          # OpenAI Responses client, and provider choice from run.provider
+  claude_provider.py   # Claude Messages client (Anthropic SDK)
+  deepseek_provider.py # DeepSeek Chat Completions client (OpenAI SDK)
   failures.py          # Classified run errors
   tools/
     __init__.py        # Public facade only
@@ -70,7 +73,8 @@ uv downloads **CPython 3.12.14** if needed and creates `.venv`. `.python-version
 
 | Dependency | Pin | Purpose |
 |---|---|---|
-| `openai` | 3.31.0 | [Official Python SDK](https://developers.openai.com/api/docs/libraries), used for cancellable Responses calls with explicit timeouts and zero retries. |
+| `openai` | 3.31.0 | [Official Python SDK](https://developers.openai.com/api/docs/libraries), used for OpenAI Responses calls and DeepSeek's OpenAI-compatible Chat Completions, with explicit endpoints and timeouts and zero retries. |
+| `anthropic` | 1.14.0 | [Official Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/overview), used for Claude Messages calls with an explicit endpoint, telemetry off, and zero retries. |
 | `jsonschema` | 4.26.0 | Draft 2020-12 schema checks without coercion or defaults. |
 | `pytest` | 9.1.1 | Unit and subprocess tests. |
 | `ruff` | 0.17.1 | Formatting, imports, and linting. |
@@ -107,7 +111,7 @@ uv run --locked pytest tests
 The two mypy targets check Linux CI and Windows desktop APIs independently; they
 do not replace runtime tests on those platforms.
 
-Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v1/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
+Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v2/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
 
 From the repository root, run the Java conformance/error-mapping tests and the full backend suite:
 

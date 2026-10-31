@@ -17,6 +17,30 @@ test('uses only the nonce-matched port reported by its child', async () => {
     }
 })
 
+test('gives the child a fresh access token and returns it to the launcher only', async () => {
+    const script = [
+        "console.log('TYLER_READY ' + process.env.TYLER_STARTUP_NONCE + ' 43210')",
+        "process.stderr.write('TOKEN=' + process.env.TYLER_ACCESS_TOKEN + ' ')",
+        'setInterval(() => {}, 1000)',
+    ].join(';')
+    let stderr = ''
+    const first = await startBackendProcess(process.execPath, ['-e', script], {
+        env: { TYLER_ACCESS_TOKEN: 'inherited-value-must-be-replaced' },
+        onStderr: (data) => { stderr += data },
+    })
+    const second = await startBackendProcess(process.execPath, ['-e', script])
+    try {
+        assert.match(first.accessToken, /^[0-9a-f]{64}$/)
+        assert.notEqual(first.accessToken, second.accessToken)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        assert.ok(stderr.includes('TOKEN=' + first.accessToken), 'child must receive the launcher token')
+        assert.ok(!stderr.includes('inherited-value-must-be-replaced'))
+    } finally {
+        first.child.kill()
+        second.child.kill()
+    }
+})
+
 test('rejects a child that exits without its own ready message', async () => {
     const script = "console.log('TYLER_READY ' + '0'.repeat(32) + ' 8080')"
     await assert.rejects(

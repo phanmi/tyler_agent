@@ -3,16 +3,31 @@ import type { FoodEntry, Message, UserInfo, Workout, WorkoutEntry, WorkoutPlan }
 // In production, Electron loads dist with loadFile and the page uses a file:// origin.
 // Relative /api paths would resolve to file:///api and miss the backend.
 // Electron supplies its backend's assigned port before React mounts.
-// Browser development uses relative URLs through Vite's same-origin proxy.
+// Browser development uses relative URLs through Vite's same-origin proxy,
+// which adds the access token itself, so the page never holds it.
 let apiBase = ''
+let accessToken = ''
 
-export function configureApiBaseUrl(baseUrl: string): void {
+export const ACCESS_TOKEN_HEADER = 'X-Tyler-Token'
+
+export function configureApiBaseUrl(baseUrl: string, token: string): void {
   const url = new URL(baseUrl)
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port ||
       url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
     throw new Error('Invalid backend address')
   }
+  if (!/^[0-9a-f]{64}$/.test(token)) {
+    throw new Error('Invalid backend access token')
+  }
   apiBase = url.origin
+  accessToken = token
+}
+
+// Every backend request goes through here so none can miss the access token.
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  if (accessToken) headers.set(ACCESS_TOKEN_HEADER, accessToken)
+  return fetch(`${apiBase}${path}`, { ...init, headers })
 }
 
 // Request body for POST /api/agent/chat.
@@ -30,23 +45,13 @@ interface ChatResponse {
 // so components can send and receive messages without handling HTTP details.
 // This keeps network effects separate from UI rendering.
 export async function sendMessage(message: string): Promise<Message> {
-  const res = await fetch(`${apiBase}/api/agent/chat`, {
+  const res = await apiFetch(`/api/agent/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message } satisfies ChatRequest),
   })
 
-  // For non-2xx responses, try to read a useful error message from the body.
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Request failed (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Request failed')
 
   const data = (await res.json()) as ChatResponse
 
@@ -64,7 +69,7 @@ export async function sendMessage(message: string): Promise<Message> {
 // Load the profile: GET /api/userinfo.
 // Missing or invalid files produce an empty profile with HTTP 200.
 export async function loadUserInfo(): Promise<UserInfo> {
-  const res = await fetch(`${apiBase}/api/userinfo`)
+  const res = await apiFetch(`/api/userinfo`)
   if (!res.ok) {
     throw new Error(`Failed to load profile (HTTP ${res.status})`)
   }
@@ -74,63 +79,162 @@ export async function loadUserInfo(): Promise<UserInfo> {
 // Save the profile: POST /api/userinfo.
 // The backend validates gender and integer age, saves the profile, and returns normalized values.
 export async function saveUserInfo(data: UserInfo): Promise<UserInfo> {
-  const res = await fetch(`${apiBase}/api/userinfo`, {
+  const res = await apiFetch(`/api/userinfo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
 
-  // As in sendMessage, try to read an error message from non-2xx responses.
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to save (HTTP ${res.status})`)
-  }
+  if (!res.ok) throw await apiError(res, 'Failed to save')
 
   return (await res.json()) as UserInfo
 }
 
-// ===== OpenAI API Key =====
+// ===== Model providers and API keys =====
 
-// API key status exposes only whether a key is configured, never the key itself.
-export interface ApiKeyStatus {
+export type LlmProviderId = 'openai' | 'anthropic' | 'deepseek'
+
+const PROVIDER_IDS: readonly LlmProviderId[] = ['openai', 'anthropic', 'deepseek']
+
+// One provider's settings. Keys are never returned; `configured` says whether one is saved.
+export interface ProviderSettings {
+  id: LlmProviderId
+  name: string
+  model: string
+  defaultModel: string
+  suggestedModels: string[]
   configured: boolean
 }
 
-// Check key status: GET /api/apikey/status.
-export async function loadApiKeyStatus(): Promise<ApiKeyStatus> {
-  const res = await fetch(`${apiBase}/api/apikey/status`)
-  if (!res.ok) {
-    throw new Error(`Failed to load API key status (HTTP ${res.status})`)
-  }
-  return (await res.json()) as ApiKeyStatus
+export interface LlmSettings {
+  activeProvider: LlmProviderId
+  // Always all three providers, in backend order.
+  providers: ProviderSettings[]
 }
 
-// Save the API key: POST /api/apikey. The backend trims it, saves it, and returns its status.
-export async function saveApiKey(apiKey: string): Promise<ApiKeyStatus> {
-  const res = await fetch(`${apiBase}/api/apikey`, {
-    method: 'POST',
+// The backend replaces the whole settings file, so every save sends every model.
+export interface LlmSettingsUpdate {
+  activeProvider: LlmProviderId
+  models: Record<LlmProviderId, string>
+}
+
+export interface KeyStatus {
+  provider: LlmProviderId
+  configured: boolean
+}
+
+// Same rule the backend enforces; checked here only for immediate feedback.
+export const MODEL_ID_PATTERN = /^[A-Za-z0-9._:/-]{1,100}$/
+
+// A failed backend call with its HTTP status kept for callers that need it.
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+// Every failed call reports the backend's `error` (or Spring's `message`) text when present,
+// else the caller's fallback with the HTTP status. It never contains a key: the backend's
+// messages are fixed text and do not echo request values.
+async function apiError(res: Response, fallback: string): Promise<ApiError> {
+  let detail = ''
+  try {
+    const body = (await res.json()) as { error?: unknown; message?: unknown }
+    if (typeof body.error === 'string') detail = body.error
+    else if (typeof body.message === 'string') detail = body.message
+  } catch {
+    // Ignore empty or invalid JSON and use the fallback message.
+  }
+  return new ApiError(detail || `${fallback} (HTTP ${res.status})`, res.status)
+}
+
+function isProviderId(value: unknown): value is LlmProviderId {
+  return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
+}
+
+function parseProvider(value: unknown): ProviderSettings {
+  const item = value as Partial<Record<keyof ProviderSettings, unknown>> | null
+  if (
+    !item || !isProviderId(item.id) || typeof item.name !== 'string' ||
+    typeof item.model !== 'string' || typeof item.defaultModel !== 'string' ||
+    !Array.isArray(item.suggestedModels) ||
+    !item.suggestedModels.every((model) => typeof model === 'string') ||
+    typeof item.configured !== 'boolean'
+  ) {
+    throw new Error('Invalid provider settings from the backend')
+  }
+  return {
+    id: item.id, name: item.name, model: item.model, defaultModel: item.defaultModel,
+    suggestedModels: [...item.suggestedModels], configured: item.configured,
+  }
+}
+
+// Type assertions do not validate JSON; check the shape before the UI relies on it.
+function parseLlmSettings(value: unknown): LlmSettings {
+  const body = value as { activeProvider?: unknown; providers?: unknown } | null
+  if (!body || !isProviderId(body.activeProvider) || !Array.isArray(body.providers)) {
+    throw new Error('Invalid provider settings from the backend')
+  }
+  const providers = body.providers.map(parseProvider)
+  const ids = providers.map((provider) => provider.id)
+  if (ids.length !== PROVIDER_IDS.length || !PROVIDER_IDS.every((id) => ids.includes(id))) {
+    throw new Error('Invalid provider settings from the backend')
+  }
+  return { activeProvider: body.activeProvider, providers }
+}
+
+// Load provider settings: GET /api/llm/settings.
+export async function loadLlmSettings(signal?: AbortSignal): Promise<LlmSettings> {
+  const res = await apiFetch(`/api/llm/settings`, { signal })
+  if (!res.ok) throw await apiError(res, 'Failed to load provider settings')
+  return parseLlmSettings(await res.json())
+}
+
+// Replace provider settings: PUT /api/llm/settings. Returns what the backend saved.
+export async function saveLlmSettings(update: LlmSettingsUpdate): Promise<LlmSettings> {
+  const res = await apiFetch(`/api/llm/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  })
+  if (!res.ok) throw await apiError(res, 'Failed to save provider settings')
+  return parseLlmSettings(await res.json())
+}
+
+// Restore the default provider and models after an invalid settings file: DELETE /api/llm/settings.
+// Saved keys are kept.
+export async function resetLlmSettings(): Promise<LlmSettings> {
+  const res = await apiFetch(`/api/llm/settings`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res, 'Failed to reset provider settings')
+  return parseLlmSettings(await res.json())
+}
+
+// LlmSettingsService.INVALID_FILE_MESSAGE, sent with HTTP 500 for an unreadable llm-settings.json.
+// There is no shared contract for error text, so this copy is the one place the frontend depends on it.
+const INVALID_SETTINGS_FILE_MESSAGE = 'LLM settings file is invalid'
+
+// Reset repairs this error, so the Settings page offers it only here.
+export function isInvalidSettingsFile(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 500 && error.message.includes(INVALID_SETTINGS_FILE_MESSAGE)
+}
+
+// Save one provider's key: PUT /api/llm/keys/{provider}. The response holds only the status.
+export async function saveProviderKey(provider: LlmProviderId, apiKey: string): Promise<KeyStatus> {
+  const res = await apiFetch(`/api/llm/keys/${provider}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ apiKey }),
   })
-
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to save (HTTP ${res.status})`)
+  if (!res.ok) throw await apiError(res, 'Failed to save the API key')
+  const body = (await res.json()) as { provider?: unknown; configured?: unknown } | null
+  if (!body || body.provider !== provider || typeof body.configured !== 'boolean') {
+    throw new Error('Invalid key status from the backend')
   }
-
-  return (await res.json()) as ApiKeyStatus
+  return { provider, configured: body.configured }
 }
 
 // ===== Chat history =====
@@ -144,7 +248,7 @@ interface HistoryEntry {
 // Load saved chat history: GET /api/agent/history.
 // Missing or invalid history files produce an empty array with HTTP 200.
 export async function loadChatHistory(): Promise<Message[]> {
-  const res = await fetch(`${apiBase}/api/agent/history`)
+  const res = await apiFetch(`/api/agent/history`)
   if (!res.ok) {
     throw new Error(`Failed to load chat history (HTTP ${res.status})`)
   }
@@ -159,7 +263,7 @@ export async function loadChatHistory(): Promise<Message[]> {
 
 // Clear saved chat history: DELETE /api/agent/history.
 export async function clearChatHistory(): Promise<void> {
-  const res = await fetch(`${apiBase}/api/agent/history`, { method: 'DELETE' })
+  const res = await apiFetch(`/api/agent/history`, { method: 'DELETE' })
   if (!res.ok) {
     throw new Error(`Failed to clear chat history (HTTP ${res.status})`)
   }
@@ -170,99 +274,61 @@ export async function clearChatHistory(): Promise<void> {
 // Load a day's food records with IDs: GET /api/food?date=YYYY-MM-DD.
 // The backend returns an empty array with HTTP 200 when no records exist.
 export async function loadFoodByDate(date: string): Promise<FoodEntry[]> {
-  const res = await fetch(`${apiBase}/api/food?date=${encodeURIComponent(date)}`)
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to load food records (HTTP ${res.status})`)
-  }
+  const res = await apiFetch(`/api/food?date=${encodeURIComponent(date)}`)
+  if (!res.ok) throw await apiError(res, 'Failed to load food records')
   return (await res.json()) as FoodEntry[]
 }
 
 // Delete one food record: DELETE /api/food/{id}.
 export async function deleteFood(id: number): Promise<boolean> {
-  const res = await fetch(`${apiBase}/api/food/${id}`, { method: 'DELETE' })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
-  }
+  const res = await apiFetch(`/api/food/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res, 'Failed to delete')
   return (await res.json()) as boolean
 }
 
 // Delete all food records for a date: DELETE /api/food/date/YYYY-MM-DD.
 export async function deleteFoodByDate(date: string): Promise<boolean> {
-  const res = await fetch(`${apiBase}/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: string; message?: string }
-      detail = err.error ?? err.message ?? ''
-    } catch {
-      // Ignore invalid JSON and use the fallback message below.
-    }
-    throw new Error(detail || `Failed to delete (HTTP ${res.status})`)
-  }
+  const res = await apiFetch(`/api/food/date/${encodeURIComponent(date)}`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res, 'Failed to delete')
   return (await res.json()) as boolean
 }
 
 // ===== Workouts =====
 
-async function workoutResponseError(res: Response, fallback: string): Promise<Error> {
-  let detail = ''
-  try {
-    const body = (await res.json()) as { error?: string; message?: string }
-    detail = body.error ?? body.message ?? ''
-  } catch {
-    // Use the fallback for empty or non-JSON responses.
-  }
-  return new Error(detail || `${fallback} (HTTP ${res.status})`)
-}
-
 export async function loadWorkoutsByDate(date: string): Promise<WorkoutEntry[]> {
-  const res = await fetch(`${apiBase}/api/workouts?date=${encodeURIComponent(date)}`)
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workouts')
+  const res = await apiFetch(`/api/workouts?date=${encodeURIComponent(date)}`)
+  if (!res.ok) throw await apiError(res, 'Failed to load workouts')
   return (await res.json()) as WorkoutEntry[]
 }
 
 export async function loadWorkoutPlan(startDate: string, goal: string, equipment: string): Promise<WorkoutPlan> {
   const params = new URLSearchParams({ startDate, goal, equipment })
-  const res = await fetch(`${apiBase}/api/workouts/plan?${params}`)
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to load workout plan')
+  const res = await apiFetch(`/api/workouts/plan?${params}`)
+  if (!res.ok) throw await apiError(res, 'Failed to load workout plan')
   return (await res.json()) as WorkoutPlan
 }
 
 export async function createWorkout(workout: Workout): Promise<WorkoutEntry> {
-  const res = await fetch(`${apiBase}/api/workouts`, {
+  const res = await apiFetch(`/api/workouts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(workout),
   })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to save workout')
+  if (!res.ok) throw await apiError(res, 'Failed to save workout')
   return (await res.json()) as WorkoutEntry
 }
 
 export async function updateWorkout(id: number, workout: Workout): Promise<WorkoutEntry> {
-  const res = await fetch(`${apiBase}/api/workouts/${id}`, {
+  const res = await apiFetch(`/api/workouts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(workout),
   })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to update workout')
+  if (!res.ok) throw await apiError(res, 'Failed to update workout')
   return (await res.json()) as WorkoutEntry
 }
 
 export async function deleteWorkout(id: number): Promise<void> {
-  const res = await fetch(`${apiBase}/api/workouts/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw await workoutResponseError(res, 'Failed to delete workout')
+  const res = await apiFetch(`/api/workouts/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res, 'Failed to delete workout')
 }

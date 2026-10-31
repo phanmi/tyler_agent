@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.tyler.filesandbox.IApplicationOwnedFiles;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.exceptionHandler.exception.FileReadException;
@@ -28,7 +29,7 @@ import java.util.Set;
  * following the same approach as {@link UserInfoService}.
  */
 @Service
-public class ChatHistoryService implements IChatHistoryService {
+public class ChatHistoryService implements IChatHistoryService, IApplicationOwnedFiles {
 
     private static final Logger log = LoggerFactory.getLogger(ChatHistoryService.class);
 
@@ -58,6 +59,11 @@ public class ChatHistoryService implements IChatHistoryService {
         // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
         this.maxMessages = maxMessages;
+    }
+
+    @Override
+    public List<String> ownedPaths() {
+        return List.of(relativePath);
     }
 
     @Override
