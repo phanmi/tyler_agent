@@ -64,6 +64,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Runs in the required Build and test job, so formatting and lint failures block merging.
+      - name: Check frontend formatting and lint
+        working-directory: frontend
+        run: |
+          npm run format:check
+          npm run lint
+
       - name: Run frontend supporting tests
         working-directory: frontend
         run: |
@@ -74,7 +81,7 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Check frontend types and workout workflows
+      - name: Check frontend types and UI tests
         working-directory: frontend
         run: |
           npm run typecheck
