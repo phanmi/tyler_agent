@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from conftest import ROOT, cases, sequence_message
 
+from tyler_agent.protocol.validation import PROTOCOL_VERSION
 from tyler_agent.resources import release_version
 
 SESSION = "0123456789abcdef0123456789abcdef"
@@ -22,7 +23,7 @@ def envelope(kind: str, payload: dict[str, Any], request_id: str | None = None) 
     return (
         json.dumps(
             {
-                "protocolVersion": 1,
+                "protocolVersion": PROTOCOL_VERSION,
                 "type": kind,
                 "sessionId": SESSION,
                 "requestId": request_id,
@@ -81,7 +82,7 @@ def ready(process: subprocess.Popen[bytes]) -> dict[str, Any]:
     assert line.endswith(b"\n") and not line.endswith(b"\r\n")
     value: dict[str, Any] = json.loads(line)
     assert value == {
-        "protocolVersion": 1,
+        "protocolVersion": PROTOCOL_VERSION,
         "type": "ready",
         "sessionId": SESSION,
         "requestId": None,
@@ -121,6 +122,7 @@ def test_invalid_run_rejected_before_provider_creation(
             {
                 "message": "secret-user-content",
                 "history": [],
+                "provider": "openai",
                 "model": " ",
                 "apiKey": "synthetic-secret",
                 "maxToolRounds": 5,

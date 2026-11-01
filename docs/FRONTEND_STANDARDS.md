@@ -105,7 +105,7 @@ Rules describe responsibilities and observable behavior without assigning them t
 - Restrict navigation, new windows, permissions, and external URL opening to explicit policies. Use an appropriate Content Security Policy and account for development and packaged origins. Follow [Electron's security guidance](https://www.electronjs.org/docs/latest/tutorial/security).
 - Startup MUST be cancellable even before readiness resolves. Track owned child processes early; quit/failure must remove their listeners/timers and terminate only those processes. Cleanup must be safe to repeat and must not open a late window after shutdown.
 - Handle installer/update lifecycle events before ordinary startup. Verify install, launch, close, restart, and applicable update/uninstall flows with packaged artifacts on the supported OS.
-- Preserve dynamic port discovery and the identity of the app-owned backend. Loopback binding and CORS do not authenticate other local processes. Document any authentication requirement separately.
+- Preserve dynamic port discovery and the identity of the app-owned backend. Loopback binding and CORS do not authenticate other local processes, so every backend request must go through `apiFetch` in `src/api.ts`, which sends the per-launch access token (see the developer guide).
 
 ## FE-11 — Testing
 

@@ -14,6 +14,11 @@ public interface IApiKeyService {
     /** Returns the saved API key, or an empty string if the file is missing. */
     String get();
 
-    /** Trims and saves the API key; an empty string clears it. */
+    /**
+     * Trims and saves the API key; an empty string clears it.
+     *
+     * @throws IllegalArgumentException if the key fails the rule in
+     *         {@link org.tyler.service.llm.ILlmKeyService#save}; the saved key is unchanged
+     */
     void save(String apiKey);
 }

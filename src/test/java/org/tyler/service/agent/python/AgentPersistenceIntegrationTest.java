@@ -119,7 +119,7 @@ class AgentPersistenceIntegrationTest {
         try (var app = new PersistenceTestApplication(workspace)) {
             var keys = app.context.getBean(IApiKeyService.class);
             keys.save("");
-            app.chat("food", 401);
+            app.chat("food", 400);
             assertEquals(0, app.gate.foodCalls.get());
             keys.save("SYNTHETIC_NEW_KEY");
             app.chat("food_then_failure", 500);
@@ -230,6 +230,30 @@ class AgentPersistenceIntegrationTest {
             assertEquals(1, app.get(FOOD_DATE).size());
             assertTrue(app.get(HISTORY).isEmpty());
             assertEquals(1, app.gate.foodCalls.get());
+        }
+    }
+
+    @Test
+    void settingsSavedOverHttpChooseTheProviderModelAndKeyForTheRealWorker() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            JsonNode openai = reply(app.chat("reply", 200));
+            assertEquals("openai", openai.path("provider").asText());
+            assertEquals("gpt-6-sol", openai.path("model").asText());
+
+            app.http("PUT", "/api/llm/settings", """
+                    {"activeProvider":"anthropic","models":{"openai":"gpt-6-sol",
+                     "anthropic":"claude-haiku-5-5","deepseek":"deepseek-flash"}}""", 200);
+            // The saved OpenAI key never substitutes for the missing Claude key.
+            assertEquals("Claude API key is empty; chat is unavailable",
+                    app.chat("reply", 400).path("error").asText());
+            assertEquals(2, app.get(HISTORY).size());
+
+            app.http("PUT", "/api/llm/keys/anthropic", "{\"apiKey\":\"SYNTHETIC_CLAUDE_KEY\"}", 200);
+            JsonNode claude = reply(app.chat("reply", 200));
+            assertEquals("anthropic", claude.path("provider").asText());
+            assertEquals("claude-haiku-5-5", claude.path("model").asText());
+            assertEquals(2, claude.path("historySize").asInt());
+            assertEquals(4, app.get(HISTORY).size());
         }
     }
 

@@ -6,6 +6,8 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.tyler.filesandbox.IApplicationOwnedFiles;
+import org.tyler.filesandbox.IFileSandboxPath;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.service.agent.bridge.IOperationHandler;
@@ -15,6 +17,8 @@ import org.tyler.service.food.IFoodService;
 import org.tyler.service.userInfo.IUserInfoService;
 import org.tyler.service.workout.IWorkoutPlanService;
 
+import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,7 +31,9 @@ class OperationBridgeConfigurationTest {
             .withBean(IWorkoutPlanService.class, () -> mock(IWorkoutPlanService.class))
             .withBean(IUserInfoService.class, () -> mock(IUserInfoService.class))
             .withBean(IFileSandboxRead.class, () -> mock(IFileSandboxRead.class))
-            .withBean(IFileSandboxWrite.class, () -> mock(IFileSandboxWrite.class));
+            .withBean(IFileSandboxWrite.class, () -> mock(IFileSandboxWrite.class))
+            .withBean(IFileSandboxPath.class, () -> path -> Path.of("workspace").toAbsolutePath().resolve(path).normalize())
+            .withBean(IApplicationOwnedFiles.class, () -> () -> List.of("apikey.txt"));
 
     @Test
     void discoversExactlyTheSchemaOperations() {

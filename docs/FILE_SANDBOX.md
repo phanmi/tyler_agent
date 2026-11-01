@@ -31,6 +31,8 @@ a capability boundary around private files already inside the root.
 
 ## Operation contracts
 
+The agent's `file.read` and `file.write` operations first refuse application-owned files through `ProtectedWorkspaceFiles`: every path declared by an `IApplicationOwnedFiles` service (today the three provider key files, `llm-settings.json`, and `chat-history.json`), comparing the resolved path without case or trailing dots and spaces, and by file identity when both exist. The services that own those files use the sandbox directly.
+
 | Operation | Contract |
 | --- | --- |
 | `resolve` | Returns an absolute path under the real root. Validates existing ancestors even for missing targets. Does not create files or directories. |

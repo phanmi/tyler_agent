@@ -8,6 +8,7 @@ import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
+import org.tyler.service.llm.LlmKeyService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,7 +35,7 @@ class ApiKeyServiceTest {
 
     private ApiKeyService newService() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        return new ApiKeyService(sandbox, sandbox, "apikey.txt");
+        return new ApiKeyService(new LlmKeyService(sandbox, sandbox, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json"));
     }
 
     @Test
@@ -61,7 +62,8 @@ class ApiKeyServiceTest {
         var rejected = new WorkspacePathException("Workspace links and special files are not allowed");
         when(reader.exists("apikey.txt")).thenThrow(rejected);
         doThrow(rejected).when(writer).write(eq("apikey.txt"), anyString());
-        ApiKeyService service = new ApiKeyService(reader, writer, "apikey.txt");
+        ApiKeyService service = new ApiKeyService(
+                new LlmKeyService(reader, writer, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json"));
 
         FileReadException read = assertThrowsExactly(FileReadException.class, service::isConfigured);
         assertSame(rejected, read.getCause());

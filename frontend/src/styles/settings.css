@@ -1,0 +1,149 @@
+/* ===== Model provider settings ===== */
+/* Scoped to the llm- prefix; status text uses --text because --muted is below 4.5:1 on white. */
+.llm-card {
+  width: 100%;
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.llm-card h2,
+.llm-card h3 {
+  margin: 0;
+}
+
+.llm-card h3 {
+  font-size: var(--font-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.llm-msg {
+  margin: 0;
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.llm-msg--ok {
+  color: var(--success);
+}
+
+.llm-msg--err {
+  color: var(--danger);
+}
+
+.llm-tag {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  border-radius: var(--radius-xs);
+  padding: 2px var(--space-2);
+  border: 1px solid currentColor;
+}
+
+.llm-tag--active {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.llm-tag--warn {
+  color: var(--danger);
+}
+
+.llm-active,
+.llm-provider {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.llm-active legend {
+  padding: 0 var(--space-2);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.llm-active__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.llm-active__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-md);
+  cursor: pointer;
+}
+
+.llm-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.llm-form label {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.llm-form__row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.llm-form input[type='password'],
+.llm-form input[type='text'],
+.llm-form select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) 10px;
+  font: inherit;
+  font-size: var(--font-md);
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* Grow beside the button only inside a row; .llm-form is a column, where a flex
+   basis would set the field's height instead of its width. */
+.llm-form__row input,
+.llm-form__row select {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+.llm-form input:focus-visible,
+.llm-form select:focus-visible,
+.llm-active input:focus-visible,
+.llm-card button:focus-visible {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
+.llm-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.llm-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}

@@ -6,7 +6,7 @@ root = Path(SPECPATH).parents[1]
 analysis = Analysis(
     [str(root / "agent-python/tests/support/desktop_worker.py")],
     pathex=[str(root / "agent-python/src")],
-    datas=[(str(root / "contracts/agent/v1/message.schema.json"), "contracts/agent/v1"),
+    datas=[(str(root / "contracts/agent/v2/message.schema.json"), "contracts/agent/v2"),
            (str(root / ".mvn/maven.config"), ".mvn")]
           + collect_data_files("jsonschema_specifications") + collect_data_files("tyler_agent"),
     hiddenimports=collect_submodules("tyler_agent.tools.builtin"),

@@ -1,0 +1,376 @@
+{
+  "protocolVersion": 2,
+  "cases": [
+    {
+      "id": "single_ready",
+      "description": "One compact frame terminated by LF.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messages": [
+          {
+            "protocolVersion": 2,
+            "type": "ready",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": null,
+            "payload": {
+              "workerVersion": "0.2.0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "escaped_unicode",
+      "description": "Escaped multiline content, quotes, slash and non-ASCII text survive decoding once.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJjb21wbGV0ZWQiLCJzZXNzaW9uSWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInJlcXVlc3RJZCI6InJlcS0xIiwicGF5bG9hZCI6eyJyZXBseSI6IkZpcnN0IGxpbmVcblNlY29uZCBsaW5lOiBjYWbDqSDwn4+L77iPIFwicXVvdGVkXCIgXFwgcGF0aCJ9fQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messages": [
+          {
+            "protocolVersion": 2,
+            "type": "completed",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": "req-1",
+            "payload": {
+              "reply": "First line\nSecond line: café 🏋️ \"quoted\" \\ path"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "split_utf8",
+      "description": "A four-byte character split between reads is not a decoding failure.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJjb21wbGV0ZWQiLCJzZXNzaW9uSWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInJlcXVlc3RJZCI6InJlcS0xIiwicGF5bG9hZCI6eyJyZXBseSI6IkZpcnN0IGxpbmVcblNlY29uZCBsaW5lOiBjYWbDqSDw",
+        "nw==",
+        "j4vvuI8gXCJxdW90ZWRcIiBcXCBwYXRoIn19Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messages": [
+          {
+            "protocolVersion": 2,
+            "type": "completed",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": "req-1",
+            "payload": {
+              "reply": "First line\nSecond line: café 🏋️ \"quoted\" \\ path"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "combined_frames",
+      "description": "Two complete messages may arrive in one read.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQp7InByb3RvY29sVmVyc2lvbiI6MiwidHlwZSI6ImNvbXBsZXRlZCIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjoicmVxLTEiLCJwYXlsb2FkIjp7InJlcGx5IjoiRmlyc3QgbGluZVxuU2Vjb25kIGxpbmU6IGNhZsOpIPCfj4vvuI8gXCJxdW90ZWRcIiBcXCBwYXRoIn19Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messages": [
+          {
+            "protocolVersion": 2,
+            "type": "ready",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": null,
+            "payload": {
+              "workerVersion": "0.2.0"
+            }
+          },
+          {
+            "protocolVersion": 2,
+            "type": "completed",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": "req-1",
+            "payload": {
+              "reply": "First line\nSecond line: café 🏋️ \"quoted\" \\ path"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "split_lf",
+      "description": "The final LF can arrive alone.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQ==",
+        "Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messages": [
+          {
+            "protocolVersion": 2,
+            "type": "ready",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": null,
+            "payload": {
+              "workerVersion": "0.2.0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "blank_line",
+      "description": "An empty line is not a message.",
+      "chunksBase64": [
+        "Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "crlf",
+      "description": "Wire framing requires LF; CRLF is rejected.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQ0K"
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "bom",
+      "description": "UTF-8 BOM is rejected.",
+      "chunksBase64": [
+        "77u/eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "invalid_utf8",
+      "description": "Invalid UTF-8 bytes are rejected.",
+      "chunksBase64": [
+        "/wo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "truncated_multibyte",
+      "description": "A truncated UTF-8 sequence is rejected.",
+      "chunksBase64": [
+        "8J8K"
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "unpaired_surrogate",
+      "description": "JSON escapes must not decode to an unpaired surrogate.",
+      "chunksBase64": [
+        "eyJ0ZXh0IjoiXHVEODAwIn0K"
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "duplicate_key",
+      "description": "Repeated object keys are rejected before schema validation.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInByb3RvY29sVmVyc2lvbiI6Mn0K"
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "nested_duplicate_key",
+      "description": "Duplicate keys are rejected at every object depth.",
+      "chunksBase64": [
+        "eyJwYXlsb2FkIjp7InJlcGx5IjoiYSIsInJlcGx5IjoiYiJ9fQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "nan",
+      "description": "Non-JSON numeric constants are rejected.",
+      "chunksBase64": [
+        "eyJ2YWx1ZSI6TmFOfQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "infinity",
+      "description": "Infinity is not JSON.",
+      "chunksBase64": [
+        "eyJ2YWx1ZSI6SW5maW5pdHl9Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "trailing_json",
+      "description": "Two objects without a separating LF are not one frame.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fXsicHJvdG9jb2xWZXJzaW9uIjoyLCJ0eXBlIjoicmVhZHkiLCJzZXNzaW9uSWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInJlcXVlc3RJZCI6bnVsbCwicGF5bG9hZCI6eyJ3b3JrZXJWZXJzaW9uIjoiMC4yLjAifX0K"
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "raw_newline_in_string",
+      "description": "A literal newline inside a string splits and corrupts the frame.",
+      "chunksBase64": [
+        "eyJyZXBseSI6ImxpbmUKbGluZSJ9Cg=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "pretty_printed",
+      "description": "Pretty-printed envelopes are not protocol frames.",
+      "chunksBase64": [
+        "ewogICJwcm90b2NvbFZlcnNpb24iOiAyLAogICJ0eXBlIjogInJlYWR5IiwKICAic2Vzc2lvbklkIjogIjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwKICAicmVxdWVzdElkIjogbnVsbCwKICAicGF5bG9hZCI6IHsKICAgICJ3b3JrZXJWZXJzaW9uIjogIjAuMi4wIgogIH0KfQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "missing_final_lf",
+      "description": "EOF does not complete an unterminated JSON object.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQ=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "truncated_json",
+      "description": "EOF during JSON is rejected without dispatch.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjIsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMA=="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_FRAME"
+      }
+    },
+    {
+      "id": "non_object",
+      "description": "A valid JSON scalar is an invalid message shape.",
+      "chunksBase64": [
+        "bnVsbAo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "INVALID_MESSAGE"
+      }
+    },
+    {
+      "id": "unsupported_version",
+      "description": "Version rejection occurs after valid framing.",
+      "chunksBase64": [
+        "eyJwcm90b2NvbFZlcnNpb24iOjEsInR5cGUiOiJyZWFkeSIsInNlc3Npb25JZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwicmVxdWVzdElkIjpudWxsLCJwYXlsb2FkIjp7IndvcmtlclZlcnNpb24iOiIwLjIuMCJ9fQo="
+      ],
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "maximum_frame",
+      "description": "Exactly the maximum pre-LF byte count is accepted.",
+      "generator": {
+        "kind": "sized_completed",
+        "message": {
+          "protocolVersion": 2,
+          "type": "completed",
+          "sessionId": "0123456789abcdef0123456789abcdef",
+          "requestId": "req-1",
+          "payload": {
+            "reply": ""
+          }
+        },
+        "frameBytes": 16777216
+      },
+      "endOfInput": true,
+      "expected": {
+        "accepted": true,
+        "messageCount": 1,
+        "replyBytes": 16777086
+      }
+    },
+    {
+      "id": "oversize_frame",
+      "description": "One byte over the bound is rejected before decoding.",
+      "generator": {
+        "kind": "sized_completed",
+        "message": {
+          "protocolVersion": 2,
+          "type": "completed",
+          "sessionId": "0123456789abcdef0123456789abcdef",
+          "requestId": "req-1",
+          "payload": {
+            "reply": ""
+          }
+        },
+        "frameBytes": 16777217
+      },
+      "endOfInput": true,
+      "expected": {
+        "accepted": false,
+        "reason": "MESSAGE_TOO_LARGE"
+      }
+    }
+  ]
+}

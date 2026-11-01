@@ -1,0 +1,184 @@
+[
+  {
+    "type": "function",
+    "name": "readFile",
+    "description": "Read the content of a file inside the agent workspace. Use this to load previously saved text, such as the user's prompts, the assistant's responses, notes, or any other stored content. The 'path' parameter is relative to the workspace root.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path relative to the workspace root, e.g. prompts/2026-09-07.txt"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
+    "name": "writeFile",
+    "description": "Write text content to a file inside the agent workspace, creating parent directories as needed. Use this to save the user's prompts, the assistant's responses, notes, or any other text the user wants to persist. Parameters: 'path' (relative to the workspace root) and 'content' (the text to save).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path relative to the workspace root, e.g. prompts/2026-09-07.txt"
+        },
+        "content": {
+          "type": "string",
+          "description": "The full text content to write to the file"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "content"
+      ]
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
+    "name": "recordFood",
+    "description": "Parse a single food item the user consumed into a structured record. Use this when the user tells you what they ate. Estimate the nutrition values (calories, protein, carbs, fat, fiber) from the food name and amount when they are not explicitly given.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "genericInfo": {
+          "type": "object",
+          "properties": {
+            "foodName": {
+              "type": "string",
+              "description": "Name of the food consumed."
+            },
+            "amount": {
+              "type": "number",
+              "description": "Amount consumed."
+            },
+            "unit": {
+              "type": "string",
+              "description": "Unit of the amount, such as g, ml, piece, serving."
+            },
+            "calories": {
+              "type": "number",
+              "description": "Calories in kcal."
+            },
+            "date": {
+              "type": "string",
+              "description": "Date the food was consumed, in YYYY-MM-DD format."
+            }
+          },
+          "additionalProperties": false,
+          "description": "General info about the consumed food.",
+          "required": [
+            "foodName",
+            "amount",
+            "unit",
+            "calories",
+            "date"
+          ]
+        },
+        "macroNutrients": {
+          "type": "object",
+          "properties": {
+            "protein": {
+              "type": "number",
+              "description": "Protein in grams."
+            },
+            "carbs": {
+              "type": "number",
+              "description": "Carbohydrates in grams."
+            },
+            "fat": {
+              "type": "number",
+              "description": "Fat in grams."
+            },
+            "fiber": {
+              "type": "number",
+              "description": "Dietary fiber in grams."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Macronutrient breakdown.",
+          "required": [
+            "protein",
+            "carbs",
+            "fat",
+            "fiber"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "genericInfo",
+        "macroNutrients"
+      ]
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
+    "name": "getCurrentTime",
+    "description": "Get the current date and time in the server's local timezone. Use this when the user asks what time it is now.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
+    "name": "GetUserInfo",
+    "description": "Get the saved information about the current user, including basic profile information, additional information, and expectations from the AI.this allows the AI to understand who the user is and what to expect. ",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
+    "name": "generateWorkoutPlan",
+    "description": "Generate and save a seven-day workout plan when the user asks to schedule workouts. Use general_fitness as the goal and bodyweight as the equipment when the user has no preference. Use getCurrentTime to determine today's date when needed. The plan includes strength, cardio, and recovery days. Save its exercises to the workout database without overwriting existing workouts. Weight 0 is a placeholder until the user chooses a training load.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "startDate": {
+          "type": "string",
+          "description": "First plan date in YYYY-MM-DD format."
+        },
+        "goal": {
+          "type": "string",
+          "description": "Training goal; use general_fitness when unspecified.",
+          "enum": [
+            "general_fitness",
+            "strength",
+            "muscle_gain"
+          ]
+        },
+        "equipment": {
+          "type": "string",
+          "description": "Available equipment; use bodyweight when unspecified.",
+          "enum": [
+            "bodyweight",
+            "gym"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "startDate",
+        "goal",
+        "equipment"
+      ]
+    },
+    "strict": true
+  }
+]

@@ -10,7 +10,7 @@ from typing import BinaryIO, cast
 
 from tyler_agent.lifecycle import ParentMonitor
 from tyler_agent.protocol.protocol import FrameReader, Message, MessageCodec, ProtocolError
-from tyler_agent.protocol.validation import validate_session_id
+from tyler_agent.protocol.validation import PROTOCOL_VERSION, validate_session_id
 from tyler_agent.provider import open_provider
 from tyler_agent.resources import release_version
 from tyler_agent.runtime import ProviderFactory, WorkerRuntime
@@ -33,7 +33,7 @@ def serve(
         sink.write(
             codec.encode(
                 {
-                    "protocolVersion": 1,
+                    "protocolVersion": PROTOCOL_VERSION,
                     "type": kind,
                     "sessionId": session_id,
                     "requestId": request_id,
@@ -49,7 +49,7 @@ def serve(
     thread.start()
     try:
         send("ready", None, {"workerVersion": release_version()})
-        log.info("Worker ready: protocolVersion=1")
+        log.info("Worker ready: protocolVersion=%d", PROTOCOL_VERSION)
         while chunk := source.read1(65536):
             for message in reader.feed(chunk):
                 codec.validator.validate_received(message, session_id, "java")

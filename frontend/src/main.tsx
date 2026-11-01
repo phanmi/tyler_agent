@@ -7,6 +7,7 @@ import './styles/theme.css'
 import './styles/layout.css'
 import './styles/chat.css'
 import './styles/workout.css'
+import './styles/settings.css'
 
 // Mount the React component tree in index.html at <div id="root">.
 // StrictMode repeats some calls in development to expose side-effect bugs.
@@ -14,7 +15,7 @@ import './styles/workout.css'
 async function startFrontend() {
   if (window.location.protocol === 'file:') {
     if (!window.tylerBackend) throw new Error('Electron backend bridge is unavailable')
-    configureApiBaseUrl(await window.tylerBackend.getBaseUrl())
+    configureApiBaseUrl(await window.tylerBackend.getBaseUrl(), await window.tylerBackend.getAccessToken())
   }
 
   createRoot(document.getElementById('root')!).render(

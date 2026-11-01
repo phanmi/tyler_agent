@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Java-Python agent protocol v2 message",
+  "$comment": "Validates transport shape only. Framing, message direction, session/request/operation state, numeric range and timeout relationships are checked separately. Domain validation remains in Java services; nulls, signed decimals and date strings are intentionally preserved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "type", "sessionId", "requestId", "payload"],
+  "properties": {
+    "protocolVersion": { "type": "integer", "const": 2 },
+    "type": { "type": "string" },
+    "sessionId": { "type": "string", "pattern": "^[a-f0-9]{32}$(?![\\s\\S])" },
+    "requestId": { "oneOf": [{ "$ref": "#/$defs/correlationId" }, { "type": "null" }] },
+    "payload": { "type": "object" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": { "const": "ready" },
+        "requestId": { "type": "null" },
+        "payload": { "$ref": "#/$defs/ready" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "run" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/run" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "operation_request" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/operationRequest" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "operation_result" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/operationResult" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "completed" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/completed" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "failed" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/failed" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "cancel" },
+        "requestId": { "$ref": "#/$defs/correlationId" },
+        "payload": { "$ref": "#/$defs/cancel" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "shutdown" },
+        "requestId": { "type": "null" },
+        "payload": { "$ref": "#/$defs/shutdown" }
+      }
+    }
+  ],
+  "$defs": {
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\\s\\S])"
+    },
+    "nonemptyString": { "type": "string", "minLength": 1 },
+    "nullableString": { "type": ["string", "null"] },
+    "decimal": {
+      "$comment": "Plain decimal text with optional sign and trailing zeroes; no scientific notation. Semantic validation limits absolute values to 2000000000.",
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$(?![\\s\\S])"
+    },
+    "nullableDecimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "recordId": {
+      "$comment": "The semantic validator also enforces the signed Java long maximum of 9223372036854775807.",
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$(?![\\s\\S])"
+    },
+    "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
+    "ready": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workerVersion"],
+      "properties": { "workerVersion": { "$ref": "#/$defs/nonemptyString" } }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message", "history", "provider", "model", "apiKey", "maxToolRounds", "timeoutMs", "operationTimeoutMs"],
+      "properties": {
+        "message": { "type": "string" },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/historyMessage" } },
+        "provider": {
+          "$comment": "Model provider for this run. Case-sensitive; model and apiKey belong to this provider.",
+          "enum": ["openai", "anthropic", "deepseek"]
+        },
+        "model": { "$ref": "#/$defs/nonemptyString" },
+        "apiKey": { "$ref": "#/$defs/nonemptyString" },
+        "maxToolRounds": { "type": "integer", "const": 5 },
+        "timeoutMs": { "$ref": "#/$defs/timeoutMs" },
+        "operationTimeoutMs": { "$ref": "#/$defs/timeoutMs" }
+      }
+    },
+    "historyMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "content"],
+      "properties": {
+        "role": { "enum": ["user", "assistant"] },
+        "content": { "type": "string" }
+      }
+    },
+    "completed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reply"],
+      "properties": { "reply": { "type": "string" } }
+    },
+    "failed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": { "error": { "$ref": "#/$defs/error" } }
+    },
+    "cancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": { "reason": { "enum": ["user_cancelled", "deadline_exceeded", "shutdown"] } }
+    },
+    "shutdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": {
+        "reason": { "enum": ["application_exit", "startup_cancelled", "protocol_error", "worker_recycle"] }
+      }
+    },
+    "operation": {
+      "enum": ["food.insert", "workout_plan.generate_save", "user_info.read", "file.read", "file.write", "time.current"]
+    },
+    "operationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "operation", "input"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/correlationId" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "input": { "type": "object" }
+      },
+      "oneOf": [
+        { "properties": { "operation": { "const": "food.insert" }, "input": { "$ref": "#/$defs/foodInsertInput" } } },
+        { "properties": { "operation": { "const": "workout_plan.generate_save" }, "input": { "$ref": "#/$defs/planInput" } } },
+        { "properties": { "operation": { "const": "user_info.read" }, "input": { "$ref": "#/$defs/emptyInput" } } },
+        { "properties": { "operation": { "const": "file.read" }, "input": { "$ref": "#/$defs/fileReadInput" } } },
+        { "properties": { "operation": { "const": "file.write" }, "input": { "$ref": "#/$defs/fileWriteInput" } } },
+        { "properties": { "operation": { "const": "time.current" }, "input": { "$ref": "#/$defs/emptyInput" } } }
+      ]
+    },
+    "operationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "operation", "outcome"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/correlationId" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "outcome": { "enum": ["success", "failure"] },
+        "result": { "type": "object" },
+        "error": { "$ref": "#/$defs/error" }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "outcome": { "const": "success" },
+                "result": { "type": "object" },
+                "error": false
+              },
+              "required": ["result"]
+            },
+            {
+              "properties": {
+                "outcome": { "const": "failure" },
+                "error": { "$ref": "#/$defs/error" },
+                "result": false
+              },
+              "required": ["error"]
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            { "properties": { "operation": { "const": "food.insert" }, "result": { "$ref": "#/$defs/foodInsertResult" } } },
+            { "properties": { "operation": { "const": "workout_plan.generate_save" }, "result": { "$ref": "#/$defs/planResult" } } },
+            { "properties": { "operation": { "const": "user_info.read" }, "result": { "$ref": "#/$defs/profileResult" } } },
+            { "properties": { "operation": { "const": "file.read" }, "result": { "$ref": "#/$defs/fileReadResult" } } },
+            { "properties": { "operation": { "const": "file.write" }, "result": { "$ref": "#/$defs/fileWriteResult" } } },
+            { "properties": { "operation": { "const": "time.current" }, "result": { "$ref": "#/$defs/timeResult" } } }
+          ]
+        }
+      ]
+    },
+    "emptyInput": { "type": "object", "additionalProperties": false, "properties": {} },
+    "foodInsertInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["food"],
+      "properties": { "food": { "$ref": "#/$defs/food" } }
+    },
+    "foodInsertResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "food"],
+      "properties": {
+        "id": { "$ref": "#/$defs/recordId" },
+        "food": { "$ref": "#/$defs/food" }
+      }
+    },
+    "food": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["genericInfo", "macroNutrients"],
+      "properties": {
+        "genericInfo": { "oneOf": [{ "$ref": "#/$defs/genericInfo" }, { "type": "null" }] },
+        "macroNutrients": { "oneOf": [{ "$ref": "#/$defs/macroNutrients" }, { "type": "null" }] }
+      }
+    },
+    "genericInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["foodName", "amount", "unit", "calories", "date"],
+      "properties": {
+        "foodName": { "$ref": "#/$defs/nullableString" },
+        "amount": { "$ref": "#/$defs/nullableDecimal" },
+        "unit": { "$ref": "#/$defs/nullableString" },
+        "calories": { "$ref": "#/$defs/nullableDecimal" },
+        "date": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "macroNutrients": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protein", "carbs", "fat", "fiber"],
+      "properties": {
+        "protein": { "$ref": "#/$defs/nullableDecimal" },
+        "carbs": { "$ref": "#/$defs/nullableDecimal" },
+        "fat": { "$ref": "#/$defs/nullableDecimal" },
+        "fiber": { "$ref": "#/$defs/nullableDecimal" }
+      }
+    },
+    "planInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startDate", "goal", "equipment"],
+      "properties": {
+        "startDate": { "$ref": "#/$defs/nullableString" },
+        "goal": { "$ref": "#/$defs/nullableString" },
+        "equipment": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "planResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan"],
+      "properties": { "plan": { "$ref": "#/$defs/plan" } }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startDate", "goal", "equipment", "weightGuidance", "days"],
+      "properties": {
+        "startDate": { "type": "string" },
+        "goal": { "type": "string" },
+        "equipment": { "type": "string" },
+        "weightGuidance": { "type": "string" },
+        "days": { "type": "array", "items": { "$ref": "#/$defs/planDay" } }
+      }
+    },
+    "planDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "focus", "workouts", "activity", "durationMinutes"],
+      "properties": {
+        "date": { "type": "string" },
+        "focus": { "type": "string" },
+        "workouts": { "type": "array", "items": { "$ref": "#/$defs/workout" } },
+        "activity": { "$ref": "#/$defs/nullableString" },
+        "durationMinutes": { "type": "integer" }
+      }
+    },
+    "workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workoutName", "rep", "workoutDate", "weight"],
+      "properties": {
+        "workoutName": { "type": "string" },
+        "rep": { "type": "string" },
+        "workoutDate": { "type": "string" },
+        "weight": { "$ref": "#/$defs/decimal" }
+      }
+    },
+    "profileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile"],
+      "properties": { "profile": { "$ref": "#/$defs/profile" } }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["User", "Other"],
+      "properties": {
+        "User": { "oneOf": [{ "$ref": "#/$defs/profileUser" }, { "type": "null" }] },
+        "Other": { "oneOf": [{ "$ref": "#/$defs/profileOther" }, { "type": "null" }] }
+      }
+    },
+    "profileUser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Name", "Gender", "JobType", "Age"],
+      "properties": {
+        "Name": { "$ref": "#/$defs/nullableString" },
+        "Gender": { "$ref": "#/$defs/nullableString" },
+        "JobType": { "$ref": "#/$defs/nullableString" },
+        "Age": { "$ref": "#/$defs/nullableDecimal" }
+      }
+    },
+    "profileOther": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Info", "expectationFromLLM"],
+      "properties": {
+        "Info": { "$ref": "#/$defs/nullableString" },
+        "expectationFromLLM": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "fileReadInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": { "path": { "type": "string" } }
+    },
+    "fileWriteInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content"],
+      "properties": { "path": { "type": "string" }, "content": { "type": "string" } }
+    },
+    "fileReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content"],
+      "properties": { "content": { "type": "string" } }
+    },
+    "fileWriteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": { "path": { "type": "string" } }
+    },
+    "timeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": { "text": { "type": "string" } }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "code", "message", "writeOutcome"],
+      "properties": {
+        "category": { "type": "string" },
+        "code": { "type": "string" },
+        "message": { "$ref": "#/$defs/nonemptyString" },
+        "writeOutcome": { "enum": ["none", "committed", "unknown"] }
+      },
+      "oneOf": [
+        { "properties": { "category": { "const": "validation" }, "code": { "enum": ["INVALID_ARGUMENT", "SQL_DATA_VALIDATION"] } } },
+        { "properties": { "category": { "const": "authentication" }, "code": { "enum": ["API_KEY_MISSING", "PROVIDER_AUTH"] } } },
+        { "properties": { "category": { "const": "provider" }, "code": { "const": "PROVIDER_FAILURE" } } },
+        { "properties": { "category": { "const": "storage" }, "code": { "enum": ["SQL_READ", "SQL_WRITE", "SQL_ACCESS", "FILE_READ", "FILE_WRITE"] } } },
+        { "properties": { "category": { "const": "worker" }, "code": { "enum": ["UNKNOWN_TOOL", "SERIALIZATION_FAILURE", "HISTORY_FAILURE", "WORKER_UNAVAILABLE", "WORKER_BUSY", "INTERNAL_FAILURE"] } } },
+        { "properties": { "category": { "const": "timeout" }, "code": { "const": "DEADLINE_EXCEEDED" } } },
+        { "properties": { "category": { "const": "cancelled" }, "code": { "const": "REQUEST_CANCELLED" } } },
+        {
+          "properties": {
+            "category": { "const": "protocol" },
+            "code": {
+              "enum": ["INVALID_FRAME", "MESSAGE_TOO_LARGE", "INVALID_MESSAGE", "UNSUPPORTED_VERSION", "UNKNOWN_OPERATION", "WRONG_DIRECTION", "SESSION_MISMATCH", "REQUEST_NOT_ACTIVE", "OPERATION_NOT_PENDING", "DUPLICATE_MESSAGE", "INVALID_SEQUENCE", "INVALID_VALUE"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

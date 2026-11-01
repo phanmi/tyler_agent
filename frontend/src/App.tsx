@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { clearChatHistory, loadApiKeyStatus, loadChatHistory, sendMessage } from './api'
+import { clearChatHistory, loadChatHistory, sendMessage } from './api'
 import type { Message } from './types'
 import FoodCalendar from './components/food/FoodCalendar'
 import MessageBubble from './components/chat/MessageBubble'
 import MessageInput from './components/chat/MessageInput'
 import SettingsPage from './components/settings/SettingsPage'
+import { findProvider, useLlmSettings } from './components/settings/useLlmSettings'
 import Sidebar from './components/layout/Sidebar'
 import type { View } from './components/layout/Sidebar'
 import TitleBar from './components/layout/TitleBar'
@@ -20,9 +21,15 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   // isLoading: disable input and show a thinking indicator while waiting for a reply.
   const [isLoading, setIsLoading] = useState(false)
-  // apiKeyConfigured: optimistically allow chat until the backend returns key status.
-  // Load the actual status asynchronously after mounting.
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(true)
+  // llm: provider settings shared with the Settings page.
+  const llm = useLlmSettings()
+  // The active provider when settings are loaded and it has no key. While settings are
+  // loading or failed to load, chat is allowed and the backend reports a missing key.
+  const missingKeyProvider =
+    llm.state.status === 'ready' &&
+    !findProvider(llm.state.settings, llm.state.settings.activeProvider).configured
+      ? findProvider(llm.state.settings, llm.state.settings.activeProvider).name
+      : null
   // isHistoryLoading: disable input while restoring saved messages
   // so setMessages(history) cannot overwrite a newly submitted message.
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
@@ -39,21 +46,6 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
-
-  // Load key status on mount; allow chat optimistically if the request fails.
-  useEffect(() => {
-    let cancelled = false
-    loadApiKeyStatus()
-      .then((data) => {
-        if (!cancelled) setApiKeyConfigured(data.configured)
-      })
-      .catch(() => {
-        // Let the user try chatting even if the backend status check fails.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // Restore saved history on mount; a failed restore leaves an empty conversation.
   useEffect(() => {
@@ -86,13 +78,13 @@ export default function App() {
       setMessages((prev) => [...prev, userMessage])
 
       // Show a missing-key message before calling the chat API; the backend also validates it.
-      if (!apiKeyConfigured) {
+      if (missingKeyProvider) {
         setMessages((prev) => [
           ...prev,
           {
             id: `hint-${Date.now()}`,
             role: 'assistant',
-            content: 'OpenAI API key is empty; chat is unavailable',
+            content: `${missingKeyProvider} API key is empty; chat is unavailable`,
           },
         ])
         return
@@ -115,7 +107,7 @@ export default function App() {
         setIsLoading(false)
       }
     },
-    [apiKeyConfigured],
+    [missingKeyProvider],
   )
 
   // Clear saved and displayed history; show an assistant error message on failure.
@@ -199,10 +191,7 @@ export default function App() {
           ) : view === 'workout' ? (
             <WorkoutPage />
           ) : (
-            <SettingsPage
-              apiKeyConfigured={apiKeyConfigured}
-              onConfiguredChange={setApiKeyConfigured}
-            />
+            <SettingsPage llm={llm} />
           )}
         </main>
       </div>

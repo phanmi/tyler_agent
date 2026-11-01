@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -64,6 +65,35 @@ class MessageValidatorTest {
         if (wrongSession) message.put("sessionId", "f".repeat(32));
         assertEquals(code, assertThrowsExactly(ProtocolException.class,
                 () -> VALIDATOR.validateReceived(message, sessionId, sender)).code());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"openai", "anthropic", "deepseek"})
+    void runAcceptsEachSupportedProvider(String provider) {
+        ObjectNode message = ProtocolTestFixtures.message("run");
+        ((ObjectNode) message.path("payload")).put("provider", provider);
+        assertDoesNotThrow(() -> VALIDATOR.validateMessage(message));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "OpenAI", "claude", " openai", "gemini"})
+    void runRejectsUnknownProviders(String provider) {
+        ObjectNode message = ProtocolTestFixtures.message("run");
+        ((ObjectNode) message.path("payload")).put("provider", provider);
+        assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
+                () -> VALIDATOR.validateMessage(message)).code());
+    }
+
+    @Test
+    void runRejectsMissingOrNullProvider() {
+        ObjectNode missing = ProtocolTestFixtures.message("run");
+        ((ObjectNode) missing.path("payload")).remove("provider");
+        ObjectNode nullValue = ProtocolTestFixtures.message("run");
+        ((ObjectNode) nullValue.path("payload")).putNull("provider");
+        for (ObjectNode message : new ObjectNode[]{missing, nullValue}) {
+            assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
+                    () -> VALIDATOR.validateMessage(message)).code());
+        }
     }
 
     @ParameterizedTest

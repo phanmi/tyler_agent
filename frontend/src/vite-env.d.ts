@@ -3,5 +3,6 @@
 interface Window {
   tylerBackend?: {
     getBaseUrl: () => Promise<string>
+    getAccessToken: () => Promise<string>
   }
 }

@@ -30,6 +30,31 @@ def test_received_validation_precedence(
     assert failure.value.code == expected
 
 
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "deepseek"])
+def test_run_accepts_each_supported_provider(provider: str) -> None:
+    message = sequence_message({"ref": "run"})
+    message["payload"]["provider"] = provider
+    MessageValidator().validate_shape(message)
+
+
+@pytest.mark.parametrize("provider", ["", "OpenAI", "claude", " openai", "gemini", None])
+def test_run_rejects_unknown_or_null_provider(provider: str | None) -> None:
+    message = sequence_message({"ref": "run"})
+    message["payload"]["provider"] = provider
+    with pytest.raises(ProtocolError) as failure:
+        MessageValidator().validate_shape(message)
+    assert failure.value.code == "INVALID_MESSAGE"
+
+
+def test_run_rejects_missing_provider_and_names_it() -> None:
+    message = sequence_message({"ref": "run"})
+    del message["payload"]["provider"]
+    with pytest.raises(ProtocolError) as failure:
+        MessageValidator().validate_shape(message)
+    assert failure.value.code == "INVALID_MESSAGE"
+    assert "missing required fields: provider" in failure.value.detail
+
+
 @pytest.mark.parametrize("reference,sender", [("run", "java"), ("ready", "python")])
 def test_received_validation_accepts_both_directions(reference: str, sender: str) -> None:
     message = sequence_message({"ref": reference})

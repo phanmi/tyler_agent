@@ -13,5 +13,11 @@ public interface IApiKeyController {
 
     record StatusResponse(boolean configured) {}
 
-    record SaveRequest(String apiKey) {}
+    record SaveRequest(String apiKey) {
+        /** Spring's DEBUG request logging prints bound bodies; never include the key. */
+        @Override
+        public String toString() {
+            return "SaveRequest[apiKey=<redacted>]";
+        }
+    }
 }

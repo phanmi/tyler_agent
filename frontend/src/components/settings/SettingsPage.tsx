@@ -1,19 +1,20 @@
-import ApiKeyForm from './ApiKeyForm'
+import ProviderSettingsPanel from './ProviderSettingsPanel'
 import UserInfoForm from './UserInfoForm'
+import type { LlmSettingsController } from './useLlmSettings'
 
 interface SettingsPageProps {
-  apiKeyConfigured: boolean
-  onConfiguredChange: (configured: boolean) => void
+  // Provider settings are owned by App, which also uses them to gate chat.
+  llm: LlmSettingsController
 }
 
-// Settings page containing the profile and API key forms.
-// This component handles layout; each form owns its data and behavior.
-export default function SettingsPage({ apiKeyConfigured, onConfiguredChange }: SettingsPageProps) {
+// Settings page containing the profile and model provider settings.
+// This component handles layout; each form owns its own input and saving.
+export default function SettingsPage({ llm }: SettingsPageProps) {
   return (
     <div className="settings-page">
       <h1 className="settings-page__title">Settings</h1>
       <UserInfoForm />
-      <ApiKeyForm configured={apiKeyConfigured} onConfiguredChange={onConfiguredChange} />
+      <ProviderSettingsPanel llm={llm} />
     </div>
   )
 }

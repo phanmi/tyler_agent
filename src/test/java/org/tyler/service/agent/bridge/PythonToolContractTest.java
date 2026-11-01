@@ -28,13 +28,13 @@ class PythonToolContractTest {
                 definitions.add(MAPPER.readTree(folder.resolve("definition.json").toFile()));
             }
         }
-        JsonNode expected = MAPPER.readTree(Path.of("contracts/agent/v1/fixtures/tool-definitions.json").toFile());
+        JsonNode expected = MAPPER.readTree(Path.of("contracts/agent/v2/fixtures/tool-definitions.json").toFile());
         assertEquals(expected, MAPPER.valueToTree(definitions));
     }
 
     @Test
     void sharedOutputGoldensPreserveReleasedFormatting() throws Exception {
-        JsonNode expected = MAPPER.readTree(Path.of("contracts/agent/v1/fixtures/tool-output.json").toFile());
+        JsonNode expected = MAPPER.readTree(Path.of("contracts/agent/v2/fixtures/tool-output.json").toFile());
         assertEquals(expected.get("food").asText(), normalize(MAPPER.writerWithDefaultPrettyPrinter()
                 .writeValueAsString(MAPPER.treeToValue(result("food", "food"), Food.class))));
         assertEquals(expected.get("plan").asText(), normalize(MAPPER.writerWithDefaultPrettyPrinter()

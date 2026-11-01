@@ -17,4 +17,6 @@ contextBridge.exposeInMainWorld('tylerWindow', {
 // The main process supplies the port assigned to its own backend child.
 contextBridge.exposeInMainWorld('tylerBackend', {
   getBaseUrl: () => ipcRenderer.invoke('backend:get-url'),
+  // The per-launch token the backend requires on every /api request.
+  getAccessToken: () => ipcRenderer.invoke('backend:get-access-token'),
 })

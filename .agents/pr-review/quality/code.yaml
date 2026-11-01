@@ -119,12 +119,12 @@ project_rules:
   - id: protocol-contract-and-fixtures
     applies_to: Changes to worker protocol messages, schemas, codecs, or bridge dispatch.
     pass: >-
-      Messages follow agent protocol version 1 and the shared schema; stdout carries only protocol
+      Messages follow agent protocol version 2 and the shared schema; stdout carries only protocol
       frames and diagnostics go to stderr; framing, version, direction, allowlisted operation,
       correlation, and sequence are validated before side effects; decimals, dates, identifiers,
       nulls, and failure categories round-trip losslessly; protocol changes update the shared
       fixtures under contracts/agent/ and both Java and Python conformance tests.
-    evidence: docs/AGENT_PROTOCOL.md; contracts/agent/v1/; PY-06; docs/BACKEND_STANDARDS.md §8
+    evidence: docs/AGENT_PROTOCOL.md; contracts/agent/v2/; PY-06; docs/BACKEND_STANDARDS.md §8
 
   - id: no-unsafe-write-replay
     applies_to: Timeout, cancellation, worker restart, retry, and frontend mutation paths.

@@ -42,6 +42,7 @@ async function main() {
         if (started.child.exitCode !== null) throw new Error('Backend exited immediately after startup')
 
         process.env.TYLER_BACKEND_URL = started.baseUrl
+        process.env.TYLER_ACCESS_TOKEN = started.accessToken
         process.stdout.write(`Backend ready at ${started.baseUrl}\n`)
 
         const { createServer, preview } = await import('vite')

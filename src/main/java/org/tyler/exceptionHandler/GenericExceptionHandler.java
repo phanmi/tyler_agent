@@ -45,7 +45,8 @@ public class GenericExceptionHandler implements IExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
         // Invalid JSON or incompatible field types prevent request-body deserialization.
         // Return HTTP 400 for invalid client input.
-        log.warn("Failed to parse request body: {}", ex.getMessage());
+        // Parser messages can quote request text, such as part of an API key; log only the failure type.
+        log.warn("Failed to parse request body: {}", ex.getMostSpecificCause().getClass().getSimpleName());
         return ResponseEntity.badRequest().body(new ErrorResponse("Invalid request body format or field type"));
     }
 

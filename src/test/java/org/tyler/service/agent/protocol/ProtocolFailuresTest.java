@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.exceptionHandler.FileExceptionHandler;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
-import org.tyler.exceptionHandler.OpenAIExceptionHandler;
+import org.tyler.exceptionHandler.ApiKeyExceptionHandler;
 import org.tyler.exceptionHandler.SqlExceptionHandler;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,8 +32,8 @@ class ProtocolFailuresTest {
     @CsvSource({
             "validation, INVALID_ARGUMENT, 400, Invalid agent request, IllegalArgumentException",
             "validation, SQL_DATA_VALIDATION, 400, Invalid agent record data, SQLDataValidationException",
-            "authentication, API_KEY_MISSING, 401, OpenAI API key is empty; chat is unavailable, OpenAIKeyException",
-            "authentication, PROVIDER_AUTH, 401, This API key is invalid or unavailable, OpenAIKeyException",
+            "authentication, API_KEY_MISSING, 400, API key is empty; chat is unavailable, ApiKeyMissingException",
+            "authentication, PROVIDER_AUTH, 401, This API key is invalid or unavailable, ProviderAuthException",
             "storage, SQL_READ, 500, Database operation failed. Please try again later, SQLReadException",
             "storage, SQL_WRITE, 500, Database operation failed. Please try again later, SQLPersistentException",
             "storage, SQL_ACCESS, 500, Database operation failed. Please try again later, DataAccessResourceFailureException",
@@ -53,7 +53,7 @@ class ProtocolFailuresTest {
         assertNull(failure.getCause(), "Do not retain worker detail in a loggable cause");
         var mvc = MockMvcBuilders.standaloneSetup(new ThrowingController(failure))
                 .setControllerAdvice(new SqlExceptionHandler(), new FileExceptionHandler(),
-                        new OpenAIExceptionHandler(), new GenericExceptionHandler()).build();
+                        new ApiKeyExceptionHandler(), new GenericExceptionHandler()).build();
         String response = mvc.perform(get("/protocol-test")).andExpect(status().is(status))
                 .andExpect(content().json(MAPPER.createObjectNode().put("error", body).toString()))
                 .andReturn().getResponse().getContentAsString();
@@ -87,7 +87,7 @@ class ProtocolFailuresTest {
     }
 
     private static ObjectNode failure(String category, String code) {
-        ObjectNode message = MAPPER.createObjectNode().put("protocolVersion", 1).put("type", "failed")
+        ObjectNode message = MAPPER.createObjectNode().put("protocolVersion", MessageValidator.PROTOCOL_VERSION).put("type", "failed")
                 .put("sessionId", "0123456789abcdef0123456789abcdef").put("requestId", "req-1");
         message.putObject("payload").putObject("error").put("category", category).put("code", code)
                 .put("message", WORKER_DETAIL).put("writeOutcome", "none");

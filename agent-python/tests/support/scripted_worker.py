@@ -2,12 +2,18 @@
 
 import asyncio
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.provider import ModelResponse, Provider, ToolCall
+from tyler_agent.provider import (
+    AssistantTurn,
+    Provider,
+    ToolCall,
+    ToolDefinition,
+    TranscriptEntry,
+)
 from tyler_agent.worker import main
 
 
@@ -17,24 +23,21 @@ class ScriptedProvider:
         self.count = 0
 
     async def respond(
-        self, model: str, items: list[Message], tools: list[Message], previous_id: str | None
-    ) -> ModelResponse:
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
         self.count += 1
         if self.count == 1 and self.mode != "reply":
-            return ModelResponse(
-                "r1",
+            return AssistantTurn(
                 (ToolCall("original", "writeFile", '{"path":"test.txt","content":"text"}'),),
                 "",
             )
         if self.mode == "write_then_read" and self.count == 2:
-            return ModelResponse(
-                "r2", (ToolCall("read", "readFile", '{"path":"missing.txt"}'),), ""
-            )
+            return AssistantTurn((ToolCall("read", "readFile", '{"path":"missing.txt"}'),), "")
         if self.mode == "failure":
             raise AgentFailure("provider", "PROVIDER_FAILURE")
         if self.mode == "blocked":
             await asyncio.Event().wait()
-        return ModelResponse("r2", (), "finished")
+        return AssistantTurn((), "finished")
 
 
 @asynccontextmanager

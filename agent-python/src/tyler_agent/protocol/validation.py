@@ -11,6 +11,8 @@ from jsonschema.exceptions import ValidationError, best_match
 from tyler_agent.resources import resource_root
 
 type Message = dict[str, Any]
+# The only accepted protocol version; must match contracts/agent/v2 and Java's MessageValidator.
+PROTOCOL_VERSION = 2
 MAX_FRAME_BYTES = 16_777_216
 MAX_DECIMAL_VALUE = 2_000_000_000
 DECIMAL_FIELDS = {"amount", "calories", "protein", "carbs", "fat", "fiber", "weight", "Age"}
@@ -67,7 +69,7 @@ class MessageValidator:
 
     def __init__(self) -> None:
         schema = json.loads(
-            (resource_root() / "contracts/agent/v1/message.schema.json").read_text("utf-8")
+            (resource_root() / "contracts/agent/v2/message.schema.json").read_text("utf-8")
         )
         Draft202012Validator.check_schema(schema)
         self._validator = Draft202012Validator(schema)
@@ -90,8 +92,10 @@ class MessageValidator:
         if not isinstance(value, dict) or "protocolVersion" not in value:
             return
         version = value["protocolVersion"]
-        if isinstance(version, bool) or version != 1:
-            raise ProtocolError("UNSUPPORTED_VERSION", "protocolVersion must be 1")
+        if isinstance(version, bool) or version != PROTOCOL_VERSION:
+            raise ProtocolError(
+                "UNSUPPORTED_VERSION", f"protocolVersion must be {PROTOCOL_VERSION}"
+            )
 
     def _validate_operation(self, value: Any) -> None:
         if not isinstance(value, dict) or value.get("type") not in (

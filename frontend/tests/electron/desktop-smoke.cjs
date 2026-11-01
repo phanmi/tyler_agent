@@ -20,6 +20,17 @@ async function until(check, label, timeout = 45000) {
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
 
+// Windows can hold an exited worker's files open briefly (for example during an antivirus scan).
+async function renameWhenReleased(from, to, timeout = 10000) {
+    const end = Date.now() + timeout
+    for (;;) {
+        try { return fs.renameSync(from, to) } catch (error) {
+            if (!['EPERM', 'EBUSY', 'EACCES'].includes(error.code) || Date.now() >= end) throw error
+            await sleep(250)
+        }
+    }
+}
+
 // A terminated backend or startup dialog is a failure, not a reason to keep polling readiness.
 function backendReady(log, child, name) {
     const failure = /SMOKE_DIALOG ([^\r\n]+)/.exec(log)?.[1]
@@ -110,6 +121,14 @@ async function launch(executable, directory, name, args = []) {
             async ready() {
                 return until(() => backendReady(log, child, name), `backend ready (${name})`)
             },
+            // Read the token the way the window does, through its preload bridge.
+            async accessToken() {
+                const token = await until(async () => (await debug.send('Runtime.evaluate', {
+                    expression: "globalThis.__smokeElectron.BrowserWindow.getAllWindows()[0]?.webContents.executeJavaScript('window.tylerBackend.getAccessToken()')",
+                    awaitPromise: true, returnByValue: true,
+                })).result?.value, `access token (${name})`)
+                return { 'X-Tyler-Token': token }
+            },
             async quit() {
                 // Disconnect before exit so Node's inspector cannot keep the app alive.
                 debug.socket.send(JSON.stringify({ id: 999999, method: 'Runtime.evaluate', params: { expression: "setImmediate(() => globalThis.__smokeElectron.app.quit())" } }))
@@ -181,7 +200,8 @@ async function run() {
     }
     await scenario('production-ready-quit', async (app) => {
         const url = await app.ready()
-        assert.equal((await fetch(url + '/api/agent/history')).status, 200)
+        assert.equal((await fetch(url + '/api/agent/history')).status, 401, 'API must require the access token')
+        assert.equal((await fetch(url + '/api/agent/history', { headers: await app.accessToken() })).status, 200)
         assert.equal(app.pids().length, 2)
         await app.quit()
     })
@@ -191,7 +211,7 @@ async function run() {
         await until(() => app.log().includes('SMOKE_DIALOG'), 'backend exit diagnostic')
         app.debug.socket.close()
     })
-    fs.renameSync(worker, worker + '-production')
+    await renameWhenReleased(worker, worker + '-production')
     await scenario('missing-worker', async (app) => {
         await until(() => app.log().includes('SMOKE_DIALOG'), 'missing worker diagnostic')
         app.debug.socket.close()
@@ -221,8 +241,9 @@ async function run() {
     fs.writeFileSync(path.join(worker, 'scenario.txt'), 'active')
     await scenario('quit-during-active-request', async (app) => {
         const url = await app.ready()
-        await fetch(url + '/api/apikey', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: 'SYNTHETIC_SMOKE_KEY' }) })
-        const pending = fetch(url + '/api/agent/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'write then wait' }) }).catch(() => null)
+        const auth = await app.accessToken()
+        await fetch(url + '/api/apikey', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: 'SYNTHETIC_SMOKE_KEY' }) })
+        const pending = fetch(url + '/api/agent/chat', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'write then wait' }) }).catch(() => null)
         await until(() => fs.existsSync(path.join(app.data, 'smoke.txt')), 'real committed sandbox write')
         await app.quit()
         await pending

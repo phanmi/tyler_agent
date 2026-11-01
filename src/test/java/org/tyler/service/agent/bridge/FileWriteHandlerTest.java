@@ -10,7 +10,7 @@ class FileWriteHandlerTest {
     @Test
     void acknowledgesEmptyWriteOnlyAfterSuccessAndRetainsFailure() {
         var writer = mock(org.tyler.filesandbox.IFileSandboxWrite.class);
-        var handler = new FileWriteHandler(writer);
+        var handler = new FileWriteHandler(writer, mock(ProtectedWorkspaceFiles.class));
         var request = input("file_write").put("content", "");
         assertEquals("notes/session.txt", handler.execute(request).get("path").textValue());
         verify(writer).write("notes/session.txt", "");

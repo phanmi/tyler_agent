@@ -1,6 +1,5 @@
 package org.tyler.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
@@ -14,9 +13,10 @@ import org.tyler.service.agent.python.IOperationDispatcher;
 import org.tyler.service.agent.python.PythonAgentService;
 import org.tyler.service.agent.python.PythonAgentSettings;
 import org.tyler.service.agent.python.PythonWorker;
-import org.tyler.service.apiKey.IApiKeyService;
 import org.tyler.service.chatHistory.ChatHistoryService;
 import org.tyler.service.chatHistory.IChatHistoryService;
+import org.tyler.service.llm.ILlmKeyService;
+import org.tyler.service.llm.ILlmSettingsService;
 
 import java.time.Duration;
 import java.util.List;
@@ -53,9 +53,9 @@ public class PythonAgentConfiguration {
 
     @Bean
     public PythonAgentService pythonAgentService(PythonWorker worker, ConversationLane lane,
-                                                IApiKeyService keys, IChatHistoryService history,
-                                                PythonAgentSettings settings,
-                                                @Value("${openai.model:gpt-5.6}") String model) {
-        return new PythonAgentService(worker, lane, keys, history, settings, model);
+                                                ILlmSettingsService llmSettings, ILlmKeyService keys,
+                                                IChatHistoryService history, PythonAgentSettings settings) {
+        // The provider and model come from the user's saved LLM settings on every request.
+        return new PythonAgentService(worker, lane, llmSettings, keys, history, settings);
     }
 }

@@ -8,6 +8,7 @@ import pytest
 from conftest import sequence_message
 
 from tyler_agent.protocol.protocol import FrameReader, MessageCodec, ProtocolError
+from tyler_agent.protocol.validation import PROTOCOL_VERSION
 
 CODEC = MessageCodec()
 SECRET = "synthetic-private-key-prompt-history-file"
@@ -84,7 +85,7 @@ def test_schema_type_failure_identifies_rule_and_field() -> None:
     [
         ('{"' + SECRET + '":1,"' + SECRET + '":2}').encode(),
         ('{"payload":"' + SECRET + '","x":}').encode(),
-        json.dumps({"protocolVersion": 1, SECRET: SECRET}).encode(),
+        json.dumps({"protocolVersion": PROTOCOL_VERSION, SECRET: SECRET}).encode(),
         json.dumps(sequence_message({"ref": "run", "set": {"/payload/model": [SECRET]}})).encode(),
     ],
 )

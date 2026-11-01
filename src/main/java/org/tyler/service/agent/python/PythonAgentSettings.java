@@ -3,7 +3,7 @@ package org.tyler.service.agent.python;
 import java.time.Duration;
 import java.util.List;
 
-/** Immutable process arguments and version 1 bounds. Arguments are passed without a shell. */
+/** Immutable process arguments and protocol bounds. Arguments are passed without a shell. */
 public record PythonAgentSettings(List<String> command, Duration startupTimeout, Duration queueTimeout,
                                   Duration runTimeout, Duration operationTimeout, Duration shutdownGrace,
                                   int queueCapacity) {

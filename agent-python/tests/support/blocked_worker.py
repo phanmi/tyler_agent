@@ -7,6 +7,7 @@ from threading import Event
 
 from tyler_agent.lifecycle import ParentMonitor
 from tyler_agent.protocol.protocol import MessageCodec
+from tyler_agent.protocol.validation import PROTOCOL_VERSION
 
 
 def main() -> None:
@@ -16,7 +17,7 @@ def main() -> None:
         sys.stdout.buffer.write(
             codec.encode(
                 {
-                    "protocolVersion": 1,
+                    "protocolVersion": PROTOCOL_VERSION,
                     "sessionId": os.environ["TYLER_AGENT_SESSION_ID"],
                     "requestId": None,
                     "type": "ready",

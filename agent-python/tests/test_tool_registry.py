@@ -15,7 +15,7 @@ from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.contracts import Handler, Operation, Tool
 from tyler_agent.tools.discovery import discover_tools
-from tyler_agent.tools.registry import ToolCatalog
+from tyler_agent.tools.registry import MALFORMED_CALL_RESULT, ToolCatalog
 
 
 def test_builtin_definitions_preserve_released_contracts() -> None:
@@ -50,8 +50,10 @@ def test_independent_tool_can_be_registered_without_dispatcher_changes() -> None
     tools = ToolAdapters(operation, [Tool(definition(), execute)])
     assert asyncio.run(tools.execute("example", "raw")) == "clockraw"
     assert tools.definitions() == [definition()]
+    # An unknown model call goes back to the model; the catalog itself still refuses it.
+    assert asyncio.run(tools.execute("Example", "")) == MALFORMED_CALL_RESULT
     with pytest.raises(AgentFailure) as error:
-        asyncio.run(tools.execute("Example", ""))
+        ToolCatalog([Tool(definition(), execute)]).handler("Example")
     assert error.value.code == "UNKNOWN_TOOL"
 
 

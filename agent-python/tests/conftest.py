@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = ROOT / "contracts/agent/v1/fixtures"
+FIXTURES = ROOT / "contracts/agent/v2/fixtures"
 
 
 def cases(name: str) -> list[dict[str, Any]]:

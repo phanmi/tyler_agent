@@ -4,32 +4,45 @@ import asyncio
 import logging
 
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.provider import Provider
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.transcript import (
+    AssistantTurn,
+    Provider,
+    ToolDefinition,
+    ToolResult,
+    TranscriptEntry,
+    UserTurn,
+)
 
 log = logging.getLogger(__name__)
 
 
+def initial_transcript(payload: Message) -> list[TranscriptEntry]:
+    """Saved history is plain text; the current message is the last user turn."""
+    transcript: list[TranscriptEntry] = [
+        UserTurn(item["content"]) if item["role"] == "user" else AssistantTurn((), item["content"])
+        for item in payload["history"]
+    ]
+    transcript.append(UserTurn(payload["message"]))
+    return transcript
+
+
 async def run_agent(payload: Message, provider: Provider, tools: ToolAdapters) -> str:
     """Run the characterized five rounds, returning only final-response text and refusals."""
-    items = [{"role": item["role"], "content": item["content"]} for item in payload["history"]]
-    items.append({"role": "user", "content": payload["message"]})
-    response = await provider.respond(payload["model"], items, tools.definitions(), None)
+    transcript = initial_transcript(payload)
+    definitions = [ToolDefinition.from_definition(item) for item in tools.definitions()]
+    response = await provider.respond(payload["model"], tuple(transcript), definitions)
     for round_number in range(payload["maxToolRounds"]):
         if not response.calls:
             break
-        outputs: list[Message] = []
+        transcript.append(response)
         for call in response.calls:
             # Yield even with immediately resolved fakes/cache results, so cancellation wins
             # before the next operation or continuation can be started.
             await asyncio.sleep(0)
             result = await tools.execute(call.name, call.arguments)
-            outputs.append(
-                {"type": "function_call_output", "call_id": call.call_id, "output": result}
-            )
+            transcript.append(ToolResult(call.call_id, result))
         await asyncio.sleep(0)
-        response = await provider.respond(
-            payload["model"], outputs, tools.definitions(), response.response_id
-        )
+        response = await provider.respond(payload["model"], tuple(transcript), definitions)
         log.info("Agent tool round completed: round=%d", round_number + 1)
     return response.text
