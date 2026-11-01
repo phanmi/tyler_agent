@@ -8,19 +8,31 @@ export const B = '2026-10-17'
 export const dateA = () => new Date(2026, 9, 16, 12)
 export const dateB = () => new Date(2026, 9, 17, 12)
 export const entry = (date = A, id = 1, name = 'Saved exercise'): WorkoutEntry => ({
-  id, workout: { workoutName: name, rep: '4X12', weight: 10, workoutDate: date },
+  id,
+  workout: { workoutName: name, rep: '4X12', weight: 10, workoutDate: date },
 })
 export const suggestion = (date = A) => ({ workoutName: `Suggestion ${date}`, rep: '3X12', workoutDate: date })
 export const plan: WorkoutPlan = {
-  startDate: '2026-10-12', goal: 'general_fitness', equipment: 'bodyweight', weightGuidance: 'Choose a weight.',
-  days: [A, B].map((date) => ({ date, focus: 'Strength', workouts: [{ ...suggestion(date), weight: null }],
-    activity: null, durationMinutes: 0 })),
+  startDate: '2026-10-12',
+  goal: 'general_fitness',
+  equipment: 'bodyweight',
+  weightGuidance: 'Choose a weight.',
+  days: [A, B].map((date) => ({
+    date,
+    focus: 'Strength',
+    workouts: [{ ...suggestion(date), weight: null }],
+    activity: null,
+    durationMinutes: 0,
+  })),
 }
 
 export function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason: Error) => void
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
   return { promise, resolve, reject }
 }
 
@@ -49,9 +61,12 @@ export function setupApi() {
   })
   vi.mocked(api.loadWorkoutPlan).mockResolvedValue(plan)
   return {
-    reads, writes,
+    reads,
+    writes,
     read: async (index: number, entries: WorkoutEntry[]) => {
-      await act(async () => { reads[index].pending.resolve(entries) })
+      await act(async () => {
+        reads[index].pending.resolve(entries)
+      })
     },
     write: async (index: number, failure = false) => {
       await act(async () => {

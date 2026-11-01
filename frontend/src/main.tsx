@@ -26,6 +26,5 @@ async function startFrontend() {
 }
 
 startFrontend().catch((error) => {
-  document.getElementById('root')!.textContent =
-    error instanceof Error ? error.message : 'Failed to start Tyler'
+  document.getElementById('root')!.textContent = error instanceof Error ? error.message : 'Failed to start Tyler'
 })

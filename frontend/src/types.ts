@@ -28,7 +28,6 @@ export interface UserInfo {
   }
 }
 
-
 // ===== Food records =====
 
 // General intake information matches the backend GenericInfo record.

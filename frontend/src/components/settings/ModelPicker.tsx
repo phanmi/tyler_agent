@@ -75,11 +75,7 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
     <form className="llm-form" onSubmit={submit} noValidate>
       <label htmlFor={selectId}>{provider.name} model</label>
       <div className="llm-form__row">
-        <select
-          id={selectId}
-          value={shown.choice}
-          onChange={(event) => edit({ ...shown, choice: event.target.value })}
-        >
+        <select id={selectId} value={shown.choice} onChange={(event) => edit({ ...shown, choice: event.target.value })}>
           {provider.suggestedModels.map((suggestion) => (
             <option key={suggestion} value={suggestion}>
               {suggestion}
@@ -111,8 +107,16 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
         </>
       )}
       <p className="llm-msg">Saved model: {provider.model}</p>
-      {saved && <p className="llm-msg llm-msg--ok" role="status">{provider.name} model saved</p>}
-      {error && <p id={errorId} className="llm-msg llm-msg--err" role="alert">{error}</p>}
+      {saved && (
+        <p className="llm-msg llm-msg--ok" role="status">
+          {provider.name} model saved
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className="llm-msg llm-msg--err" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   )
 }

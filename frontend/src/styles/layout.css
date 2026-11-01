@@ -116,7 +116,9 @@
   cursor: pointer;
   align-self: stretch;
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .nav-item:hover {

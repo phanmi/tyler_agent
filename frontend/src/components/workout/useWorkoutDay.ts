@@ -28,7 +28,7 @@ interface DayRead {
 }
 
 const emptyFields = (): WorkoutDraft => ({ workoutName: '', rep: '', weight: '0' })
-const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
+const message = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback)
 
 /** Owns a selected-day workflow. Refs guard synchronous re-entry; state renders its snapshots. */
 export function useWorkoutDay() {
@@ -63,25 +63,33 @@ export function useWorkoutDay() {
   }, [])
   const isCurrent = (visit: { date: string }) => mounted.current && scope.current === visit
 
-  const load = useCallback(async (visit: { date: string }) => {
-    // An old mutation must not even start a read that supersedes the selected date's request.
-    if (!mounted.current || scope.current !== visit) return
-    const id = ++requestId.current
-    const relevant = () => mounted.current && scope.current === visit && requestId.current === id
-    publishRead({ date: visit.date, status: 'loading', entries: [], error: '' })
-    try {
-      const entries = await loadWorkoutsByDate(visit.date)
-      if (!relevant()) return
-      if (entries.some((entry) => entry.workout.workoutDate !== visit.date)) {
-        throw new Error('Received exercises for a different date. Please reload.')
+  const load = useCallback(
+    async (visit: { date: string }) => {
+      // An old mutation must not even start a read that supersedes the selected date's request.
+      if (!mounted.current || scope.current !== visit) return
+      const id = ++requestId.current
+      const relevant = () => mounted.current && scope.current === visit && requestId.current === id
+      publishRead({ date: visit.date, status: 'loading', entries: [], error: '' })
+      try {
+        const entries = await loadWorkoutsByDate(visit.date)
+        if (!relevant()) return
+        if (entries.some((entry) => entry.workout.workoutDate !== visit.date)) {
+          throw new Error('Received exercises for a different date. Please reload.')
+        }
+        publishRead({ date: visit.date, status: 'ready', entries, error: '' })
+      } catch (err) {
+        if (relevant()) {
+          publishRead({
+            date: visit.date,
+            status: 'error',
+            entries: [],
+            error: message(err, 'Failed to load workouts'),
+          })
+        }
       }
-      publishRead({ date: visit.date, status: 'ready', entries, error: '' })
-    } catch (err) {
-      if (relevant()) {
-        publishRead({ date: visit.date, status: 'error', entries: [], error: message(err, 'Failed to load workouts') })
-      }
-    }
-  }, [publishRead])
+    },
+    [publishRead],
+  )
 
   useEffect(() => {
     mounted.current = true
@@ -93,13 +101,20 @@ export function useWorkoutDay() {
 
   useEffect(() => {
     void load(scope.current)
-    return () => { requestId.current++ }
+    return () => {
+      requestId.current++
+    }
   }, [date, load])
 
   const resetForm = () => {
     const current = editorRef.current
-    setEditor({ date: scope.current.date, id: null, fields: emptyFields(),
-      revision: current.revision + 1, session: current.session + 1 })
+    setEditor({
+      date: scope.current.date,
+      id: null,
+      fields: emptyFields(),
+      revision: current.revision + 1,
+      session: current.session + 1,
+    })
   }
 
   const chooseDate = (next: Date) => {
@@ -121,15 +136,21 @@ export function useWorkoutDay() {
   }
 
   const ready = () => readRef.current.date === scope.current.date && readRef.current.status === 'ready'
-  const availableEntry = (entry: WorkoutEntry) => ready() && entry.workout.workoutDate === scope.current.date &&
+  const availableEntry = (entry: WorkoutEntry) =>
+    ready() &&
+    entry.workout.workoutDate === scope.current.date &&
     readRef.current.entries.some((saved) => saved.id === entry.id)
 
   const edit = (entry: WorkoutEntry) => {
     if (operations.current.has(scope.current.date) || !availableEntry(entry)) return
     const current = editorRef.current
-    setEditor({ date: entry.workout.workoutDate, id: entry.id,
+    setEditor({
+      date: entry.workout.workoutDate,
+      id: entry.id,
       fields: { workoutName: entry.workout.workoutName, rep: entry.workout.rep, weight: String(entry.workout.weight) },
-      revision: current.revision + 1, session: current.session + 1 })
+      revision: current.revision + 1,
+      session: current.session + 1,
+    })
     setError('')
     setNotice('')
   }
@@ -171,8 +192,13 @@ export function useWorkoutDay() {
     const workoutName = submitted.fields.workoutName.trim()
     const rep = submitted.fields.rep.trim()
     const weight = Number(submitted.fields.weight)
-    if (!workoutName || !/^[1-9]\d*X[1-9]\d*$/.test(rep) || submitted.fields.weight.trim() === '' ||
-        !Number.isFinite(weight) || weight < 0) {
+    if (
+      !workoutName ||
+      !/^[1-9]\d*X[1-9]\d*$/.test(rep) ||
+      submitted.fields.weight.trim() === '' ||
+      !Number.isFinite(weight) ||
+      weight < 0
+    ) {
       setError('Enter an exercise name, sets and reps like 4X12, and a nonnegative weight.')
       return
     }
@@ -223,8 +249,12 @@ export function useWorkoutDay() {
   }
 
   const schedule = async (suggestion: Omit<Workout, 'weight'>) => {
-    if (!ready() || suggestion.workoutDate !== scope.current.date ||
-        readRef.current.entries.some((entry) => entry.workout.workoutName === suggestion.workoutName)) return
+    if (
+      !ready() ||
+      suggestion.workoutDate !== scope.current.date ||
+      readRef.current.entries.some((entry) => entry.workout.workoutName === suggestion.workoutName)
+    )
+      return
     const operation = begin()
     if (!operation) return
     const payload: Workout = { ...suggestion, weight: 0 }
@@ -240,9 +270,28 @@ export function useWorkoutDay() {
   }
 
   const loaded = read.date === date && read.status === 'ready'
-  return { selectedDate, dateLabel: date, chooseDate, workouts: loaded ? read.entries : [], loaded,
-    loading: read.date !== date || read.status === 'loading', loadError: read.date === date ? read.error : '',
-    saving: pendingDates.has(date), error, notice, draft: editor.fields, editingId: editor.id,
-    changeDraft, resetForm, edit, save, requestDelete, pendingDelete, confirmDelete,
-    cancelDelete: () => setPendingDelete(null), schedule, reload: () => load(scope.current) }
+  return {
+    selectedDate,
+    dateLabel: date,
+    chooseDate,
+    workouts: loaded ? read.entries : [],
+    loaded,
+    loading: read.date !== date || read.status === 'loading',
+    loadError: read.date === date ? read.error : '',
+    saving: pendingDates.has(date),
+    error,
+    notice,
+    draft: editor.fields,
+    editingId: editor.id,
+    changeDraft,
+    resetForm,
+    edit,
+    save,
+    requestDelete,
+    pendingDelete,
+    confirmDelete,
+    cancelDelete: () => setPendingDelete(null),
+    schedule,
+    reload: () => load(scope.current),
+  }
 }

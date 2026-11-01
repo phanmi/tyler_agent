@@ -19,7 +19,12 @@ vi.mock('../../src/api', async (importOriginal) => {
 
 const KEY = 'SYNTHETIC_FIXTURE_KEY_NEVER_SEND_TO_PROVIDER'
 
-function provider(id: ProviderSettings['id'], name: string, suggestions: string[], configured = false): ProviderSettings {
+function provider(
+  id: ProviderSettings['id'],
+  name: string,
+  suggestions: string[],
+  configured = false,
+): ProviderSettings {
   return { id, name, model: suggestions[0], defaultModel: suggestions[0], suggestedModels: suggestions, configured }
 }
 
@@ -45,7 +50,10 @@ function savedFrom(update: LlmSettingsUpdate, base = settings()): LlmSettings {
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason: Error) => void
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
   return { promise, resolve, reject }
 }
 
@@ -81,9 +89,7 @@ describe('loading', () => {
   })
 
   it('shows a load failure with a retry instead of empty settings', async () => {
-    vi.mocked(api.loadLlmSettings)
-      .mockRejectedValueOnce(new Error('Failed to fetch'))
-      .mockResolvedValueOnce(settings())
+    vi.mocked(api.loadLlmSettings).mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValueOnce(settings())
     render(<Harness />)
 
     expect((await screen.findByRole('alert')).textContent).toContain('Failed to fetch')
@@ -95,8 +101,9 @@ describe('loading', () => {
   })
 
   it('offers a reset for an invalid settings file and shows the restored defaults', async () => {
-    vi.mocked(api.loadLlmSettings)
-      .mockRejectedValueOnce(new api.ApiError('Failed to read file: LLM settings file is invalid', 500))
+    vi.mocked(api.loadLlmSettings).mockRejectedValueOnce(
+      new api.ApiError('Failed to read file: LLM settings file is invalid', 500),
+    )
     vi.mocked(api.resetLlmSettings).mockResolvedValue(settings())
     render(<Harness />)
 
@@ -111,8 +118,9 @@ describe('loading', () => {
   })
 
   it('keeps the reset offer and shows the error when a reset fails', async () => {
-    vi.mocked(api.loadLlmSettings)
-      .mockRejectedValueOnce(new api.ApiError('Failed to read file: LLM settings file is invalid', 500))
+    vi.mocked(api.loadLlmSettings).mockRejectedValueOnce(
+      new api.ApiError('Failed to read file: LLM settings file is invalid', 500),
+    )
     vi.mocked(api.resetLlmSettings).mockRejectedValue(new api.ApiError('Failed to write file', 500))
     render(<Harness />)
 
@@ -134,7 +142,9 @@ describe('keys', () => {
     expect(input.getAttribute('type')).toBe('password')
 
     fireEvent.change(input, { target: { value: `  ${KEY}  ` } })
-    await act(async () => { fireEvent.submit(input.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(input.closest('form')!)
+    })
 
     expect(api.saveProviderKey).toHaveBeenCalledWith('anthropic', KEY)
     expect((input as HTMLInputElement).value).toBe('')
@@ -147,11 +157,14 @@ describe('keys', () => {
   it('keeps the typed key and shows the error when saving fails', async () => {
     await renderReady()
     vi.mocked(api.saveProviderKey).mockRejectedValue(
-      new api.ApiError('API key must be at most 512 visible ASCII characters with no spaces', 400))
+      new api.ApiError('API key must be at most 512 visible ASCII characters with no spaces', 400),
+    )
     const input = within(card('DeepSeek')).getByLabelText('DeepSeek API key')
 
     fireEvent.change(input, { target: { value: 'bad key' } })
-    await act(async () => { fireEvent.submit(input.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(input.closest('form')!)
+    })
 
     expect((input as HTMLInputElement).value).toBe('bad key')
     expect(input.getAttribute('aria-invalid')).toBe('true')
@@ -162,7 +175,9 @@ describe('keys', () => {
   it('asks for a key instead of submitting a blank one', async () => {
     await renderReady()
     const input = within(card('Claude')).getByLabelText('Claude API key')
-    await act(async () => { fireEvent.submit(input.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(input.closest('form')!)
+    })
     expect(within(card('Claude')).getByRole('alert').textContent).toContain('Enter an API key')
     expect(api.saveProviderKey).not.toHaveBeenCalled()
   })
@@ -173,18 +188,24 @@ describe('models', () => {
     await renderReady()
     vi.mocked(api.saveLlmSettings).mockImplementation(async (update) => savedFrom(update))
     // An unsaved DeepSeek draft must not be sent with the Claude save.
-    fireEvent.change(within(card('DeepSeek')).getByLabelText('DeepSeek model'), { target: { value: 'deepseek-v4-pro' } })
+    fireEvent.change(within(card('DeepSeek')).getByLabelText('DeepSeek model'), {
+      target: { value: 'deepseek-v4-pro' },
+    })
     const claude = within(card('Claude')).getByLabelText('Claude model')
     fireEvent.change(claude, { target: { value: 'claude-opus-5-5' } })
 
-    await act(async () => { fireEvent.submit(claude.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(claude.closest('form')!)
+    })
 
     expect(api.saveLlmSettings).toHaveBeenCalledWith({
       activeProvider: 'openai',
       models: { openai: 'gpt-6-sol', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' },
     })
     expect(within(card('Claude')).getByText('Saved model: claude-opus-5-5')).toBeTruthy()
-    expect((within(card('DeepSeek')).getByLabelText('DeepSeek model') as HTMLInputElement).value).toBe('deepseek-v4-pro')
+    expect((within(card('DeepSeek')).getByLabelText('DeepSeek model') as HTMLInputElement).value).toBe(
+      'deepseek-v4-pro',
+    )
     expect(within(card('DeepSeek')).getByText('Saved model: deepseek-flash')).toBeTruthy()
   })
 
@@ -195,17 +216,23 @@ describe('models', () => {
     const custom = within(card('OpenAI')).getByLabelText('Custom model ID')
 
     fireEvent.change(custom, { target: { value: 'bad model<script>' } })
-    await act(async () => { fireEvent.submit(custom.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(custom.closest('form')!)
+    })
     expect(within(card('OpenAI')).getByRole('alert').textContent).toContain('Use 1–100 letters')
     expect(custom.getAttribute('aria-invalid')).toBe('true')
     expect(api.saveLlmSettings).not.toHaveBeenCalled()
 
     fireEvent.change(custom, { target: { value: 'ft:gpt-6:org:custom-1' } })
-    await act(async () => { fireEvent.submit(custom.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(custom.closest('form')!)
+    })
     expect(vi.mocked(api.saveLlmSettings).mock.calls[0][0].models.openai).toBe('ft:gpt-6:org:custom-1')
     // A saved model outside the suggestions shows as a custom ID.
     expect((within(card('OpenAI')).getByLabelText('OpenAI model') as HTMLInputElement).value).toBe('__custom__')
-    expect((within(card('OpenAI')).getByLabelText('Custom model ID') as HTMLInputElement).value).toBe('ft:gpt-6:org:custom-1')
+    expect((within(card('OpenAI')).getByLabelText('Custom model ID') as HTMLInputElement).value).toBe(
+      'ft:gpt-6:org:custom-1',
+    )
   })
 
   it('runs overlapping saves in order, each built on the previous result', async () => {
@@ -231,7 +258,9 @@ describe('models', () => {
 
     expect(api.saveLlmSettings).toHaveBeenCalledTimes(2)
     expect(vi.mocked(api.saveLlmSettings).mock.calls[1][0].models).toEqual({
-      openai: 'gpt-6-sol', anthropic: 'claude-haiku-5-5', deepseek: 'deepseek-v4-pro',
+      openai: 'gpt-6-sol',
+      anthropic: 'claude-haiku-5-5',
+      deepseek: 'deepseek-v4-pro',
     })
     expect(within(card('Claude')).getByText('Saved model: claude-haiku-5-5')).toBeTruthy()
     expect(within(card('DeepSeek')).getByText('Saved model: deepseek-v4-pro')).toBeTruthy()
@@ -243,7 +272,9 @@ describe('models', () => {
     const claude = within(card('Claude')).getByLabelText('Claude model')
     fireEvent.change(claude, { target: { value: 'claude-opus-5-5' } })
 
-    await act(async () => { fireEvent.submit(claude.closest('form')!) })
+    await act(async () => {
+      fireEvent.submit(claude.closest('form')!)
+    })
 
     expect((claude as HTMLInputElement).value).toBe('claude-opus-5-5')
     expect(within(card('Claude')).getByRole('alert').textContent).toContain('Failed to write file')
@@ -256,7 +287,9 @@ describe('active provider', () => {
     await renderReady()
     vi.mocked(api.saveLlmSettings).mockImplementation(async (update) => savedFrom(update))
 
-    await act(async () => { fireEvent.click(screen.getByRole('radio', { name: /Claude/ })) })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /Claude/ }))
+    })
 
     expect(api.saveLlmSettings).toHaveBeenCalledWith({
       activeProvider: 'anthropic',
@@ -277,7 +310,9 @@ describe('active provider', () => {
     expect((screen.getByRole('radio', { name: /DeepSeek/ }) as HTMLInputElement).checked).toBe(true)
     expect((screen.getByRole('radio', { name: /Claude/ }) as HTMLInputElement).disabled).toBe(true)
 
-    await act(async () => { save.reject(new api.ApiError('Failed to write file', 500)) })
+    await act(async () => {
+      save.reject(new api.ApiError('Failed to write file', 500))
+    })
 
     expect((screen.getByRole('radio', { name: /OpenAI/ }) as HTMLInputElement).checked).toBe(true)
     expect(screen.getByRole('group', { name: 'Provider used for chat' }).textContent).toContain('Failed to write file')

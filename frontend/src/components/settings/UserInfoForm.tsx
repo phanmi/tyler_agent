@@ -87,9 +87,7 @@ export default function UserInfoForm() {
   return (
     <aside className="userinfo-card">
       <h2>User profile</h2>
-      <p className="userinfo-subtitle">
-        Save your profile locally to restore it the next time you open Tyler.
-      </p>
+      <p className="userinfo-subtitle">Save your profile locally to restore it the next time you open Tyler.</p>
 
       <fieldset>
         <legend>Basic information</legend>
@@ -103,10 +101,7 @@ export default function UserInfoForm() {
         </label>
         <label>
           Gender
-          <select
-            value={form.User.Gender}
-            onChange={(e) => updateUserField({ Gender: e.target.value as Gender })}
-          >
+          <select value={form.User.Gender} onChange={(e) => updateUserField({ Gender: e.target.value as Gender })}>
             {GENDER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -120,9 +115,7 @@ export default function UserInfoForm() {
             type="number"
             step={1}
             value={form.User.Age ?? ''}
-            onChange={(e) =>
-              updateUserField({ Age: e.target.value === '' ? null : Number(e.target.value) })
-            }
+            onChange={(e) => updateUserField({ Age: e.target.value === '' ? null : Number(e.target.value) })}
             placeholder="Whole number (optional)"
           />
         </label>

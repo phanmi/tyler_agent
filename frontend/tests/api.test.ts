@@ -15,7 +15,12 @@ function stubFetch(body: unknown = { provider: 'anthropic', configured: true }, 
 }
 
 const provider = (id: string, name: string, model: string) => ({
-  id, name, model, defaultModel: model, suggestedModels: [model], configured: false,
+  id,
+  name,
+  model,
+  defaultModel: model,
+  suggestedModels: [model],
+  configured: false,
 })
 const SETTINGS = {
   activeProvider: 'openai',
@@ -111,7 +116,10 @@ describe('provider settings calls', () => {
 
   it('falls back to a status message when the error body is not JSON', async () => {
     const api = await freshApi()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 500 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('oops', { status: 500 })),
+    )
     await expect(api.loadLlmSettings()).rejects.toThrow('Failed to load provider settings (HTTP 500)')
   })
 

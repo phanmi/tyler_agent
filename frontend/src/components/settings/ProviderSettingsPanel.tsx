@@ -31,11 +31,15 @@ export default function ProviderSettingsPanel({ llm }: ProviderSettingsPanelProp
     <section className="llm-card" aria-labelledby="llm-card-title">
       <h2 id="llm-card-title">Model providers</h2>
       <p className="llm-msg">
-        Each provider needs its own API key, billed per use by that provider. Keys are saved on
-        this computer and are never shown again.
+        Each provider needs its own API key, billed per use by that provider. Keys are saved on this computer and are
+        never shown again.
       </p>
 
-      {state.status === 'loading' && <p className="llm-msg" role="status">Loading provider settings…</p>}
+      {state.status === 'loading' && (
+        <p className="llm-msg" role="status">
+          Loading provider settings…
+        </p>
+      )}
 
       {state.status === 'error' && (
         <div className="llm-load-error" role="alert">
@@ -51,7 +55,9 @@ export default function ProviderSettingsPanel({ llm }: ProviderSettingsPanelProp
               {resetError && <p className="llm-msg llm-msg--err">{resetError}</p>}
             </>
           ) : (
-            <button type="button" onClick={llm.reload}>Try again</button>
+            <button type="button" onClick={llm.reload}>
+              Try again
+            </button>
           )}
         </div>
       )}
