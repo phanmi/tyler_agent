@@ -58,7 +58,9 @@ textarea {
   line-height: 1.6;
   color: var(--text);
   background: var(--surface);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 textarea:focus {
@@ -78,7 +80,9 @@ button {
   color: #fff;
   background: var(--accent);
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  transition:
+    background 0.2s,
+    transform 0.1s;
 }
 
 button:hover:not(:disabled) {
@@ -161,7 +165,9 @@ button:disabled {
   font-size: var(--font-md);
   color: var(--text);
   background: var(--surface);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .userinfo-card input:focus,
@@ -346,7 +352,10 @@ button:disabled {
   color: var(--danger);
   font-size: var(--font-xs);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .food-item__delete:hover {
@@ -365,7 +374,9 @@ button:disabled {
   color: var(--danger);
   font-size: var(--font-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .food-delete-day:hover {
@@ -468,7 +479,10 @@ button:disabled {
   color: var(--text);
   background: var(--surface);
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .confirm-actions .confirm-btn:hover {

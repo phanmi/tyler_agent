@@ -11,13 +11,15 @@ export default defineConfig(({ command }) => {
   if (command === 'serve' && !backendUrl) {
     throw new Error('TYLER_BACKEND_URL is required. Run npm run dev to start both servers.')
   }
-  const proxy = backendUrl ? {
-    '/api': {
-      target: backendUrl,
-      changeOrigin: true,
-      headers: accessToken ? { 'X-Tyler-Token': accessToken } : {},
-    },
-  } : {}
+  const proxy = backendUrl
+    ? {
+        '/api': {
+          target: backendUrl,
+          changeOrigin: true,
+          headers: accessToken ? { 'X-Tyler-Token': accessToken } : {},
+        },
+      }
+    : {}
 
   return {
     base: './',

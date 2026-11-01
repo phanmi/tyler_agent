@@ -26,8 +26,7 @@ export default function App() {
   // The active provider when settings are loaded and it has no key. While settings are
   // loading or failed to load, chat is allowed and the backend reports a missing key.
   const missingKeyProvider =
-    llm.state.status === 'ready' &&
-    !findProvider(llm.state.settings, llm.state.settings.activeProvider).configured
+    llm.state.status === 'ready' && !findProvider(llm.state.settings, llm.state.settings.activeProvider).configured
       ? findProvider(llm.state.settings, llm.state.settings.activeProvider).name
       : null
   // isHistoryLoading: disable input while restoring saved messages
@@ -155,7 +154,7 @@ export default function App() {
                       <button
                         type="button"
                         className="btn-clear"
-                        onClick={handleClear}
+                        onClick={() => void handleClear()}
                         disabled={isLoading}
                       >
                         Clear conversation
@@ -177,7 +176,7 @@ export default function App() {
                   <div ref={bottomRef} />
                 </div>
 
-                <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
+                <MessageInput onSend={(text) => void handleSend(text)} disabled={isLoading || isHistoryLoading} />
                 <p className="hint">Shift + Enter for a new line. Ctrl + Enter to send.</p>
               </section>
 

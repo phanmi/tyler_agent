@@ -44,7 +44,7 @@ export default function ProviderKeyForm({ provider, onSave }: ProviderKeyFormPro
   }
 
   return (
-    <form className="llm-form" onSubmit={submit} noValidate>
+    <form className="llm-form" onSubmit={(event) => void submit(event)} noValidate>
       <label htmlFor={inputId}>{provider.name} API key</label>
       <div className="llm-form__row">
         <input
@@ -67,8 +67,16 @@ export default function ProviderKeyForm({ provider, onSave }: ProviderKeyFormPro
       <p id={statusId} className="llm-msg">
         {provider.configured ? 'A key is saved.' : 'No key saved.'} Saved keys are never shown.
       </p>
-      {saved && <p className="llm-msg llm-msg--ok" role="status">{provider.name} key saved</p>}
-      {error && <p id={errorId} className="llm-msg llm-msg--err" role="alert">{error}</p>}
+      {saved && (
+        <p className="llm-msg llm-msg--ok" role="status">
+          {provider.name} key saved
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className="llm-msg llm-msg--err" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   )
 }

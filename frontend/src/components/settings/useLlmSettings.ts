@@ -90,10 +90,7 @@ export function useLlmSettings(): LlmSettingsController {
     return run
   }, [])
 
-  const reset = useCallback(
-    () => enqueue(async () => apply(await resetLlmSettings())),
-    [enqueue, apply],
-  )
+  const reset = useCallback(() => enqueue(async () => apply(await resetLlmSettings())), [enqueue, apply])
 
   const queueSettingsSave = useCallback(
     (change: (current: LlmSettings) => { activeProvider: LlmProviderId; models: Record<LlmProviderId, string> }) =>

@@ -40,8 +40,7 @@
   --shadow-focus: 0 0 0 3px rgba(224, 86, 154, 0.12);
 
   /* --- Fonts --- */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-xs: 12px;
   --font-sm: 13px;
   --font-md: 14px;

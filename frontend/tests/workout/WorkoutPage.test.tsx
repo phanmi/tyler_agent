@@ -17,8 +17,13 @@ vi.mock('react-calendar', () => ({
 }))
 
 let requests: ReturnType<typeof setupApi>
-beforeEach(() => { requests = setupApi() })
-afterEach(() => { cleanup(); vi.useRealTimers() })
+beforeEach(() => {
+  requests = setupApi()
+})
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 function typeDraft(name = 'My exercise') {
   fireEvent.change(screen.getByLabelText('Exercise name'), { target: { value: name } })
@@ -39,7 +44,9 @@ it('shows scheduling availability only after the selected day loads and keeps ol
   fireEvent.click(screen.getByRole('button', { name: 'Select B' }))
   expect(screen.queryByText(suggestion(A).workoutName)).toBeNull()
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Checking schedule...' }).disabled).toBe(true)
-  await act(async () => { requests.reads[1].pending.reject(new Error('Load failed')) })
+  await act(async () => {
+    requests.reads[1].pending.reject(new Error('Load failed'))
+  })
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Schedule unavailable' }).disabled).toBe(true)
   expect(screen.queryByText('No saved exercises for this date.')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Retry loading exercises' }))
@@ -52,7 +59,10 @@ it('blocks click and form-submit re-entry while preserving typing during a save 
   render(<WorkoutPage />)
   await requests.read(0, [])
   typeDraft('Submitted')
-  act(() => { submitForm(); submitForm() })
+  act(() => {
+    submitForm()
+    submitForm()
+  })
   fireEvent.click(screen.getByRole('button', { name: 'Add to calendar' }))
   expect(api.createWorkout).toHaveBeenCalledTimes(1)
   typeDraft('Newer typing')
@@ -62,7 +72,10 @@ it('blocks click and form-submit re-entry while preserving typing during a save 
   expect(screen.getByLabelText<HTMLInputElement>('Exercise name').value).toBe('Newer typing')
   await requests.read(1, [entry(A, 101, 'Submitted')])
   submitForm()
-  expect(api.updateWorkout).toHaveBeenCalledWith(101, expect.objectContaining({ workoutName: 'Newer typing', workoutDate: A }))
+  expect(api.updateWorkout).toHaveBeenCalledWith(
+    101,
+    expect.objectContaining({ workoutName: 'Newer typing', workoutDate: A }),
+  )
   await requests.write(1, true)
   expect(screen.getByLabelText<HTMLInputElement>('Exercise name').value).toBe('Newer typing')
   expect(screen.getByRole('alert').textContent).toBe('Write failed')
@@ -106,7 +119,9 @@ it('reports saved-but-refresh-failed and requires a confirmed reload before offe
   await requests.read(0, [])
   fireEvent.click(screen.getByRole('button', { name: 'Add to calendar' }))
   await requests.write(0)
-  await act(async () => { requests.reads[1].pending.reject(new Error('Refresh failed')) })
+  await act(async () => {
+    requests.reads[1].pending.reject(new Error('Refresh failed'))
+  })
   expect(screen.getByRole('status').textContent).toContain('Exercise added')
   expect(screen.getByRole('alert').textContent).toContain('Changes were saved')
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Schedule unavailable' }).disabled).toBe(true)
@@ -145,8 +160,12 @@ it('keys plan reads by options and ignores obsolete failures', async () => {
   render(<WorkoutPage />)
   await requests.read(0, [])
   fireEvent.change(screen.getByLabelText('Goal'), { target: { value: 'strength' } })
-  await act(async () => { current.resolve({ ...plan, days: plan.days.map((day) => ({ ...day, focus: 'New focus' })) }) })
-  await act(async () => { old.reject(new Error('Old plan failed')) })
+  await act(async () => {
+    current.resolve({ ...plan, days: plan.days.map((day) => ({ ...day, focus: 'New focus' })) })
+  })
+  await act(async () => {
+    old.reject(new Error('Old plan failed'))
+  })
   expect(screen.getByRole('heading', { name: 'Suggested plan · New focus' })).toBeTruthy()
   expect(screen.queryByText('Old plan failed')).toBeNull()
 })

@@ -50,9 +50,21 @@ export default function ActiveProviderField({ settings, onSave }: ActiveProvider
           </label>
         ))}
       </div>
-      {pending && <p className="llm-msg" role="status">Saving…</p>}
-      {saved && <p className="llm-msg llm-msg--ok" role="status">{saved}</p>}
-      {error && <p className="llm-msg llm-msg--err" role="alert">{error}</p>}
+      {pending && (
+        <p className="llm-msg" role="status">
+          Saving…
+        </p>
+      )}
+      {saved && (
+        <p className="llm-msg llm-msg--ok" role="status">
+          {saved}
+        </p>
+      )}
+      {error && (
+        <p className="llm-msg llm-msg--err" role="alert">
+          {error}
+        </p>
+      )}
     </fieldset>
   )
 }

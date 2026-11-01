@@ -297,17 +297,27 @@ From the repository root:
 mvn test
 ```
 
-From `frontend/`:
+From `frontend/`, `npm run check` runs every frontend gate that the required **Build and test** CI job runs, stopping at the first failure. The individual commands are:
 
 ```powershell
+npm run format:check   # Prettier; `npm run format` rewrites files
+npm run lint           # ESLint; any warning fails
+npm run typecheck      # strict TypeScript for src/ and tests/
+npm run test:ui        # Vitest and Testing Library in jsdom
 npm run test:startup
 npm run test:version
-npm run typecheck
-npm run test:ui
 npm run build
 ```
 
 Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover startup, release-version handling, and UI workflows. TypeScript checking is a separate command because the Vite build does not run it. All frontend tests and helpers belong under `frontend/tests/`. After building the Windows artifact and separate fixture worker, run `npm run test:desktop`; follow the [packaging guide](DESKTOP_PACKAGING.md) for prerequisites, coverage, and clean-machine checks.
+
+**Formatting.** Prettier formats everything under `frontend/` except build output; the settings in `frontend/prettier.config.js` match the existing style. Run `npm run format` before committing. The one-time reformat commit is listed in `.git-blame-ignore-revs`, which GitHub applies automatically; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once to make local `git blame` skip it too.
+
+**Linting.** `frontend/eslint.config.js` applies typescript-eslint's type-aware recommended rules to TypeScript, the React `rules-of-hooks` and `exhaustive-deps` rules as errors, and Node globals to `.cjs` files. Fix findings instead of suppressing them. An inline exception needs a comment explaining why the report is wrong for that line. The React Compiler rules shipped with `eslint-plugin-react-hooks` (such as `set-state-in-effect`) are not enabled yet: they flag effects that set loading state synchronously, and satisfying them means changing how those components load data.
+
+**Lockfile.** CI installs with npm 10, which ships with Node 22. npm 11 (Node 24) writes a `package-lock.json` without some optional peer entries, and npm 10's `npm ci` then rejects it as out of sync. On Node 24, change dependencies with `npx npm@10 install ...`.
+
+**What the gates do not cover.** UI tests render in jsdom, not in Chromium or Electron, and no browser end-to-end runner is configured. Layout, real focus movement, navigation, and the preload/IPC bridge are therefore unverified by these commands. Desktop startup and packaging are checked only by the separate **Windows packaged smoke** CI job and the manual installer checks in the [packaging guide](DESKTOP_PACKAGING.md).
 
 ### Agent migration behavior baseline
 

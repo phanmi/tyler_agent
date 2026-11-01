@@ -8,7 +8,10 @@ vi.mock('../../src/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/api')>()
   return {
     ...actual,
-    loadLlmSettings: vi.fn(), loadChatHistory: vi.fn(), sendMessage: vi.fn(), loadFoodByDate: vi.fn(),
+    loadLlmSettings: vi.fn(),
+    loadChatHistory: vi.fn(),
+    sendMessage: vi.fn(),
+    loadFoodByDate: vi.fn(),
   }
 })
 vi.mock('react-calendar', () => ({ default: () => null }))
@@ -22,7 +25,9 @@ function settings(active: LlmSettings['activeProvider'], activeConfigured: boole
   return {
     activeProvider: active,
     providers: base.map((item) => ({
-      ...item, defaultModel: item.model, suggestedModels: [item.model],
+      ...item,
+      defaultModel: item.model,
+      suggestedModels: [item.model],
       // Every other provider has a key, so only the active provider decides.
       configured: item.id === active ? activeConfigured : true,
     })),
@@ -32,7 +37,9 @@ function settings(active: LlmSettings['activeProvider'], activeConfigured: boole
 async function send(text: string) {
   const input = screen.getByPlaceholderText(/Write a message/)
   fireEvent.change(input, { target: { value: text } })
-  await act(async () => { fireEvent.submit(input.closest('form')!) })
+  await act(async () => {
+    fireEvent.submit(input.closest('form')!)
+  })
 }
 
 beforeEach(() => {
@@ -50,7 +57,9 @@ afterEach(() => {
 
 it('names the active provider when its key is missing and does not call the backend', async () => {
   vi.mocked(api.loadLlmSettings).mockResolvedValue(settings('anthropic', false))
-  await act(async () => { render(<App />) })
+  await act(async () => {
+    render(<App />)
+  })
 
   await send('hello')
 
@@ -62,7 +71,9 @@ it('sends when the active provider has a key, even if another provider has none'
   const value = settings('deepseek', true)
   value.providers[0].configured = false
   vi.mocked(api.loadLlmSettings).mockResolvedValue(value)
-  await act(async () => { render(<App />) })
+  await act(async () => {
+    render(<App />)
+  })
 
   await send('hello')
 
@@ -73,7 +84,9 @@ it('sends when the active provider has a key, even if another provider has none'
 it('lets the backend decide when provider settings could not be loaded', async () => {
   vi.mocked(api.loadLlmSettings).mockRejectedValue(new Error('Failed to load provider settings (HTTP 500)'))
   vi.mocked(api.sendMessage).mockRejectedValue(new api.ApiError('OpenAI API key is empty; chat is unavailable', 400))
-  await act(async () => { render(<App />) })
+  await act(async () => {
+    render(<App />)
+  })
 
   await send('hello')
 

@@ -9,126 +9,129 @@ const releaseVersion = require('../package.json').version
 const READY_TIMEOUT_MS = 30000
 
 function resolveJavaPath(packaged = false, resourcesPath = '') {
-    if (packaged) {
-        const bundled = path.join(resourcesPath, 'runtime', 'bin', 'java.exe')
-        if (!fs.existsSync(bundled)) throw new Error('Bundled Java runtime is missing. Reinstall Tyler.')
-        return bundled
-    }
+  if (packaged) {
+    const bundled = path.join(resourcesPath, 'runtime', 'bin', 'java.exe')
+    if (!fs.existsSync(bundled)) throw new Error('Bundled Java runtime is missing. Reinstall Tyler.')
+    return bundled
+  }
 
-    const bundled = path.join(__dirname, '..', '..', 'resources', 'runtime', 'bin', 'java.exe')
-    if (fs.existsSync(bundled)) return bundled
-    if (process.env.JAVA_HOME) {
-        const fromHome = path.join(process.env.JAVA_HOME, 'bin', 'java.exe')
-        if (fs.existsSync(fromHome)) return fromHome
+  const bundled = path.join(__dirname, '..', '..', 'resources', 'runtime', 'bin', 'java.exe')
+  if (fs.existsSync(bundled)) return bundled
+  if (process.env.JAVA_HOME) {
+    const fromHome = path.join(process.env.JAVA_HOME, 'bin', 'java.exe')
+    if (fs.existsSync(fromHome)) return fromHome
+  }
+  const jdksDir = path.join(os.homedir(), '.jdks')
+  if (fs.existsSync(jdksDir)) {
+    for (const directory of fs.readdirSync(jdksDir)) {
+      const candidate = path.join(jdksDir, directory, 'bin', 'java.exe')
+      if (fs.existsSync(candidate)) return candidate
     }
-    const jdksDir = path.join(os.homedir(), '.jdks')
-    if (fs.existsSync(jdksDir)) {
-        for (const directory of fs.readdirSync(jdksDir)) {
-            const candidate = path.join(jdksDir, directory, 'bin', 'java.exe')
-            if (fs.existsSync(candidate)) return candidate
-        }
-    }
-    return 'java'
+  }
+  return 'java'
 }
 
 function resolveJarPath(packaged = false, resourcesPath = '') {
-    const jarName = `tyler-agent-${releaseVersion}.jar`
-    if (packaged) return path.join(resourcesPath, jarName)
-    // Resolve the override where the launcher was invoked, before the child changes cwd.
-    if (process.env.BACKEND_JAR_PATH) return path.resolve(process.env.BACKEND_JAR_PATH)
-    return path.join(__dirname, '..', '..', 'target', jarName)
+  const jarName = `tyler-agent-${releaseVersion}.jar`
+  if (packaged) return path.join(resourcesPath, jarName)
+  // Resolve the override where the launcher was invoked, before the child changes cwd.
+  if (process.env.BACKEND_JAR_PATH) return path.resolve(process.env.BACKEND_JAR_PATH)
+  return path.join(__dirname, '..', '..', 'target', jarName)
 }
 
 // Java owns the worker. Paths remain separate argv entries, including spaces and Unicode.
 function backendArguments(packaged = false, resourcesPath = '') {
-    const args = ['-jar', resolveJarPath(packaged, resourcesPath), '--server.address=127.0.0.1', '--server.port=0']
-    if (packaged) {
-        args.push(`--agent.python.command[0]=${path.join(resourcesPath, 'tyler-agent-worker', 'tyler-agent-worker.exe')}`)
-    }
-    return args
+  const args = ['-jar', resolveJarPath(packaged, resourcesPath), '--server.address=127.0.0.1', '--server.port=0']
+  if (packaged) {
+    args.push(`--agent.python.command[0]=${path.join(resourcesPath, 'tyler-agent-worker', 'tyler-agent-worker.exe')}`)
+  }
+  return args
 }
 
 // Start one backend and accept a port only from its own ready message.
 // The access token authenticates this launcher's own clients on every /api request;
 // loopback binding and CORS alone do not stop other local callers or web pages.
 function startBackendProcess(command, args, options = {}) {
-    const nonce = randomBytes(16).toString('hex')
-    const accessToken = randomBytes(32).toString('hex')
-    const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS
-    const environment = {
-        ...process.env, ...options.env, TYLER_STARTUP_NONCE: nonce, TYLER_ACCESS_TOKEN: accessToken,
+  const nonce = randomBytes(16).toString('hex')
+  const accessToken = randomBytes(32).toString('hex')
+  const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS
+  const environment = {
+    ...process.env,
+    ...options.env,
+    TYLER_STARTUP_NONCE: nonce,
+    TYLER_ACCESS_TOKEN: accessToken,
+  }
+  // Development uses the repository cwd for its worker. Keep an explicit workspace
+  // anchored to the caller's directory so settings and databases do not move.
+  if (options.cwd && environment.AGENT_WORKSPACE_DIR?.trim()) {
+    environment.AGENT_WORKSPACE_DIR = path.resolve(environment.AGENT_WORKSPACE_DIR)
+  }
+
+  return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(new Error('Backend startup cancelled'))
+      return
     }
-    // Development uses the repository cwd for its worker. Keep an explicit workspace
-    // anchored to the caller's directory so settings and databases do not move.
-    if (options.cwd && environment.AGENT_WORKSPACE_DIR?.trim()) {
-        environment.AGENT_WORKSPACE_DIR = path.resolve(environment.AGENT_WORKSPACE_DIR)
+    let child
+    try {
+      child = spawn(command, args, {
+        cwd: options.cwd,
+        env: environment,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    } catch (error) {
+      reject(error)
+      return
     }
 
-    return new Promise((resolve, reject) => {
-        if (options.signal?.aborted) {
-            reject(new Error('Backend startup cancelled'))
-            return
-        }
-        let child
-        try {
-            child = spawn(command, args, {
-                cwd: options.cwd,
-                env: environment,
-                stdio: ['ignore', 'pipe', 'pipe'],
-                windowsHide: true,
-            })
-        } catch (error) {
-            reject(error)
-            return
-        }
+    let settled = false
+    let ready = false
+    const abort = () => fail(new Error('Backend startup cancelled'))
+    options.signal?.addEventListener('abort', abort, { once: true })
+    const timer = setTimeout(() => {
+      fail(new Error(`Backend did not become ready within ${timeoutMs / 1000} seconds`))
+    }, timeoutMs)
 
-        let settled = false
-        let ready = false
-        const abort = () => fail(new Error('Backend startup cancelled'))
-        options.signal?.addEventListener('abort', abort, { once: true })
-        const timer = setTimeout(() => {
-            fail(new Error(`Backend did not become ready within ${timeoutMs / 1000} seconds`))
-        }, timeoutMs)
+    function fail(error) {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      options.signal?.removeEventListener('abort', abort)
+      child.kill()
+      reject(error)
+    }
 
-        function fail(error) {
-            if (settled) return
-            settled = true
-            clearTimeout(timer)
-            options.signal?.removeEventListener('abort', abort)
-            child.kill()
-            reject(error)
-        }
-
-        const lines = readline.createInterface({ input: child.stdout })
-        lines.on('line', (line) => {
-            const match = /^TYLER_READY ([0-9a-f]{32}) ([1-9]\d{0,4})$/.exec(line)
-            if (!match || match[1] !== nonce || settled) return
-            const port = Number(match[2])
-            if (port > 65535) {
-                fail(new Error(`Backend reported an invalid port: ${port}`))
-                return
-            }
-            ready = true
-            settled = true
-            clearTimeout(timer)
-            options.signal?.removeEventListener('abort', abort)
-            resolve({ child, baseUrl: `http://127.0.0.1:${port}`, port, accessToken })
-        })
-
-        child.stdout.on('data', (data) => options.onStdout?.(data))
-        child.stderr.on('data', (data) => options.onStderr?.(data))
-        child.on('error', (error) => fail(error))
-        child.on('exit', (code, signal) => {
-            lines.close()
-            if (!ready) {
-                fail(new Error(`Backend exited before it was ready: code=${code} signal=${signal}`))
-            } else {
-                options.onExit?.(code, signal)
-            }
-        })
-        options.onSpawn?.(child)
-        if (options.signal?.aborted) abort()
+    const lines = readline.createInterface({ input: child.stdout })
+    lines.on('line', (line) => {
+      const match = /^TYLER_READY ([0-9a-f]{32}) ([1-9]\d{0,4})$/.exec(line)
+      if (!match || match[1] !== nonce || settled) return
+      const port = Number(match[2])
+      if (port > 65535) {
+        fail(new Error(`Backend reported an invalid port: ${port}`))
+        return
+      }
+      ready = true
+      settled = true
+      clearTimeout(timer)
+      options.signal?.removeEventListener('abort', abort)
+      resolve({ child, baseUrl: `http://127.0.0.1:${port}`, port, accessToken })
     })
+
+    child.stdout.on('data', (data) => options.onStdout?.(data))
+    child.stderr.on('data', (data) => options.onStderr?.(data))
+    child.on('error', (error) => fail(error))
+    child.on('exit', (code, signal) => {
+      lines.close()
+      if (!ready) {
+        fail(new Error(`Backend exited before it was ready: code=${code} signal=${signal}`))
+      } else {
+        options.onExit?.(code, signal)
+      }
+    })
+    options.onSpawn?.(child)
+    if (options.signal?.aborted) abort()
+  })
 }
 
 module.exports = { resolveJavaPath, resolveJarPath, backendArguments, startBackendProcess }

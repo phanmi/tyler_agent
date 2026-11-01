@@ -47,7 +47,7 @@ export default function FoodCalendar() {
 
   // Reload when the selected date changes.
   useEffect(() => {
-    load(selectedDate)
+    void load(selectedDate)
   }, [selectedDate, load])
 
   // The delete button opens a dialog; ConfirmDialog.onConfirm performs the deletion.
@@ -84,8 +84,7 @@ export default function FoodCalendar() {
 
   // Daily nutrition totals treat missing values as zero.
   const totals = useMemo(() => {
-    const sum = (values: (number | null | undefined)[]) =>
-      values.reduce<number>((acc, v) => acc + (v ?? 0), 0)
+    const sum = (values: (number | null | undefined)[]) => values.reduce<number>((acc, v) => acc + (v ?? 0), 0)
     return {
       calories: sum(foods.map((e) => e.food.genericInfo?.calories)),
       protein: sum(foods.map((e) => e.food.macroNutrients?.protein)),
@@ -117,9 +116,7 @@ export default function FoodCalendar() {
 
         {!loading && error && <div className="food-error">{error}</div>}
 
-        {!loading && !error && foods.length === 0 && (
-          <div className="food-empty">No records for this day.</div>
-        )}
+        {!loading && !error && foods.length === 0 && <div className="food-empty">No records for this day.</div>}
 
         {!loading && !error && foods.length > 0 && (
           <>
@@ -135,11 +132,7 @@ export default function FoodCalendar() {
                         {fmt(info?.amount)} {info?.unit ?? ''}
                       </span>
                       <span className="food-item__calories">{fmt(info?.calories)} kcal</span>
-                      <button
-                        className="food-item__delete"
-                        type="button"
-                        onClick={() => requestDeleteOne(entry)}
-                      >
+                      <button className="food-item__delete" type="button" onClick={() => requestDeleteOne(entry)}>
                         Delete
                       </button>
                     </div>
@@ -163,11 +156,7 @@ export default function FoodCalendar() {
               <span>Fiber {totals.fiber}g</span>
             </div>
 
-            <button
-              className="food-delete-day"
-              type="button"
-              onClick={requestDeleteDay}
-            >
+            <button className="food-delete-day" type="button" onClick={requestDeleteDay}>
               Delete all for this day
             </button>
           </>
@@ -183,7 +172,7 @@ export default function FoodCalendar() {
         }
         confirmText="Delete"
         danger
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={cancelDelete}
       />
     </aside>

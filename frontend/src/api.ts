@@ -12,8 +12,16 @@ export const ACCESS_TOKEN_HEADER = 'X-Tyler-Token'
 
 export function configureApiBaseUrl(baseUrl: string, token: string): void {
   const url = new URL(baseUrl)
-  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port ||
-      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+  if (
+    url.protocol !== 'http:' ||
+    url.hostname !== '127.0.0.1' ||
+    !url.port ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
     throw new Error('Invalid backend address')
   }
   if (!/^[0-9a-f]{64}$/.test(token)) {
@@ -159,8 +167,11 @@ function isProviderId(value: unknown): value is LlmProviderId {
 function parseProvider(value: unknown): ProviderSettings {
   const item = value as Partial<Record<keyof ProviderSettings, unknown>> | null
   if (
-    !item || !isProviderId(item.id) || typeof item.name !== 'string' ||
-    typeof item.model !== 'string' || typeof item.defaultModel !== 'string' ||
+    !item ||
+    !isProviderId(item.id) ||
+    typeof item.name !== 'string' ||
+    typeof item.model !== 'string' ||
+    typeof item.defaultModel !== 'string' ||
     !Array.isArray(item.suggestedModels) ||
     !item.suggestedModels.every((model) => typeof model === 'string') ||
     typeof item.configured !== 'boolean'
@@ -168,8 +179,12 @@ function parseProvider(value: unknown): ProviderSettings {
     throw new Error('Invalid provider settings from the backend')
   }
   return {
-    id: item.id, name: item.name, model: item.model, defaultModel: item.defaultModel,
-    suggestedModels: [...item.suggestedModels], configured: item.configured,
+    id: item.id,
+    name: item.name,
+    model: item.model,
+    defaultModel: item.defaultModel,
+    suggestedModels: [...item.suggestedModels],
+    configured: item.configured,
   }
 }
 

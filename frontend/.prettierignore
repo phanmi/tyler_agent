@@ -1,0 +1,6 @@
+# Build and packaging output, logs, and npm-managed metadata.
+dist/
+out/
+out2/
+logs/
+package-lock.json
