@@ -89,7 +89,7 @@ Rules describe responsibilities and observable behavior without assigning them t
 - Use shared tokens for colors, spacing, typography, and states. Scope feature styles with a local convention or CSS modules; share styles through a common component or token rather than importing another feature's class names.
 - Keep global resets low in specificity. Avoid broad selectors and `!important` fixes that unintentionally override component or third-party control states.
 - Specify hover, focus-visible, selected, disabled, pending, and error states. Check contrast in the actual rendered combinations, including text on tinted backgrounds. WCAG AA text contrast requires at least 4.5:1 for normal text and 3:1 for large text, subject to the standard's exceptions. See [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html). Also check applicable non-text control and focus contrast requirements.
-- Follow surrounding formatting until an agreed formatter is configured. Avoid unrelated restyling in behavior fixes.
+- Format with the configured Prettier settings (`npm run format`). Avoid unrelated restyling in behavior fixes.
 
 ## FE-09 — Layout
 

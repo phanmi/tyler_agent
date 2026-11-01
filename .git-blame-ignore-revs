@@ -1,0 +1,5 @@
+# Mechanical reformatting commits for `git blame` to skip.
+# GitHub reads this file automatically; locally run: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Adopt Prettier in frontend/ (issue #19)
+11b83bd07705e082006af17c6325f29fde884921

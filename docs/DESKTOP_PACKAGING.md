@@ -42,6 +42,8 @@ cd ..
 mvn --batch-mode clean verify
 cd frontend
 npm ci
+npm run format:check
+npm run lint
 npm run test:startup
 npm run test:version
 npm run typecheck
