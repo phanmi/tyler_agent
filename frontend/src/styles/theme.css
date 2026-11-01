@@ -358,7 +358,7 @@ button:disabled {
     border-color 0.15s ease;
 }
 
-.food-item__delete:hover {
+.food-item__delete:hover:not(:disabled) {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
@@ -379,7 +379,7 @@ button:disabled {
     color 0.15s ease;
 }
 
-.food-delete-day:hover {
+.food-delete-day:hover:not(:disabled) {
   background: var(--danger);
   color: #fff;
 }

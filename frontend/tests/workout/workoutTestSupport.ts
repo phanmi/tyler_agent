@@ -1,7 +1,11 @@
 import { act } from '@testing-library/react'
 import { vi } from 'vitest'
+import { deferred } from '../helpers/deferred'
 import * as api from '../../src/api'
 import type { Workout, WorkoutEntry, WorkoutPlan } from '../../src/types'
+
+// Re-exported so existing workout tests keep importing it from their support module.
+export { deferred }
 
 export const A = '2026-10-16'
 export const B = '2026-10-17'
@@ -24,16 +28,6 @@ export const plan: WorkoutPlan = {
     activity: null,
     durationMinutes: 0,
   })),
-}
-
-export function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason: Error) => void
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes
-    reject = no
-  })
-  return { promise, resolve, reject }
 }
 
 export function setupApi() {
