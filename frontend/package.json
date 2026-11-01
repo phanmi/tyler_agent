@@ -26,6 +26,10 @@
     "make": "electron-forge make",
     "test:ui": "vitest run",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:ui && npm run test:startup && npm run test:version && npm run build",
     "test:desktop": "node tests/electron/desktop-smoke.cjs",
     "test:runtime": "node tests/electron/java-runtime.smoke.cjs",
     "prepare:desktop": "node scripts/prepare-desktop.cjs"
@@ -38,15 +42,21 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
+    "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^44.3.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "jsdom": "^27.4.0",
+    "prettier": "^3.9.10",
     "resedit": "2.0.3",
     "typescript": "~5.6.3",
+    "typescript-eslint": "^8.72.1",
     "vite": "^5.4.11",
     "vitest": "^4.1.12"
   }
