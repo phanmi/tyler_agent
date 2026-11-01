@@ -81,8 +81,8 @@ describe('loading', () => {
   it('shows each provider, the active one, and which have no key', async () => {
     await renderReady()
     const chooser = screen.getByRole('group', { name: 'Provider used for chat' })
-    expect((within(chooser).getByRole('radio', { name: /OpenAI/ }) as HTMLInputElement).checked).toBe(true)
-    expect((within(chooser).getByRole('radio', { name: /Claude/ }) as HTMLInputElement).checked).toBe(false)
+    expect(within(chooser).getByRole<HTMLInputElement>('radio', { name: /OpenAI/ }).checked).toBe(true)
+    expect(within(chooser).getByRole<HTMLInputElement>('radio', { name: /Claude/ }).checked).toBe(false)
     expect(within(chooser).getAllByText('No key')).toHaveLength(2)
     expect(within(card('OpenAI')).getByText('Used for chat')).toBeTruthy()
     expect(within(card('Claude')).getByText(/No key saved/)).toBeTruthy()
@@ -130,7 +130,7 @@ describe('loading', () => {
     })
 
     expect(screen.getByRole('alert').textContent).toContain('Failed to write file')
-    expect((screen.getByRole('button', { name: 'Reset provider settings' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Reset provider settings' }).disabled).toBe(false)
   })
 })
 
@@ -203,9 +203,7 @@ describe('models', () => {
       models: { openai: 'gpt-6-sol', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' },
     })
     expect(within(card('Claude')).getByText('Saved model: claude-opus-5-5')).toBeTruthy()
-    expect((within(card('DeepSeek')).getByLabelText('DeepSeek model') as HTMLInputElement).value).toBe(
-      'deepseek-v4-pro',
-    )
+    expect(within(card('DeepSeek')).getByLabelText<HTMLInputElement>('DeepSeek model').value).toBe('deepseek-v4-pro')
     expect(within(card('DeepSeek')).getByText('Saved model: deepseek-flash')).toBeTruthy()
   })
 
@@ -229,8 +227,8 @@ describe('models', () => {
     })
     expect(vi.mocked(api.saveLlmSettings).mock.calls[0][0].models.openai).toBe('ft:gpt-6:org:custom-1')
     // A saved model outside the suggestions shows as a custom ID.
-    expect((within(card('OpenAI')).getByLabelText('OpenAI model') as HTMLInputElement).value).toBe('__custom__')
-    expect((within(card('OpenAI')).getByLabelText('Custom model ID') as HTMLInputElement).value).toBe(
+    expect(within(card('OpenAI')).getByLabelText<HTMLInputElement>('OpenAI model').value).toBe('__custom__')
+    expect(within(card('OpenAI')).getByLabelText<HTMLInputElement>('Custom model ID').value).toBe(
       'ft:gpt-6:org:custom-1',
     )
   })
@@ -295,7 +293,7 @@ describe('active provider', () => {
       activeProvider: 'anthropic',
       models: { openai: 'gpt-6-sol', anthropic: 'claude-sonnet-5-5', deepseek: 'deepseek-flash' },
     })
-    expect((screen.getByRole('radio', { name: /Claude/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: /Claude/ }).checked).toBe(true)
     expect(within(card('Claude')).getByText('Used for chat')).toBeTruthy()
     expect(screen.getByText('Claude is now used for chat')).toBeTruthy()
   })
@@ -307,14 +305,14 @@ describe('active provider', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /DeepSeek/ }))
     // While saving, the choice shows and the radios are locked against a second change.
-    expect((screen.getByRole('radio', { name: /DeepSeek/ }) as HTMLInputElement).checked).toBe(true)
-    expect((screen.getByRole('radio', { name: /Claude/ }) as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: /DeepSeek/ }).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: /Claude/ }).disabled).toBe(true)
 
     await act(async () => {
       save.reject(new api.ApiError('Failed to write file', 500))
     })
 
-    expect((screen.getByRole('radio', { name: /OpenAI/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: /OpenAI/ }).checked).toBe(true)
     expect(screen.getByRole('group', { name: 'Provider used for chat' }).textContent).toContain('Failed to write file')
   })
 })

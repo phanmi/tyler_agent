@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { loadWorkoutPlan } from '../../api'
@@ -50,7 +50,6 @@ export default function WorkoutPage() {
     loading: true,
     error: '',
   })
-  const planRequestId = useRef(0)
   const startDate = weekStart(selectedDate)
   const planKey = JSON.stringify([startDate, goal, equipment])
   const plan = planState.key === planKey ? planState.plan : null
@@ -58,16 +57,17 @@ export default function WorkoutPage() {
   const planError = planState.key === planKey ? planState.error : ''
 
   useEffect(() => {
-    const currentRequest = ++planRequestId.current
+    // Cleanup runs before the next plan request and on unmount, so a late response for an older key is ignored.
+    let active = true
     setPlanState({ key: planKey, plan: null, loading: true, error: '' })
     loadWorkoutPlan(startDate, goal, equipment)
       .then((result) => {
-        if (currentRequest === planRequestId.current) {
+        if (active) {
           setPlanState({ key: planKey, plan: result, loading: false, error: '' })
         }
       })
       .catch((err) => {
-        if (currentRequest === planRequestId.current) {
+        if (active) {
           setPlanState({
             key: planKey,
             plan: null,
@@ -77,7 +77,7 @@ export default function WorkoutPage() {
         }
       })
     return () => {
-      planRequestId.current++
+      active = false
     }
   }, [startDate, goal, equipment, planKey])
 
@@ -203,7 +203,7 @@ export default function WorkoutPage() {
                       <button
                         type="button"
                         className="workout-suggestions__add"
-                        onClick={() => schedule(suggestion)}
+                        onClick={() => void schedule(suggestion)}
                         disabled={saving || !loaded || alreadySaved}
                       >
                         {!loaded
@@ -282,7 +282,7 @@ export default function WorkoutPage() {
         message={`Delete ${pendingDelete?.workout.workoutName ?? 'this exercise'} from ${pendingDelete?.workout.workoutDate ?? dateLabel}?`}
         confirmText="Delete"
         danger
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={cancelDelete}
       />
     </div>

@@ -95,6 +95,9 @@ export function useWorkoutDay() {
     mounted.current = true
     return () => {
       mounted.current = false
+      // requestId is a shared counter, not a DOM node: the cleanup must bump its latest value so reads started by
+      // mutations after this effect ran are invalidated too. Copying it at effect time would miss those reads.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional read of the latest counter value
       requestId.current++
     }
   }, [])
@@ -102,6 +105,8 @@ export function useWorkoutDay() {
   useEffect(() => {
     void load(scope.current)
     return () => {
+      // Leaving a date invalidates every read in flight for it, including reads that mutations started later.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional read of the latest counter value
       requestId.current++
     }
   }, [date, load])

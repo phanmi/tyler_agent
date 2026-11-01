@@ -151,7 +151,7 @@ export default function UserInfoForm() {
         </label>
       </fieldset>
 
-      <button type="button" onClick={handleSave} disabled={status === 'saving'}>
+      <button type="button" onClick={() => void handleSave()} disabled={status === 'saving'}>
         {status === 'saving' ? 'Saving...' : 'Save'}
       </button>
 

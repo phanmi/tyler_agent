@@ -47,7 +47,7 @@ export default function FoodCalendar() {
 
   // Reload when the selected date changes.
   useEffect(() => {
-    load(selectedDate)
+    void load(selectedDate)
   }, [selectedDate, load])
 
   // The delete button opens a dialog; ConfirmDialog.onConfirm performs the deletion.
@@ -172,7 +172,7 @@ export default function FoodCalendar() {
         }
         confirmText="Delete"
         danger
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={cancelDelete}
       />
     </aside>

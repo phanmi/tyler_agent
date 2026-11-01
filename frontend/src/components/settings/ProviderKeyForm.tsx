@@ -44,7 +44,7 @@ export default function ProviderKeyForm({ provider, onSave }: ProviderKeyFormPro
   }
 
   return (
-    <form className="llm-form" onSubmit={submit} noValidate>
+    <form className="llm-form" onSubmit={(event) => void submit(event)} noValidate>
       <label htmlFor={inputId}>{provider.name} API key</label>
       <div className="llm-form__row">
         <input

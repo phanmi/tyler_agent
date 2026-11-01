@@ -49,7 +49,7 @@ export default function ProviderSettingsPanel({ llm }: ProviderSettingsPanelProp
               <p className="llm-msg">
                 Resetting restores the default provider and models. Your saved API keys are kept.
               </p>
-              <button type="button" onClick={reset} disabled={resetting}>
+              <button type="button" onClick={() => void reset()} disabled={resetting}>
                 {resetting ? 'Resetting…' : 'Reset provider settings'}
               </button>
               {resetError && <p className="llm-msg llm-msg--err">{resetError}</p>}

@@ -13,7 +13,7 @@ function resourcePaths() {
   if (!process.env.JAVA_HOME) throw new Error('Set JAVA_HOME to the Java 26 build JDK')
   const jdk = path.resolve(process.env.JAVA_HOME)
   const release = fs.readFileSync(path.join(jdk, 'release'), 'utf8')
-  if (!/^JAVA_VERSION="26(?:\.|\")/m.test(release)) throw new Error('Desktop packaging requires Java 26')
+  if (!/^JAVA_VERSION="26(?:\.|")/m.test(release)) throw new Error('Desktop packaging requires Java 26')
   const cacheKey = createHash('sha256')
     .update(release + ':desktop-runtime-v2-utf8')
     .digest('hex')

@@ -64,7 +64,7 @@ function stopBackend() {
   backendAccessToken = null
   try {
     p.kill()
-  } catch (e) {
+  } catch {
     // Ignore failures if the process has already exited.
   }
 }

@@ -151,7 +151,12 @@ export default function App() {
                       📅 Calendar
                     </button>
                     {messages.length > 0 && (
-                      <button type="button" className="btn-clear" onClick={handleClear} disabled={isLoading}>
+                      <button
+                        type="button"
+                        className="btn-clear"
+                        onClick={() => void handleClear()}
+                        disabled={isLoading}
+                      >
                         Clear conversation
                       </button>
                     )}
@@ -171,7 +176,7 @@ export default function App() {
                   <div ref={bottomRef} />
                 </div>
 
-                <MessageInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
+                <MessageInput onSend={(text) => void handleSend(text)} disabled={isLoading || isHistoryLoading} />
                 <p className="hint">Shift + Enter for a new line. Ctrl + Enter to send.</p>
               </section>
 

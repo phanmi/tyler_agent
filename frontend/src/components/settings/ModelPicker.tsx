@@ -72,7 +72,7 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
   }
 
   return (
-    <form className="llm-form" onSubmit={submit} noValidate>
+    <form className="llm-form" onSubmit={(event) => void submit(event)} noValidate>
       <label htmlFor={selectId}>{provider.name} model</label>
       <div className="llm-form__row">
         <select id={selectId} value={shown.choice} onChange={(event) => edit({ ...shown, choice: event.target.value })}>
