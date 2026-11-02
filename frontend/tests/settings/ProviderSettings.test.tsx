@@ -4,6 +4,7 @@ import * as api from '../../src/api'
 import type { LlmSettings, LlmSettingsUpdate, ProviderSettings } from '../../src/api'
 import ProviderSettingsPanel from '../../src/components/settings/ProviderSettingsPanel'
 import { useLlmSettings } from '../../src/components/settings/useLlmSettings'
+import { deferred } from '../helpers/deferred'
 
 // Keep the real constants and error class; replace only the network calls.
 vi.mock('../../src/api', async (importOriginal) => {
@@ -45,16 +46,6 @@ function savedFrom(update: LlmSettingsUpdate, base = settings()): LlmSettings {
     activeProvider: update.activeProvider,
     providers: base.providers.map((item) => ({ ...item, model: update.models[item.id] })),
   }
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason: Error) => void
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes
-    reject = no
-  })
-  return { promise, resolve, reject }
 }
 
 function Harness() {

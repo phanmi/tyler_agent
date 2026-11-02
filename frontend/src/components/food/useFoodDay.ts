@@ -25,7 +25,7 @@ interface FoodRead {
 }
 
 // The confirmed deletion target, captured when the confirmation opens.
-export type DeleteTarget = { kind: 'one'; date: string; entry: FoodEntry } | { kind: 'day'; date: string }
+type DeleteTarget = { kind: 'one'; date: string; entry: FoodEntry } | { kind: 'day'; date: string }
 
 const visitOf = (value: Date): Visit => ({ value, date: toDateString(value) })
 const message = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback)
@@ -72,7 +72,8 @@ export function useFoodDay() {
     setPendingDelete(null)
   }
 
-  const canRequest = () => ready && !locks.current.has(visit.date)
+  // An open confirmation keeps the target captured when it opened; requests from behind the dialog are ignored.
+  const canRequest = () => ready && pendingDelete === null && !locks.current.has(visit.date)
 
   const requestDeleteOne = (entry: FoodEntry) => {
     if (!canRequest() || !foods.some((food) => food.id === entry.id)) return
@@ -90,7 +91,7 @@ export function useFoodDay() {
     const pending = pendingDelete
     setPendingDelete(null)
     if (!pending || pending.visit !== visitRef.current || !ready || locks.current.has(pending.target.date)) return
-    const { visit: owner, target } = pending
+    const { target } = pending
     locks.current.add(target.date)
     publishLocks()
     setDeleteError(null)
@@ -100,7 +101,9 @@ export function useFoodDay() {
       // Refresh the day only while it is shown; other days read fresh on their next visit.
       if (visitRef.current.date === target.date) setRevision((current) => current + 1)
     } catch (err) {
-      if (visitRef.current === owner) setDeleteError({ visit: owner, message: message(err, 'Failed to delete') })
+      // Like the refresh above, report to whichever visit of this date is shown, even one started while deleting.
+      const current = visitRef.current
+      if (current.date === target.date) setDeleteError({ visit: current, message: message(err, 'Failed to delete') })
     } finally {
       locks.current.delete(target.date)
       publishLocks()

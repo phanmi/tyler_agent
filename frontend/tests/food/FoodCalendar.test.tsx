@@ -137,6 +137,20 @@ it('deletes the captured record among equal-looking records, and cancel never wr
   expect(deletes.map((d) => d.target)).toEqual([2])
 })
 
+it('keeps the captured target when another delete is requested behind the open dialog', async () => {
+  await showA([food(1, 'Apple'), food(2, 'Pear')])
+  fireEvent.click(recordButtons()[0])
+
+  // The dialog does not trap focus, so the keyboard can still reach and press the buttons behind it.
+  fireEvent.click(recordButtons()[1])
+  fireEvent.click(dayButton())
+  expect(screen.getByText(`Delete the record for "Apple" from ${A}?`)).toBeTruthy()
+
+  confirm()
+  expect(vi.mocked(api.deleteFood).mock.calls).toEqual([[1]])
+  expect(api.deleteFoodByDate).not.toHaveBeenCalled()
+})
+
 it('closes a day confirmation without writing when the date changes, and deletes only the confirmed date', async () => {
   await showA([food(1, 'Apple')])
   fireEvent.click(dayButton())
@@ -162,10 +176,6 @@ it('allows one delete per date at a time, then refreshes the day after success',
   expect(screen.getByRole('status').textContent).toBe('Deleting...')
   expect(recordButtons().every((button) => button.disabled)).toBe(true)
   expect(dayButton().disabled).toBe(true)
-  fireEvent.click(recordButtons()[1])
-  fireEvent.click(dayButton())
-  expect(dialog()).toBeNull()
-  expect(deletes).toHaveLength(1)
 
   await finishDelete(0, true)
   expect(screen.getByText('Loading...')).toBeTruthy()
@@ -173,6 +183,20 @@ it('allows one delete per date at a time, then refreshes the day after success',
   await settle(lastRead(A), [food(2, 'Pear')])
   expect(screen.queryByRole('status')).toBeNull()
   expect(recordButtons().map((button) => button.disabled)).toEqual([false])
+})
+
+it('sends one delete when Confirm is pressed twice before the dialog closes', async () => {
+  await showA([food(1, 'Apple')])
+  fireEvent.click(recordButtons()[0])
+  const confirmButton = within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' })
+
+  // Both clicks run before React re-renders, so the second still sees the open dialog and enabled buttons.
+  // Only the delete lock can stop it; disabled buttons cannot.
+  act(() => {
+    fireEvent.click(confirmButton)
+    fireEvent.click(confirmButton)
+  })
+  expect(deletes.map((d) => d.target)).toEqual([1])
 })
 
 it('keeps a failed delete on the current day visible without reloading it', async () => {
@@ -185,6 +209,24 @@ it('keeps a failed delete on the current day visible without reloading it', asyn
   expect(screen.getByText('Apple')).toBeTruthy()
   expect(recordButtons()[0].disabled).toBe(false)
   expect(reads).toHaveLength(1)
+})
+
+it.each([
+  ['re-selecting the date', ['Select A']],
+  ['leaving and returning', ['Select B', 'Select A']],
+] as const)('reports a failed delete after %s while it was pending', async (_, path) => {
+  await showA([food(1, 'Apple')])
+  fireEvent.click(recordButtons()[0])
+  confirm()
+  for (const name of path) select(name)
+  await settle(lastRead(A), [food(1, 'Apple')])
+  // A new visit of the same date shows the date's pending delete.
+  expect(screen.getByRole('status').textContent).toBe('Deleting...')
+
+  await finishDelete(0, new Error('Delete failed'))
+  expect(screen.getByRole('alert').textContent).toBe('Delete failed')
+  expect(screen.getByText('Apple')).toBeTruthy()
+  expect(recordButtons()[0].disabled).toBe(false)
 })
 
 it.each([
