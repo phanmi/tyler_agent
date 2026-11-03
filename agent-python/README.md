@@ -30,7 +30,7 @@ src/tyler_agent/
       time_current/
       user_info/
       workout_plan/
-    parsing.py         # Legacy argument shapes/coercion
+    parsing.py         # Schema type/field enforcement of model arguments
     rendering.py       # Exact model-facing food/plan/profile output
   session.py           # Protocol state and correlation observer
   resources.py         # Application resource and release-version lookup
