@@ -51,6 +51,24 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
             ),
         ),
         "missing_plan": (tool("generateWorkoutPlan", {}),),
+        # Arguments that do not match the tool schemas; each must go back to the model unrun.
+        "food_wrong_types": (food_call(foodName=True, unit=False, amount="1", calories="2"),),
+        "plan_preview": (
+            tool(
+                "generateWorkoutPlan",
+                dict(
+                    startDate="2026-10-19",
+                    goal="general_fitness",
+                    equipment="bodyweight",
+                    preview=True,
+                ),
+            ),
+        ),
+        "file_object_content": (
+            tool("writeFile", dict(path="notes.txt", content={"unexpected": True})),
+        ),
+        "file_array_content": (tool("writeFile", dict(path="new-note.txt", content=[])),),
+        "file_numeric_path": (tool("readFile", dict(path=123)),),
         "file_failure": (tool("readFile", dict(path="missing.txt")),),
         "food_then_failure": (food_call(),),
         "reply": (),

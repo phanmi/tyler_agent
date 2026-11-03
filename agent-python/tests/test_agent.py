@@ -118,11 +118,12 @@ def test_exactly_five_rounds_returns_last_text_without_sixth_tool(text: str) -> 
     assert len(provider.requests) == 6
 
 
-def test_adapter_shape_failure_does_not_call_java_or_continue() -> None:
-    provider = FakeProvider([AssistantTurn((call("generateWorkoutPlan", '{"goal":3}'),), "")])
+def test_number_beyond_protocol_bound_does_not_call_java_or_continue() -> None:
+    raw = '{"genericInfo":{"amount":2000000001}}'
+    provider = FakeProvider([AssistantTurn((call("recordFood", raw),), "")])
     with pytest.raises(AgentFailure) as error:
         asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation)))
-    assert error.value.code == "INVALID_ARGUMENT"
+    assert (error.value.category, error.value.code) == ("validation", "INVALID_ARGUMENT")
     assert len(provider.requests) == 1
 
 
@@ -180,6 +181,21 @@ def test_provider_failure_never_replays(after_tool: bool, category: str, code: s
         ("readFile", '{"path": "a.txt"'),
         ("generateWorkoutPlan", "[]"),
         ("recordFood", "NaN"),
+        # Schema mismatches that coercion used to accept: an erased file, a numeric path,
+        # stored "true"/"false" text with quoted numbers, and a silently ignored preview.
+        ("writeFile", '{"path": "notes.txt", "content": {"unexpected": true}}'),
+        ("readFile", '{"path": 123}'),
+        (
+            "recordFood",
+            '{"genericInfo": {"foodName": true, "unit": false, "amount": "1", "calories": "2",'
+            ' "date": "2026-10-20"}, "macroNutrients": {"protein": 1, "carbs": 1, "fat": 1,'
+            ' "fiber": 1}}',
+        ),
+        (
+            "generateWorkoutPlan",
+            '{"startDate": "2026-10-20", "goal": "strength", "equipment": "gym", "preview": true}',
+        ),
+        ("generateWorkoutPlan", '{"goal": 3}'),
     ],
 )
 def test_malformed_calls_go_back_to_the_model_without_java(name: str, raw: str) -> None:
