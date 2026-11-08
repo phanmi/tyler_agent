@@ -13,8 +13,8 @@ from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.discovery import discover_tools
-from tyler_agent.tools.parsing import food_arguments
-from tyler_agent.tools.registry import MALFORMED_CALL_RESULT
+from tyler_agent.tools.parsing import file_arguments, food_arguments
+from tyler_agent.tools.registry import MALFORMED_CALL_RESULT, ToolCatalog
 from tyler_agent.tools.rendering import DECIMALS, pretty, profile_text
 
 
@@ -88,13 +88,21 @@ VALID: dict[str, Message] = {
     },
     "generateWorkoutPlan": {"startDate": "2026-10-20", "goal": "strength", "equipment": "gym"},
 }
-DEFINITIONS = {tool.definition["name"]: tool.definition for tool in discover_tools()}
+# Validated once: the catalog is the same for every case below.
+CATALOG = ToolCatalog(discover_tools())
+DEFINITIONS = {definition["name"]: definition for definition in CATALOG.definitions()}
 # Values of every other JSON type, including quoted numbers and booleans, per declared type.
 WRONG_TYPES: dict[str, tuple[object, ...]] = {
     "string": (1, 1.5, True, {}, []),
     "number": ("1", "", True, {}, []),
     "object": ("{}", 1, False, []),
 }
+
+
+def wrong_values(field: Message) -> tuple[object, ...]:
+    """Tolerate an unsupported type here, so the definitions test can report it by name."""
+    declared = field["type"]
+    return WRONG_TYPES.get(declared, ()) if isinstance(declared, str) else ()
 
 
 def objects(
@@ -124,7 +132,7 @@ def recorded(result: Message | None = None) -> tuple[ToolAdapters, list[tuple[st
         seen.append((name, value))
         return result or {"content": "", "path": "", "food": {}, "plan": {}}
 
-    return ToolAdapters(operation), seen
+    return ToolAdapters(operation, CATALOG), seen
 
 
 def rejected(name: str, raw: str) -> None:
@@ -135,11 +143,17 @@ def rejected(name: str, raw: str) -> None:
 
 @pytest.mark.parametrize("name", VALID)
 def test_definitions_are_strict_and_a_valid_call_delegates_once(name: str) -> None:
-    for _, schema in objects(DEFINITIONS[name]["parameters"]):
+    for path, schema in objects(DEFINITIONS[name]["parameters"]):
+        properties = schema["properties"]
         assert schema["type"] == "object"
         assert schema["additionalProperties"] is False
-        assert schema["required"] == list(schema["properties"])
-        assert {field["type"] for field in schema["properties"].values()} <= WRONG_TYPES.keys()
+        assert schema["required"] == list(properties)
+        assert [key for key, field in properties.items() if not wrong_values(field)] == []
+        # The valid call uses every declared field, so a definition cannot drift from the parser.
+        valid = VALID[name]
+        for key in path:
+            valid = valid[key]
+        assert valid.keys() == properties.keys()
     tools, seen = recorded()
     asyncio.run(tools.execute(name, json.dumps(VALID[name])))
     assert len(seen) == 1
@@ -152,7 +166,7 @@ def test_definitions_are_strict_and_a_valid_call_delegates_once(name: str) -> No
         for name in VALID
         for path, schema in objects(DEFINITIONS[name]["parameters"])
         for field, declared in schema["properties"].items()
-        for wrong in WRONG_TYPES[declared["type"]]
+        for wrong in wrong_values(declared)
     ],
 )
 def test_each_declared_field_rejects_other_json_types(
@@ -177,12 +191,15 @@ def test_plan_preview_is_an_unsupported_property() -> None:
     rejected("generateWorkoutPlan", json.dumps(VALID["generateWorkoutPlan"] | {"preview": True}))
 
 
-@pytest.mark.parametrize(
-    "raw", ["", "{", '{"path":"notes.txt"} x', "null", "[]", '"notes.txt"', "1", "true", "NaN"]
-)
+@pytest.mark.parametrize("raw", ["", "{", "null", "[]", '"notes.txt"', "1", "true", "NaN"])
 @pytest.mark.parametrize("name", VALID)
 def test_malformed_json_and_non_object_roots_are_rejected(name: str, raw: str) -> None:
     rejected(name, raw)
+
+
+@pytest.mark.parametrize("name", VALID)
+def test_trailing_tokens_after_a_valid_call_are_rejected(name: str) -> None:
+    rejected(name, json.dumps(VALID[name]) + " x")
 
 
 @pytest.mark.parametrize(
@@ -202,13 +219,75 @@ def test_missing_or_null_file_fields_are_rejected(name: str, raw: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "name,raw",
+    [
+        ("writeFile", '{"path":"notes.txt","content":{"x":1},"content":""}'),
+        ("writeFile", '{"path":"notes.txt","content":"a","content":"a"}'),
+        ("readFile", '{"path":1,"path":"notes.txt"}'),
+        ("generateWorkoutPlan", '{"goal":1,"goal":"x","startDate":"2026-01-05","equipment":"y"}'),
+        ("recordFood", '{"genericInfo":{"amount":1,"amount":2},"macroNutrients":{}}'),
+    ],
+)
+def test_repeated_keys_are_rejected(name: str, raw: str) -> None:
+    rejected(name, raw)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"path":1e-9999999999999999999999999}',
+        '{"path":1e9999999999999999999999999}',
+        '{"path":"notes.txt","extra":1e-9999999999999999999999999}',
+    ],
+)
+def test_exponents_outside_the_decimal_range_are_rejected(raw: str) -> None:
+    rejected("readFile", raw)
+
+
+@pytest.mark.parametrize(
+    "name,raw",
+    [
+        ("readFile", r'{"path":"\ud800"}'),
+        ("writeFile", r'{"path":"\ud800","content":"x"}'),
+        ("writeFile", r'{"path":"a.txt","content":"\ud800"}'),
+        ("writeFile", r'{"path":"a.txt","content":"half \ude00"}'),
+        ("recordFood", r'{"genericInfo":{"foodName":"\ud800"}}'),
+        ("generateWorkoutPlan", r'{"startDate":"\ud800"}'),
+    ],
+)
+def test_lone_surrogates_are_rejected(name: str, raw: str) -> None:
+    rejected(name, raw)
+
+
+def test_paired_surrogate_escapes_are_valid_text() -> None:
+    raw = r'{"path":"a.txt","content":"🙂"}'
+    assert file_arguments(raw, write=True)["content"] == "🙂"
+
+
+@pytest.mark.parametrize("path", ["", " ", "\t", " ", " ", " ", "\u0085"])
+@pytest.mark.parametrize("name,extra", [("readFile", {}), ("writeFile", {"content": "x"})])
+def test_blank_paths_are_rejected(name: str, extra: Message, path: str) -> None:
+    rejected(name, json.dumps({"path": path} | extra))
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"genericInfo":{"amount":3000000000,"unit":true}}',
+        '{"genericInfo":{"amount":3000000000},"macroNutrients":"oops"}',
+        '{"genericInfo":{"foodName":5,"amount":3000000000}}',
+    ],
+)
+def test_wrong_types_are_rejected_before_number_limits_apply(raw: str) -> None:
+    rejected("recordFood", raw)
+
+
+@pytest.mark.parametrize(
     "path,content",
     [
         ("notes.txt", ""),
         ("notes/2026/10/session.txt", "line\r\nnext"),
         ("笔记/日记 ✓.txt", "héllo 🙂"),
-        # Blank and unsafe paths are the sandbox's rule; Java rejects them as INVALID_ARGUMENT.
-        (" ", "x"),
     ],
 )
 def test_file_strings_reach_java_unchanged(path: str, content: str) -> None:
@@ -262,6 +341,10 @@ def test_missing_and_null_domain_values_still_reach_java_validation() -> None:
         ("0.00000000000000000100", "0.00000000000000000100"),
         ("null", None),
         ("2000000000.000", "2000000000.000"),
+        ("1e-256", "0." + "0" * 255 + "1"),
+        ("0e20000000", "0"),
+        ("0e-20000000", "0"),
+        ("-0e-20000000", "0"),
     ],
 )
 def test_food_numbers_keep_exact_decimal_text(number: str, expected: str | None) -> None:
@@ -278,6 +361,10 @@ def test_food_numbers_keep_exact_decimal_text(number: str, expected: str | None)
         "1e999999999",
         "1e-99999999",
         "2000000000.000000000000000000000000001",
+        "1e-257",
+        "1e-999",
+        "1e-16777216",
+        "0." + "0" * 256 + "1",
     ],
 )
 def test_numbers_beyond_the_protocol_bound_still_end_the_run(value: str) -> None:

@@ -20,7 +20,7 @@ from tyler_agent.protocol.validation import (
 )
 
 
-def _unique_object(pairs: list[tuple[str, Any]]) -> Message:
+def unique_object(pairs: list[tuple[str, Any]]) -> Message:
     result: Message = {}
     for key, value in pairs:
         if key in result:
@@ -69,7 +69,7 @@ class MessageCodec:
         try:
             value = json.loads(
                 frame.decode("utf-8", errors="strict"),
-                object_pairs_hook=_unique_object,
+                object_pairs_hook=unique_object,
                 parse_constant=_reject_constant,
             )
             if any(any(0xD800 <= ord(char) <= 0xDFFF for char in text) for text in _strings(value)):

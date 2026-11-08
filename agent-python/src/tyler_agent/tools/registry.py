@@ -18,8 +18,8 @@ from tyler_agent.tools.parsing import ArgumentsRejected
 
 log = logging.getLogger(__name__)
 
-# Fixed text so nothing from the call is echoed. Strict-schema providers (OpenAI, Claude) cannot
-# produce these calls; DeepSeek's non-strict tools can, and the model can correct itself.
+# Fixed text so nothing from the call is echoed. Strict-schema providers (OpenAI, Claude) do not
+# normally produce these calls; DeepSeek's non-strict tools can, and the model can correct itself.
 MALFORMED_CALL_RESULT = json.dumps(
     {
         "error": "Tool call rejected: unknown tool name or arguments that do not match the "
@@ -81,10 +81,19 @@ class ToolAdapters:
         if name not in self._catalog:
             log.warning("Tool call rejected: unknown tool name")
             return MALFORMED_CALL_RESULT
+        requested = False
+
+        async def tracked(operation: str, value: Message) -> Message:
+            nonlocal requested
+            requested = True
+            return await self._operation(operation, value)
+
         try:
-            result = await self._catalog.handler(name)(raw, self._operation)
-        except ArgumentsRejected:
-            # Adapters raise this only while parsing, so no operation was requested.
+            result = await self._catalog.handler(name)(raw, tracked)
+        except ArgumentsRejected as error:
+            if requested:
+                # "No action was taken" would be false, and the model might repeat a write.
+                raise AgentFailure("worker", "INTERNAL_FAILURE") from error
             log.warning("Tool call rejected before any operation: tool=%s", name)
             return MALFORMED_CALL_RESULT
         if not isinstance(result, str) or len(result.encode("utf-8")) > MAX_FRAME_BYTES:

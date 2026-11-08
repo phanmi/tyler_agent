@@ -15,6 +15,7 @@ from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.contracts import Handler, Operation, Tool
 from tyler_agent.tools.discovery import discover_tools
+from tyler_agent.tools.parsing import ArgumentsRejected
 from tyler_agent.tools.registry import MALFORMED_CALL_RESULT, ToolCatalog
 
 
@@ -55,6 +56,17 @@ def test_independent_tool_can_be_registered_without_dispatcher_changes() -> None
     with pytest.raises(AgentFailure) as error:
         ToolCatalog([Tool(definition(), execute)]).handler("Example")
     assert error.value.code == "UNKNOWN_TOOL"
+
+
+def test_rejection_after_an_operation_fails_the_run_instead_of_claiming_no_action() -> None:
+    async def operation_then_rejection(raw: str, run_operation: Operation) -> str:
+        await run_operation("time.current", {})
+        raise ArgumentsRejected
+
+    tools = ToolAdapters(operation, [Tool(definition(), operation_then_rejection)])
+    with pytest.raises(AgentFailure) as error:
+        asyncio.run(tools.execute("example", "{}"))
+    assert (error.value.category, error.value.code) == ("worker", "INTERNAL_FAILURE")
 
 
 def test_registry_copies_inputs_and_provider_definitions_and_binds_each_request() -> None:

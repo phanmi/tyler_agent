@@ -5,13 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.tyler.service.apiKey.IApiKeyService;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -115,24 +115,27 @@ class AgentPersistenceIntegrationTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"food_wrong_types", "plan_preview", "file_object_content",
-            "file_array_content", "file_numeric_path"})
-    void schemaMismatchedToolCallsGoBackToTheModelWithoutSideEffects(String scenario) throws Exception {
+    @Test
+    void schemaMismatchedToolCallsGoBackToTheModelWithoutSideEffects() throws Exception {
         byte[] notes = "retain-me".getBytes(StandardCharsets.UTF_8);
         Files.write(workspace.resolve("notes.txt"), notes);
         Files.writeString(workspace.resolve("123"), "numeric path target");
         try (var app = new PersistenceTestApplication(workspace)) {
-            JsonNode outputs = reply(app.chat(scenario, 200)).path("outputs");
-            assertEquals(1, outputs.size());
-            String rejection = JSON.readTree(outputs.get(0).asText()).path("error").asText();
-            assertTrue(rejection.startsWith("Tool call rejected"), rejection);
-            assertArrayEquals(notes, Files.readAllBytes(workspace.resolve("notes.txt")));
-            assertFalse(Files.exists(workspace.resolve("new-note.txt")));
-            assertTrue(app.get(FOOD_DATE).isEmpty());
-            assertEquals(0, count(jdbc(app)));
-            // The run itself completed, so its exchange is saved like any other reply.
-            assertEquals(2, app.get(HISTORY).size());
+            int exchanges = 0;
+            for (String scenario : List.of("food_wrong_types", "plan_preview", "file_object_content",
+                    "file_array_content", "file_numeric_path")) {
+                JsonNode outputs = reply(app.chat(scenario, 200)).path("outputs");
+                assertEquals(1, outputs.size(), scenario);
+                String rejection = JSON.readTree(outputs.get(0).asText()).path("error").asText();
+                assertTrue(rejection.startsWith("Tool call rejected"), scenario + ": " + rejection);
+                assertArrayEquals(notes, Files.readAllBytes(workspace.resolve("notes.txt")), scenario);
+                assertFalse(Files.exists(workspace.resolve("new-note.txt")), scenario);
+                assertTrue(app.get(FOOD_DATE).isEmpty(), scenario);
+                assertEquals(0, count(jdbc(app)), scenario);
+                // The run itself completed, so its exchange is saved like any other reply.
+                exchanges++;
+                assertEquals(2 * exchanges, app.get(HISTORY).size(), scenario);
+            }
         }
     }
 

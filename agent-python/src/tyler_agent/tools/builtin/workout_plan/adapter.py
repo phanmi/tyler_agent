@@ -6,6 +6,6 @@ from tyler_agent.tools.rendering import pretty
 
 
 async def execute(raw: str, operation: Operation) -> str:
-    """Preserve the existing adapter contract; domain rules remain in Java."""
+    """Reject arguments that do not match the definition; domain rules remain in Java."""
     result = await operation("workout_plan.generate_save", plan_arguments(raw))
     return pretty(result["plan"])
