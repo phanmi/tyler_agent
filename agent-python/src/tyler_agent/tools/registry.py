@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import logging
 from collections.abc import Iterable
 from copy import deepcopy
 from types import MappingProxyType
@@ -13,12 +14,17 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import MAX_FRAME_BYTES, Message
 from tyler_agent.tools.contracts import Handler, Operation, Tool
 from tyler_agent.tools.discovery import discover_tools
-from tyler_agent.tools.parsing import arguments, object_value
+from tyler_agent.tools.parsing import ArgumentsRejected
 
-# Fixed text so nothing from the call is echoed. Strict-schema providers (OpenAI, Claude) cannot
-# produce these calls; DeepSeek's non-strict tools can, and the model can correct itself.
+log = logging.getLogger(__name__)
+
+# Fixed text so nothing from the call is echoed. Strict-schema providers (OpenAI, Claude) do not
+# normally produce these calls; DeepSeek's non-strict tools can, and the model can correct itself.
 MALFORMED_CALL_RESULT = json.dumps(
-    {"error": "Tool call rejected: unknown tool name or arguments that are not a JSON object."}
+    {
+        "error": "Tool call rejected: unknown tool name or arguments that do not match the "
+        "tool's parameters. No action was taken."
+    }
 )
 
 
@@ -42,10 +48,6 @@ class ToolCatalog:
 
     def __contains__(self, name: object) -> bool:
         return name in self._tools
-
-    def takes_arguments(self, name: str) -> bool:
-        """Tools without declared parameters ignore their arguments, malformed or not."""
-        return bool(self._tools[name].definition["parameters"].get("properties"))
 
     def handler(self, name: str) -> Handler:
         tool = self._tools.get(name)
@@ -72,30 +74,35 @@ class ToolAdapters:
         return self._catalog.definitions()
 
     async def execute(self, name: str, raw: str) -> str:
-        """Run one model call; an unknown tool, or non-object arguments for a tool that takes
-        arguments, go back to the model. Field-level problems keep their existing path to the
-        tool's parser and Java validation.
+        """Run one model call. An unknown tool, or arguments that do not match the tool's
+        declared parameters, go back to the model before any operation is requested. Domain
+        rejections from Java still end the run with their own category.
         """
-        if name not in self._catalog or (
-            self._catalog.takes_arguments(name) and not _is_object(raw)
-        ):
+        if name not in self._catalog:
+            log.warning("Tool call rejected: unknown tool name")
             return MALFORMED_CALL_RESULT
-        result = await self._catalog.handler(name)(raw, self._operation)
+        requested = False
+
+        async def tracked(operation: str, value: Message) -> Message:
+            nonlocal requested
+            requested = True
+            return await self._operation(operation, value)
+
+        try:
+            result = await self._catalog.handler(name)(raw, tracked)
+        except ArgumentsRejected as error:
+            if requested:
+                # "No action was taken" would be false, and the model might repeat a write.
+                raise AgentFailure("worker", "INTERNAL_FAILURE") from error
+            log.warning("Tool call rejected before any operation: tool=%s", name)
+            return MALFORMED_CALL_RESULT
         if not isinstance(result, str) or len(result.encode("utf-8")) > MAX_FRAME_BYTES:
             raise AgentFailure("worker", "SERIALIZATION_FAILURE")
         return result
 
 
-def _is_object(raw: str) -> bool:
-    try:
-        object_value(arguments(raw))
-    except AgentFailure:
-        return False
-    return True
-
-
 def _validate(tool: Tool) -> str:
-    """Check registration contracts; model arguments still use each adapter's legacy parser."""
+    """Check registration contracts; each adapter's parser enforces its model arguments."""
     definition = tool.definition
     if not isinstance(definition, dict):
         raise ValueError("Tool definition must be an object")
