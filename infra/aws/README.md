@@ -8,16 +8,17 @@ Terraform state is kept in this directory and ignored by Git. It holds no secret
 
 ## Set up
 
-1. Register a domain in Route 53, which also creates its hosted zone.
-2. Install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [Terraform](https://developer.hashicorp.com/terraform/install), and sign in with `aws login`.
-3. Create the access token in [AWS CloudShell](https://console.aws.amazon.com/cloudshell/), in the region you deploy to (`us-east-2` by default). It stays out of Terraform state.
+1. Make sure the region still has its default VPC and a default subnet in zone `a`, which the host uses. If they were deleted, restore them with `aws ec2 create-default-vpc`.
+2. Get a domain with exactly one Route 53 hosted zone. Registering through Route 53 creates the zone. For a domain from another registrar, create the zone with `aws route53 create-hosted-zone` and set the domain's nameservers to the four it returns.
+3. Install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [Terraform](https://developer.hashicorp.com/terraform/install), and sign in with `aws login`.
+4. Create the access token in [AWS CloudShell](https://console.aws.amazon.com/cloudshell/), in the region you deploy to (`us-east-2` by default). It stays out of Terraform state.
 
    ```shell
    aws ssm put-parameter --region us-east-2 --type SecureString \
      --name /tyler/access-token --value "$(openssl rand -hex 32)"
    ```
 
-4. Create the infrastructure from this directory, then review the plan before confirming it:
+5. Create the infrastructure from this directory, then review the plan before confirming it:
 
    ```shell
    terraform init
