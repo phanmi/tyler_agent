@@ -1,0 +1,17 @@
+# An allowlist, so local data, keys, and build output cannot enter the build context.
+*
+!.mvn
+!pom.xml
+!src
+!contracts
+!agent-python
+
+agent-python/.venv
+agent-python/.pytest_cache
+agent-python/.mypy_cache
+agent-python/.ruff_cache
+agent-python/build
+agent-python/build-desktop-test
+agent-python/dist
+**/__pycache__
+**/*.log

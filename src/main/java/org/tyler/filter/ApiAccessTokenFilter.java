@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.tyler.config.CorsConfig;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
@@ -31,7 +32,8 @@ import java.security.MessageDigest;
  *
  * <p>CORS preflights carry no custom headers, so they pass through to Spring's CORS handling;
  * the actual request that follows still needs the token. When no token is configured (a
- * backend started by hand for development), the API stays open and a warning is logged.
+ * backend started by hand for development), the API stays open with a warning on a loopback
+ * address. On any other address startup fails, because the network could reach an open API.
  * The token is never logged.
  *
  * <p>Every path is checked, not only {@code /api}: the container routes {@code /api;x/...} and
@@ -51,8 +53,10 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
 
     private final byte[] token;
 
-    public ApiAccessTokenFilter(@Value("${agent.access-token:}") String token) {
+    public ApiAccessTokenFilter(@Value("${agent.access-token:}") String token,
+                                @Value("${server.address:#{null}}") InetAddress bindAddress) {
         if (token == null || token.isEmpty()) {
+            requireLoopback(bindAddress);
             this.token = null;
             log.warn("No API access token is configured; the API accepts requests from any local caller");
             return;
@@ -88,6 +92,13 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"error\":\"Unauthorized\"}");
+    }
+
+    /** A null address is how Spring represents binding to every network interface. */
+    private static void requireLoopback(InetAddress bindAddress) {
+        if (bindAddress == null || !bindAddress.isLoopbackAddress()) {
+            throw new IllegalStateException("TYLER_ACCESS_TOKEN is required when the backend listens beyond loopback");
+        }
     }
 
     private static boolean isPreflight(HttpServletRequest request) {
