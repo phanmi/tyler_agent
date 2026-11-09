@@ -87,6 +87,24 @@ jobs:
           npm run typecheck
           npm run test:ui
 
+  container:
+    name: Backend container smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the worker stage
+        run: docker build --target worker-build --tag tyler-worker-build:ci .
+      - name: Test the Linux worker bundle
+        run: >-
+          docker run --rm tyler-worker-build:ci
+          uv run --locked pytest tests/test_worker.py
+          --worker-executable dist/tyler-agent-worker/tyler-agent-worker
+      - name: Build the backend image
+        run: docker build --tag tyler-backend:ci .
+      - name: Smoke-test the backend image
+        run: bash deploy/smoke-test-image.sh tyler-backend:ci
+
   windows-package:
     name: Windows packaged smoke
     needs: build

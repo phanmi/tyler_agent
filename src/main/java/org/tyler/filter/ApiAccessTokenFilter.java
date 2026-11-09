@@ -17,21 +17,24 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.tyler.config.CorsConfig;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Requires the per-launch access token on every request except CORS preflights.
+ * Requires the access token on every request except CORS preflights.
  *
  * <p>Loopback binding and CORS do not stop other local programs, or web pages that send
  * {@code Origin: null} (sandboxed frames) or rebind DNS to 127.0.0.1, from calling the API.
  * The desktop launcher generates a random token for each backend process, passes it in
  * {@code TYLER_ACCESS_TOKEN}, and gives it only to its own window, which sends it in
- * {@value #HEADER}. A request without the matching token gets HTTP 401 before any controller runs.
+ * {@value #HEADER}. A container deployment supplies a long-lived token through the same variable.
+ * A request without the matching token gets HTTP 401 before any controller runs.
  *
  * <p>CORS preflights carry no custom headers, so they pass through to Spring's CORS handling;
  * the actual request that follows still needs the token. When no token is configured (a
- * backend started by hand for development), the API stays open and a warning is logged.
+ * backend started by hand for development), the API stays open with a warning on a loopback
+ * address. On any other address startup fails, because the network could reach an open API.
  * The token is never logged.
  *
  * <p>Every path is checked, not only {@code /api}: the container routes {@code /api;x/...} and
@@ -51,13 +54,15 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
 
     private final byte[] token;
 
-    public ApiAccessTokenFilter(@Value("${agent.access-token:}") String token) {
+    public ApiAccessTokenFilter(@Value("${agent.access-token:}") String token,
+                                @Value("${server.address:#{null}}") InetAddress bindAddress) {
         if (token == null || token.isEmpty()) {
+            requireLoopback(bindAddress);
             this.token = null;
             log.warn("No API access token is configured; the API accepts requests from any local caller");
             return;
         }
-        // 32 random bytes from the launcher. Refuse to start rather than run unprotected.
+        // 32 random bytes. Refuse to start rather than run unprotected.
         if (!token.matches("[0-9a-f]{64}")) {
             throw new IllegalStateException("TYLER_ACCESS_TOKEN must be 64 lowercase hexadecimal characters");
         }
@@ -88,6 +93,13 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"error\":\"Unauthorized\"}");
+    }
+
+    /** A null address is how Spring represents binding to every network interface. */
+    private static void requireLoopback(InetAddress bindAddress) {
+        if (bindAddress == null || !bindAddress.isLoopbackAddress()) {
+            throw new IllegalStateException("TYLER_ACCESS_TOKEN is required when the backend listens beyond loopback");
+        }
     }
 
     private static boolean isPreflight(HttpServletRequest request) {

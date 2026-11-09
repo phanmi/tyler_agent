@@ -24,8 +24,9 @@ llm:
 
 agent:
   workspace-dir: ${AGENT_WORKSPACE_DIR:}
-  # Per-launch token required on every /api request; the desktop launcher sets it.
-  # Unset (a backend started by hand) leaves /api open with a startup warning.
+  # Token required on every request. The desktop launcher sets one per launch; a container sets its own.
+  # Unset (a backend started by hand) leaves /api open with a startup warning on loopback;
+  # on any other address the backend refuses to start.
   access-token: ${TYLER_ACCESS_TOKEN:}
 
 userinfo:
