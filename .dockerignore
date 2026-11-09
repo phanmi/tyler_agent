@@ -15,3 +15,6 @@ agent-python/build-desktop-test
 agent-python/dist
 **/__pycache__
 **/*.log
+**/.env*
+**/*.env
+**/application-local.*

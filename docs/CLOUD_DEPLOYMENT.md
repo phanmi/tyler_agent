@@ -34,7 +34,7 @@ docker run --init --detach --name tyler \
 - **The token is mandatory.** A backend bound to a non-loopback address refuses to start without one, so a failed secret lookup cannot expose an open API.
 - **Run exactly one container per data volume.** File locks and the conversation lane exist only inside one process, and chat history is a read-modify-write file. Stop the old container before starting a new one.
 - **Keep `/data` on a local or block disk, such as EBS.** SQLite locking is not reliable on network filesystems.
-- **Put HTTPS in front of the published port.** A chat holds one HTTP request for up to `agent.python.run-timeout` (5 minutes by default), so proxy and load balancer timeouts must be longer than that.
+- **Put HTTPS in front of the published port.** A chat holds one HTTP request through a queue wait of up to 30 seconds and then `agent.python.run-timeout` (5 minutes by default), so proxy and load balancer timeouts must be longer than the two combined.
 - **Health checks must send the token.** Every path requires it. `GET /api/llm/settings` needs no provider key, and the backend does not start unless the worker became ready.
 - **Keep logging at INFO.** DEBUG logs include chat and tool content.
 - **Host directories mounted at `/data` must be owned by UID 10001**, the image's non-root user.

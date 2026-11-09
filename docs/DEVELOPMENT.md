@@ -202,7 +202,7 @@ The calendar calls the plan service's `previewPlan` method through `GET /api/wor
 
 ## HTTP API
 
-All routes use the running backend's assigned address. When the launcher set an access token, every `/api` request must send it in the `X-Tyler-Token` header (see [Networking and desktop startup](#networking-and-desktop-startup)). JSON errors generally contain an `error` field. Invalid bodies and validation failures return HTTP 400; database failures return HTTP 500.
+All routes use the running backend's assigned address. When an access token is configured, every `/api` request must send it in the `X-Tyler-Token` header (see [Networking and desktop startup](#networking-and-desktop-startup)). JSON errors generally contain an `error` field. Invalid bodies and validation failures return HTTP 400; database failures return HTTP 500.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -252,7 +252,7 @@ Defaults are in [application.yml](../src/main/resources/application.yml). The wo
 | `llm.deepseek.key-file-path` | `DEEPSEEK_KEY_FILE_PATH` | `deepseek-key.txt` |
 | `llm.settings-file-path` | `LLM_SETTINGS_FILE_PATH` | `llm-settings.json` |
 | `agent.workspace-dir` | `AGENT_WORKSPACE_DIR` | Default workspace above |
-| `agent.access-token` | `TYLER_ACCESS_TOKEN` | Unset (set per launch by Electron and `npm run dev`) |
+| `agent.access-token` | `TYLER_ACCESS_TOKEN` | Unset (set per launch by Electron and `npm run dev`; required on a non-loopback address) |
 | `userinfo.file-path` | `USERINFO_FILE_PATH` | `userinfo.json` |
 | `chat.history-file-path` | `CHAT_HISTORY_FILE_PATH` | `chat-history.json` |
 | `chat.max-messages` | `CHAT_MAX_MESSAGES` | `20` |

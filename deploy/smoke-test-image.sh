@@ -16,6 +16,7 @@ readonly HEALTH_URL="${BASE_URL}/api/llm/settings"
 readonly READY_TIMEOUT_SECONDS=90
 readonly REFUSAL_TIMEOUT_SECONDS=60
 readonly TIMEOUT_EXIT_CODE=124
+readonly REQUEST_TIMEOUT_SECONDS=10
 readonly STOP_GRACE_SECONDS=30
 readonly LOG_TAIL_LINES=60
 readonly OUTPUT_TAIL_BYTES=2000
@@ -35,13 +36,15 @@ trap cleanup EXIT
 
 fail() {
     echo "FAILED: $1" >&2
-    docker logs "$CONTAINER" 2>&1 | tail -n "$LOG_TAIL_LINES" >&2 || true
+    if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+        docker logs "$CONTAINER" 2>&1 | tail -n "$LOG_TAIL_LINES" >&2 || true
+    fi
     exit 1
 }
 
 # Prints the HTTP status, or 000 when nothing answered.
 http_status() {
-    curl --silent --output /dev/null --write-out '%{http_code}' "$@" || true
+    curl --silent --max-time "$REQUEST_TIMEOUT_SECONDS" --output /dev/null --write-out '%{http_code}' "$@" || true
 }
 
 start_backend() {
@@ -72,13 +75,14 @@ replace_backend() {
 }
 
 check_refuses_to_start_without_token() {
-    local output exit_code=0
+    local output recent_output exit_code=0
     output="$(timeout "$REFUSAL_TIMEOUT_SECONDS" docker run --rm --name "$REFUSED_CONTAINER" "$IMAGE" 2>&1)" \
         || exit_code=$?
+    recent_output="$(tail --bytes="$OUTPUT_TAIL_BYTES" <<<"$output")"
     [[ "$exit_code" -ne 0 && "$exit_code" -ne "$TIMEOUT_EXIT_CODE" ]] \
-        || fail "backend started without a token (exit code ${exit_code})"
+        || fail "backend started without a token (exit code ${exit_code}): ${recent_output}"
     grep --quiet "$REFUSAL_MESSAGE" <<<"$output" \
-        || fail "startup failed for a reason other than the missing token: $(tail --bytes="$OUTPUT_TAIL_BYTES" <<<"$output")"
+        || fail "startup failed for a reason other than the missing token: ${recent_output}"
 }
 
 check_runs_as_non_root() {
@@ -100,7 +104,8 @@ save_workout() {
 
 check_workout_survived() {
     local body
-    body="$(curl --silent --header "$AUTH_HEADER" "${BASE_URL}/api/workouts?date=${WORKOUT_DATE}")"
+    body="$(curl --silent --max-time "$REQUEST_TIMEOUT_SECONDS" --header "$AUTH_HEADER" \
+        "${BASE_URL}/api/workouts?date=${WORKOUT_DATE}" || true)"
     grep --quiet "$WORKOUT_NAME" <<<"$body" || fail "the saved workout did not survive replacing the container"
 }
 

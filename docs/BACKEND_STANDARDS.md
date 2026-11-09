@@ -170,7 +170,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 - Use existing Spring configuration properties and defaults for Java. Define and validate Python worker configuration at startup, with explicit ownership and precedence; do not introduce competing defaults for shared settings. Document newly introduced settings in the developer guide.
 - Preserve the documented network binding and endpoint-discovery behavior. Read configurable addresses and ports from configuration or discovery results.
-- Loopback binding and CORS do not authenticate other programs on the same computer. Every request except a CORS preflight is authenticated by the per-launch access token described in the [developer guide](DEVELOPMENT.md); never log the token. Keep new endpoints under `/api`, the only path the CORS mapping allows.
+- Loopback binding and CORS do not authenticate other programs on the same computer. Every request except a CORS preflight is authenticated by the access token described in the [developer guide](DEVELOPMENT.md); never log the token. Keep new endpoints under `/api`, the only path the CORS mapping allows.
 - The model's file tools must never reach application-owned workspace files: provider keys, provider settings, and chat history are refused by `ProtectedWorkspaceFiles` before the sandbox is touched. A service that keeps its own workspace file implements `IApplicationOwnedFiles`, which protects the file automatically.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
 - Use the project's shared release-version source; do not introduce competing version definitions.
