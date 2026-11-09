@@ -5,6 +5,11 @@ locals {
   access_token_parameter = "/tyler/access-token"
   web_ports              = toset(["80", "443"])
   caddy_image            = "caddy:2.11.9-alpine"
+  dns_ttl_seconds        = 300
+
+  # The deploy pipeline runs the backend under this name on this network, where Caddy finds it.
+  docker_network         = "tyler"
+  backend_container_name = "tyler-backend"
 
   # These match the Dockerfile's non-root user and listening port.
   backend_uid  = 10001
@@ -12,14 +17,16 @@ locals {
 
   # A Windows checkout can have CRLF line endings, which bash on the host cannot run.
   bootstrap_script = replace(templatefile("${path.module}/bootstrap.sh.tftpl", {
-    api_hostname          = local.api_hostname
-    backend_port          = local.backend_port
-    backend_uid           = local.backend_uid
-    caddy_image           = local.caddy_image
-    data_mount_path       = local.data_mount_path
-    data_volume_device_id = replace(aws_ebs_volume.data.id, "-", "")
-    log_group_name        = aws_cloudwatch_log_group.containers.name
-    region                = var.region
+    api_hostname           = local.api_hostname
+    backend_container_name = local.backend_container_name
+    backend_port           = local.backend_port
+    backend_uid            = local.backend_uid
+    caddy_image            = local.caddy_image
+    data_mount_path        = local.data_mount_path
+    data_volume_device_id  = replace(aws_ebs_volume.data.id, "-", "")
+    docker_network         = local.docker_network
+    log_group_name         = aws_cloudwatch_log_group.containers.name
+    region                 = var.region
   }), "\r\n", "\n")
 }
 
@@ -153,6 +160,9 @@ resource "aws_instance" "host" {
     ignore_changes = [ami, user_data]
   }
 
+  # Terraform cannot see that the first boot and SSM agent need these permissions.
+  depends_on = [aws_iam_role_policy.host, aws_iam_role_policy_attachment.session_manager]
+
   tags = {
     Name = "tyler-host"
   }
@@ -167,6 +177,6 @@ resource "aws_route53_record" "api" {
   zone_id = data.aws_route53_zone.domain.zone_id
   name    = local.api_hostname
   type    = "A"
-  ttl     = 300
+  ttl     = local.dns_ttl_seconds
   records = [aws_eip.host.public_ip]
 }

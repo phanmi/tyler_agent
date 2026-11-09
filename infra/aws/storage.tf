@@ -95,10 +95,12 @@ resource "aws_ecr_lifecycle_policy" "backend" {
     rules = [{
       rulePriority = 1
       description  = "Keep only the images needed for rollback"
+      # Tagged only, so the untagged manifests a build attaches do not use up the count.
       selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = var.image_retention_count
+        tagStatus      = "tagged"
+        tagPatternList = ["*"]
+        countType      = "imageCountMoreThan"
+        countNumber    = var.image_retention_count
       }
       action = {
         type = "expire"

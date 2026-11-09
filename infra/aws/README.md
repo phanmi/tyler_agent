@@ -10,7 +10,7 @@ Terraform state is kept in this directory and ignored by Git. It holds no secret
 
 1. Register a domain in Route 53, which also creates its hosted zone.
 2. Install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [Terraform](https://developer.hashicorp.com/terraform/install), and sign in with `aws login`.
-3. Create the access token in [AWS CloudShell](https://console.aws.amazon.com/cloudshell/). It stays out of Terraform state.
+3. Create the access token in [AWS CloudShell](https://console.aws.amazon.com/cloudshell/), in the region you deploy to (`us-east-2` by default). It stays out of Terraform state.
 
    ```shell
    aws ssm put-parameter --region us-east-2 --type SecureString \
