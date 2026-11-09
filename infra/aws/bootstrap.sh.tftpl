@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Prepares the host on first boot: the data volume, Docker, and the HTTPS proxy.
+# The deploy pipeline starts the backend container.
+set -euo pipefail
+
+readonly DATA_DEVICE="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_${data_volume_device_id}"
+readonly DATA_MOUNT="${data_mount_path}"
+readonly DEVICE_WAIT_SECONDS=300
+readonly BLKID_NO_FILESYSTEM=2
+
+# Terraform attaches the volume after the instance has started booting.
+wait_for_data_device() {
+    local deadline=$((SECONDS + DEVICE_WAIT_SECONDS))
+    until [[ -e "$DATA_DEVICE" ]]; do
+        ((SECONDS < deadline)) || { echo "The data volume was not attached in time" >&2; exit 1; }
+        sleep 2
+    done
+}
+
+# Formats only a blank volume, so a replaced host keeps the existing data.
+mount_data_volume() {
+    local blkid_status=0
+    blkid "$DATA_DEVICE" >/dev/null || blkid_status=$?
+    if ((blkid_status == BLKID_NO_FILESYSTEM)); then
+        mkfs.ext4 "$DATA_DEVICE"
+    fi
+    mkdir -p "$DATA_MOUNT"
+    echo "UUID=$(blkid -s UUID -o value "$DATA_DEVICE") $DATA_MOUNT ext4 defaults,nofail 0 2" >>/etc/fstab
+    mount "$DATA_MOUNT"
+    install -d -o ${backend_uid} -g ${backend_uid} -m 700 "$DATA_MOUNT/backend"
+    mkdir -p "$DATA_MOUNT/caddy"
+}
+
+install_docker() {
+    dnf install --assumeyes docker
+    systemctl enable --now docker
+}
+
+# Caddy has no upstream timeout by default, so a chat lasting several minutes is not cut off.
+start_https_proxy() {
+    mkdir -p /etc/caddy
+    cat >/etc/caddy/Caddyfile <<CADDYFILE
+${api_hostname} {
+    reverse_proxy 127.0.0.1:${backend_port}
+}
+CADDYFILE
+    docker run --detach --restart unless-stopped --name caddy --network host \
+        --log-driver awslogs \
+        --log-opt awslogs-region=${region} \
+        --log-opt awslogs-group=${log_group_name} \
+        --log-opt awslogs-stream=caddy \
+        --volume /etc/caddy/Caddyfile:/etc/caddy/Caddyfile:ro \
+        --volume "$DATA_MOUNT/caddy:/data" \
+        "${caddy_image}"
+}
+
+wait_for_data_device
+mount_data_volume
+install_docker
+start_https_proxy
