@@ -22,13 +22,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Requires the per-launch access token on every request except CORS preflights.
+ * Requires the access token on every request except CORS preflights.
  *
  * <p>Loopback binding and CORS do not stop other local programs, or web pages that send
  * {@code Origin: null} (sandboxed frames) or rebind DNS to 127.0.0.1, from calling the API.
  * The desktop launcher generates a random token for each backend process, passes it in
  * {@code TYLER_ACCESS_TOKEN}, and gives it only to its own window, which sends it in
- * {@value #HEADER}. A request without the matching token gets HTTP 401 before any controller runs.
+ * {@value #HEADER}. A container deployment supplies a long-lived token through the same variable.
+ * A request without the matching token gets HTTP 401 before any controller runs.
  *
  * <p>CORS preflights carry no custom headers, so they pass through to Spring's CORS handling;
  * the actual request that follows still needs the token. When no token is configured (a
@@ -61,7 +62,7 @@ public class ApiAccessTokenFilter extends OncePerRequestFilter {
             log.warn("No API access token is configured; the API accepts requests from any local caller");
             return;
         }
-        // 32 random bytes from the launcher. Refuse to start rather than run unprotected.
+        // 32 random bytes. Refuse to start rather than run unprotected.
         if (!token.matches("[0-9a-f]{64}")) {
             throw new IllegalStateException("TYLER_ACCESS_TOKEN must be 64 lowercase hexadecimal characters");
         }
