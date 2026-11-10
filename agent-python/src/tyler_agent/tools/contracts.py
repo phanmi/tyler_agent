@@ -22,11 +22,11 @@ type Respond = Callable[
 class RunSettings:
     """Behavior switches for one run.
 
-    Java does not send these yet (#98), so the runtime uses the defaults below. Code that drives
-    the agent directly, such as tests and the eval harness, can choose other values.
+    The run payload carries none of these, so the runtime uses the defaults below. Code that
+    drives the agent directly, such as tests, can choose other values.
     """
 
-    # recordFood saves an item only after the run's model accepts it (#96).
+    # recordFood saves an item only after the run's model accepts it.
     verify_food: bool = True
 
 

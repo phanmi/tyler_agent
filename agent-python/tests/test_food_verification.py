@@ -151,6 +151,9 @@ def test_a_rejected_item_is_regenerated_with_the_reason_and_saved_when_accepted(
     assert "The user said 250 g." in model.prompts[1] and food_raw() in model.prompts[1]
     assert TODAY in model.prompts[1]
     assert food_raw(amount=250) in model.prompts[2]
+    # Only the check of a correction also sees the record it replaces.
+    assert "replaces the rejected record" in model.prompts[2] and food_raw() in model.prompts[2]
+    assert "replaces the rejected record" not in model.prompts[0]
     assert model.saved_at_request == [0, 0, 0]
 
 
@@ -181,6 +184,7 @@ def verdict_arguments(raw: str) -> AssistantTurn:
         verdict_arguments('{"valid": true, "valid": true, "reason": "ok"}'),
         verdict_arguments('{"valid": true, "reason": "ok"} trailing'),
         verdict_arguments('{"valid": true, "reason": "\\ud800"}'),
+        verdict_arguments('{"valid": false, "reason": " "}'),
         verdict_arguments("[true]"),
     ],
 )
@@ -188,11 +192,26 @@ def test_anything_but_one_well_formed_verdict_is_a_rejection(turn: AssistantTurn
     assert parse_verdict(turn) == MALFORMED_VERDICT
 
 
-def test_malformed_verdicts_never_lead_to_a_save() -> None:
-    malformed = AssistantTurn((), "valid")
-    output, java, _ = record([malformed, regenerated(), malformed])
+def test_unusable_verdicts_never_lead_to_a_save() -> None:
+    unusable = AssistantTurn((), "valid")
+    output, java, model = record([unusable, unusable])
     assert java.saved() == []
-    assert json.loads(output)["reason"] == MALFORMED_VERDICT.reason
+    assert json.loads(output) == {"error": NOT_RECORDED, "reason": MALFORMED_VERDICT.reason}
+    assert model.tools == [[VERDICT_TOOL.name], [VERDICT_TOOL.name]]
+
+
+def test_after_an_unusable_verdict_the_same_item_is_checked_again_not_regenerated() -> None:
+    output, java, model = record([AssistantTurn((), "It looks right."), verdict(True)])
+    assert java.saved() == [food_arguments(food_raw())]
+    assert output == saved_output(food_raw())
+    assert model.tools == [[VERDICT_TOOL.name], [VERDICT_TOOL.name]]
+    assert all(food_raw() in prompt for prompt in model.prompts)
+
+
+def test_a_rejection_after_an_unusable_verdict_refuses_with_the_real_reason() -> None:
+    output, java, _ = record([AssistantTurn((), "Hmm."), verdict(False, "It was 300 g.")])
+    assert java.saved() == []
+    assert json.loads(output)["reason"] == "It was 300 g."
 
 
 @pytest.mark.parametrize(
@@ -202,6 +221,8 @@ def test_malformed_verdicts_never_lead_to_a_save() -> None:
         verdict(True),
         AssistantTurn((ToolCall("fix", "recordFood", '{"genericInfo": {"foodName": 5}}'),), ""),
         AssistantTurn((ToolCall("a", "recordFood", food_raw()),) * 2, ""),
+        # Matches the schema but exceeds the protocol's two-billion bound.
+        regenerated(calories=3000000000),
     ],
 )
 def test_a_malformed_regeneration_counts_as_a_rejection(correction: AssistantTurn) -> None:

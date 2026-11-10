@@ -6,7 +6,8 @@ regenerated with the verdict's reason and checked again; a record rejected twice
 Nothing here writes: the adapter saves only a record this module returns.
 
 The model checks its own output, so it catches mismatches with the conversation (wrong food,
-amount or date) better than errors in its own nutrition estimates.
+amount or date) better than errors in its own nutrition estimates. It sees no tool results, so
+a record whose facts came from one, such as a file the chat model read, is likely to be refused.
 """
 
 import json
@@ -14,8 +15,11 @@ import logging
 from dataclasses import dataclass
 from importlib.resources import files
 
+from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.time_current.adapter import current_time
 from tyler_agent.tools.contracts import ToolContext
+from tyler_agent.tools.discovery import read_definition
 from tyler_agent.tools.parsing import (
     ArgumentsRejected,
     arguments,
@@ -23,7 +27,7 @@ from tyler_agent.tools.parsing import (
     object_value,
     text_value,
 )
-from tyler_agent.transcript import AssistantTurn, ToolDefinition, UserTurn
+from tyler_agent.transcript import AssistantTurn, ToolCall, ToolDefinition, UserTurn
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +66,8 @@ reasonable estimate.
 - The date does not match when the user said they ate it, counted from today's date below. When \
 the user gave no date, the date is today.
 - Calories, protein, carbs, fat or fiber are implausible for that food and amount, or \
-inconsistent with each other.
+inconsistent with each other. Values the user stated themselves are correct as given, even if \
+they look unusual.
 
 Today's date and time: {today}
 
@@ -70,9 +75,16 @@ The conversation, oldest message first:
 {conversation}
 
 The food record to check:
-{record}
+{record}{correction}
 
 Call {tool} exactly once."""
+
+# Added for a regenerated record, so a correction cannot swap in another food the user mentioned.
+CORRECTION_NOTE = """
+
+This record replaces the rejected record below. Also reject it if it is about a different food \
+than the rejected record:
+{replaced}"""
 
 REGENERATE_PROMPT = """\
 A food diary record was rejected before it was saved. Write a corrected record for the same food.
@@ -87,8 +99,8 @@ The conversation, oldest message first:
 The rejected record:
 {record}
 
-Call {tool} exactly once with the corrected record. Estimate nutrition values from the food and \
-amount when the user did not give them."""
+Call {tool} exactly once with the corrected record. Keep every value the user stated. Estimate \
+nutrition values from the food and amount when the user did not give them."""
 
 NOT_RECORDED = (
     "Not recorded: this food item failed verification, so nothing was saved. Tell the user it "
@@ -109,35 +121,47 @@ MALFORMED_VERDICT = Verdict(False, "The check returned no usable verdict.")
 
 @dataclass(frozen=True)
 class Refused:
-    """The record reached MAX_REJECTIONS; `reason` is the last usable rejection reason."""
+    """The record reached MAX_REJECTIONS; `reason` is the last reason a verdict gave."""
 
     reason: str
 
 
 @dataclass(frozen=True)
 class Candidate:
-    """One record under review: the model's recordFood arguments and their parsed input."""
+    """One record under review: the model's recordFood arguments, their parsed input, and
+    the rejected arguments it corrects, if it is a regeneration."""
 
     raw: str
     food: Message
+    replaces: str | None = None
+
+
+def single_call(turn: AssistantTurn, tool: ToolDefinition) -> ToolCall | None:
+    """The turn's call when it is exactly one call of `tool`; a text reply, another tool, or
+    several calls give None."""
+    if len(turn.calls) != 1 or turn.calls[0].name != tool.name:
+        return None
+    return turn.calls[0]
 
 
 def parse_verdict(turn: AssistantTurn) -> Verdict:
-    """Accept exactly one verdict call with a boolean and a text reason; anything else rejects.
+    """Accept exactly one verdict call with a boolean and a text reason; anything else, or a
+    rejection that gives no reason, is MALFORMED_VERDICT.
 
     The verdict tool is offered but not forced (Claude cannot force a tool while thinking, and
     DeepSeek's tool calls are not strict), so a text reply or a malformed call is expected
     occasionally.
     """
-    if len(turn.calls) != 1 or turn.calls[0].name != VERDICT_TOOL.name:
+    call = single_call(turn, VERDICT_TOOL)
+    if call is None:
         return MALFORMED_VERDICT
     try:
-        value = object_value(arguments(turn.calls[0].arguments), ("valid", "reason"))
+        value = object_value(arguments(call.arguments), ("valid", "reason"))
         reason = text_value(value.get("reason"))
     except ArgumentsRejected:
         return MALFORMED_VERDICT
     valid = value.get("valid")
-    if not isinstance(valid, bool) or reason is None:
+    if not isinstance(valid, bool) or reason is None or not (valid or reason.strip()):
         return MALFORMED_VERDICT
     return Verdict(valid, reason)
 
@@ -147,84 +171,96 @@ def not_recorded(refused: Refused) -> str:
     return json.dumps({"error": NOT_RECORDED, "reason": refused.reason}, ensure_ascii=False)
 
 
+def conversation_text(context: ToolContext) -> str:
+    """JSON keeps message boundaries unambiguous whatever the messages contain."""
+    return json.dumps(
+        [
+            {"role": "user" if isinstance(turn, UserTurn) else "assistant", "content": turn.text}
+            for turn in context.conversation
+        ],
+        ensure_ascii=False,
+    )
+
+
+def record_food_tool() -> ToolDefinition:
+    """recordFood's own definition, so a regenerated record has the shape the chat model uses."""
+    return ToolDefinition.from_definition(read_definition(files(__name__.rpartition(".")[0])))
+
+
 @dataclass(frozen=True)
 class Review:
-    """The model requests about one food item, which share the run context and today's date."""
+    """The model requests about one food item, which share the run context, today's date and
+    the conversation text."""
 
     context: ToolContext
     today: str
+    conversation: str
 
-    async def verdict(self, record: str) -> Verdict:
+    async def verdict(self, candidate: Candidate) -> Verdict:
+        correction = (
+            ""
+            if candidate.replaces is None
+            else CORRECTION_NOTE.format(replaced=candidate.replaces)
+        )
         prompt = VERIFY_PROMPT.format(
             today=self.today,
-            conversation=self._conversation(),
-            record=record,
+            conversation=self.conversation,
+            record=candidate.raw,
+            correction=correction,
             tool=VERDICT_TOOL.name,
         )
         return parse_verdict(await self.context.respond((UserTurn(prompt),), (VERDICT_TOOL,)))
 
-    async def regenerated(self, rejected: str, reason: str) -> Candidate | None:
-        """Ask for one corrected recordFood call; None when the answer doesn't match it."""
+    async def regenerated(self, rejected: Candidate, reason: str) -> Candidate | None:
+        """Ask for one corrected recordFood call; None when the answer is not a recordFood call
+        that Java could be sent, including a number beyond the protocol bound."""
         tool = record_food_tool()
         prompt = REGENERATE_PROMPT.format(
             reason=reason,
             today=self.today,
-            conversation=self._conversation(),
-            record=rejected,
+            conversation=self.conversation,
+            record=rejected.raw,
             tool=tool.name,
         )
-        turn = await self.context.respond((UserTurn(prompt),), (tool,))
-        if len(turn.calls) != 1 or turn.calls[0].name != tool.name:
+        call = single_call(await self.context.respond((UserTurn(prompt),), (tool,)), tool)
+        if call is None:
             return None
         try:
-            return Candidate(turn.calls[0].arguments, food_arguments(turn.calls[0].arguments))
-        except ArgumentsRejected:
+            return Candidate(call.arguments, food_arguments(call.arguments), rejected.raw)
+        except (ArgumentsRejected, AgentFailure):
+            # Parsing raises AgentFailure only for a number beyond the protocol bound. The user
+            # never supplied this value, so it is a failed correction, not a failed chat.
             return None
-
-    def _conversation(self) -> str:
-        """JSON keeps message boundaries unambiguous whatever the messages contain."""
-        return json.dumps(
-            [
-                {
-                    "role": "user" if isinstance(turn, UserTurn) else "assistant",
-                    "content": turn.text,
-                }
-                for turn in self.context.conversation
-            ],
-            ensure_ascii=False,
-            indent=2,
-        )
 
 
 async def verified_food(raw: str, food: Message, context: ToolContext) -> Message | Refused:
     """Return the record to save, regenerated if needed, or why nothing should be saved.
 
     `raw` is the chat model's recordFood arguments and `food` their parsed food.insert input.
+    Each of these counts as one rejection: a verdict that rejects, an unusable verdict, and a
+    regeneration that is not a usable recordFood call. A rejected record is regenerated; after
+    an unusable verdict the same record is checked again, because there is nothing to correct.
+
     This requests only the read-only time operation and model calls. Provider failures and
-    cancellation propagate, so nothing is saved after them. A regenerated number beyond the
-    protocol bound fails the run, as it does for the chat model's own call.
+    cancellation propagate, so nothing is saved after them.
     """
-    review = Review(context, str((await context.operation("time.current", {}))["text"]))
-    candidate: Candidate | None = Candidate(raw, food)
-    rejected, reason = raw, ""
-    for rejections in range(MAX_REJECTIONS):
-        if rejections:
-            candidate = await review.regenerated(rejected, reason)
-        if candidate is None:
-            # A correction that doesn't match recordFood counts as a rejection; the reason stands.
-            continue
-        verdict = await review.verdict(candidate.raw)
+    review = Review(context, await current_time(context.operation), conversation_text(context))
+    candidate = Candidate(raw, food)
+    rejections, reason = 0, MALFORMED_VERDICT.reason
+    while rejections < MAX_REJECTIONS:
+        verdict = await review.verdict(candidate)
         if verdict.valid:
             log.info("Food record verified: rejections=%d", rejections)
             return candidate.food
-        rejected, reason = candidate.raw, verdict.reason
-    log.info("Food record refused by verification: rejections=%d", MAX_REJECTIONS)
+        rejections += 1
+        if verdict is MALFORMED_VERDICT:
+            continue
+        reason = verdict.reason
+        if rejections < MAX_REJECTIONS:
+            correction = await review.regenerated(candidate, reason)
+            if correction is None:
+                rejections += 1
+            else:
+                candidate = correction
+    log.info("Food record refused by verification: rejections=%d", rejections)
     return Refused(reason)
-
-
-def record_food_tool() -> ToolDefinition:
-    """recordFood's own definition, so a regenerated record has the shape the chat model uses."""
-    package = files(__name__.rpartition(".")[0])
-    return ToolDefinition.from_definition(
-        json.loads(package.joinpath("definition.json").read_text("utf-8"))
-    )

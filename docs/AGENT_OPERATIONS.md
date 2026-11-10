@@ -61,16 +61,28 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 
 [`verification.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/verification.py) checks every `recordFood` item with the run's provider and model before `food.insert` is requested, so the chat model cannot skip it:
 
-1. Read today's date once through `time.current`.
-2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the model's `recordFood` arguments. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and whether the nutrition values are plausible and consistent.
-3. **Regenerate** a rejected item. Send the same facts, the rejected arguments and the reason, with `recordFood`'s own definition as the only tool. The answer goes through the same argument parser, then is verified again.
+1. Read today's date once per item through `time.current`.
+2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the model's `recordFood` arguments. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and whether the nutrition values are plausible and consistent; values the user stated are taken as given.
+3. **Regenerate** a rejected item. Send the same facts, the rejected arguments and the reason, with `recordFood`'s own definition as the only tool. The answer goes through the same argument parser, then is verified again. That second check also sees the rejected arguments, and rejects a correction that is about a different food.
 4. An item is refused at its second rejection (`MAX_REJECTIONS`). The tool result tells the chat model that nothing was saved and why, and that it should tell the user instead of retrying.
 
-The verdict tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. A text reply, the wrong tool, several calls, or arguments other than a boolean `valid` and a text `reason` count as a rejection, never as acceptance. A regeneration that doesn't match the `recordFood` parameters also counts as a rejection.
+Each of these counts as one rejection:
 
-Each item costs one to three extra model requests (verify, regenerate, verify), within the run's existing deadline. Provider failures and cancellation during a check end the run with their usual codes, and nothing is saved for that item. Logs record only the outcome and rejection count, never the conversation, the item or the reason. The model checks its own output, so it catches mismatches with the conversation better than errors in its own nutrition estimates.
+- a verdict with `valid: false`;
+- an unusable verdict: a text reply, the wrong tool, several calls, arguments other than a boolean `valid` and a text `reason`, or a rejection with a blank reason. The verdict tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. After an unusable verdict the same item is checked again; it is not regenerated, because there is no reason to correct;
+- a regeneration that is not one `recordFood` call Java could be sent, including arguments that don't match its parameters and a number beyond the protocol bound.
 
-Verification is on for every chat. The worker reads it from `RunSettings.verify_food` in the tool context, which defaults to on because Java does not send run settings yet; #98 makes it a user setting. Tests and the #97 eval harness set it directly.
+An unusable verdict never accepts an item.
+
+Each item costs one to three extra model requests, within the run's existing deadline. Provider failures and cancellation during a check end the run with their usual codes, and nothing is saved for that item. Logs record only the outcome and rejection count, never the conversation, the item or the reason.
+
+Limits of the check:
+
+- The model checks its own output, so it catches mismatches with the conversation better than errors in its own nutrition estimates.
+- The verifier sees no tool results. An item whose facts came from one, such as a meal read from a workspace file, is likely to be refused.
+- Items are checked and saved one at a time. If a check fails the run partway through a message with several foods, the earlier foods stay saved, as they do when any later step of a run fails.
+
+Verification is on for every chat. The worker reads it from `RunSettings.verify_food` in the tool context; the run payload carries no run settings, so the runtime uses the default, which is on. Code that drives the agent directly, such as tests, can set it.
 
 ## Persistence, failures, and file access
 

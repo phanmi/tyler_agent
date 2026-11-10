@@ -103,7 +103,7 @@ class WorkerRuntime:
                     async def operation(name: str, value: Message) -> Message:
                         return await self._operation(run, name, value)
 
-                    # Java does not send run settings yet (#98), so every chat uses the defaults.
+                    # The run payload carries no run settings, so every chat uses the defaults.
                     context = tool_context(payload, provider, operation, RunSettings())
                     tools = ToolAdapters(context, self._tools)
                     reply = await run_agent(payload, provider, tools)

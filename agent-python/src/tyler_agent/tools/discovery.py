@@ -4,11 +4,20 @@ import inspect
 import json
 from importlib import import_module
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from types import ModuleType
 from typing import cast
 
+from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import builtin
 from tyler_agent.tools.contracts import Handler, Tool
+
+
+def read_definition(package: Traversable) -> Message:
+    """Read one tool package's definition.json; an unreadable or invalid file raises
+    OSError or ValueError."""
+    definition: Message = json.loads(package.joinpath("definition.json").read_text("utf-8"))
+    return definition
 
 
 def discover_tools(package: ModuleType = builtin) -> tuple[Tool, ...]:
@@ -23,7 +32,7 @@ def discover_tools(package: ModuleType = builtin) -> tuple[Tool, ...]:
             continue
         name = f"{package.__name__}.{resource.name}"
         try:
-            definition = json.loads(resource.joinpath("definition.json").read_text("utf-8"))
+            definition = read_definition(resource)
             adapter = import_module(f"{name}.adapter")
         except (OSError, ValueError, ImportError) as error:
             raise ValueError(f"Cannot load bundled tool package: {name}") from error
