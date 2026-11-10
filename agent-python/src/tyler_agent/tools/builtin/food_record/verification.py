@@ -66,8 +66,10 @@ reasonable estimate.
 - The date does not match when the user said they ate it, counted from today's date below. When \
 the user gave no date, the date is today.
 - Calories, protein, carbs, fat or fiber are implausible for that food and amount, or \
-inconsistent with each other. Values the user stated themselves are correct as given, even if \
-they look unusual.
+inconsistent with each other. This applies to values the user stated too. Do not reject a \
+stated value for differing from a typical estimate, because products vary. Reject it when it is \
+impossible for the food and amount or contradicts another value, and name the conflict in the \
+reason.
 
 Today's date and time: {today}
 
@@ -99,8 +101,11 @@ The conversation, oldest message first:
 The rejected record:
 {record}
 
-Call {tool} exactly once with the corrected record. Keep every value the user stated. Estimate \
-nutrition values from the food and amount when the user did not give them."""
+Call {tool} exactly once with the corrected record. Keep the food, amount, unit and date the \
+user stated. Estimate nutrition values from the food and amount when the user did not give them. \
+Never replace a nutrition value the user stated with your own estimate: if the record was \
+rejected because of such a value, keep it, so the user is asked about it instead of the value \
+being changed."""
 
 NOT_RECORDED = (
     "Not recorded: this food item failed verification, so nothing was saved. Tell the user it "
