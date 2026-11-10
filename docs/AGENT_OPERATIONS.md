@@ -48,7 +48,7 @@ Discovery reads only the trusted bundled namespace, never a model-supplied modul
 
 | Python adapter | Parsing behavior before the service operation | Model-visible result |
 |---|---|---|
-| [recordFood](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) | Enforces the advertised schema's types and fields: text fields must be JSON strings and nutrition fields JSON numbers, so booleans, numbers as names/units, and quoted numbers are rejected, as are unknown properties at any level. Missing or null record components/fields still pass as null to the shared food validator. Valid numbers are encoded exactly as plain decimal strings; a number beyond the two-billion protocol bound fails the run as `INVALID_ARGUMENT`. | Compatible pretty food JSON with numeric values, excluding the generated ID. |
+| [recordFood](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) | Enforces the advertised schema's types and fields: text fields must be JSON strings and nutrition fields JSON numbers, so booleans, numbers as names/units, and quoted numbers are rejected, as are unknown properties at any level. Missing or null record components/fields still pass as null to the shared food validator. Valid numbers are encoded exactly as plain decimal strings; a number beyond the two-billion protocol bound fails the run as `INVALID_ARGUMENT`. Parsed items are then [verified](#food-verification) before `food.insert`. | Compatible pretty food JSON with numeric values, excluding the generated ID. For an item verification refuses, a JSON `error` saying nothing was saved, with the verifier's `reason`. |
 | [generateWorkoutPlan](../agent-python/src/tyler_agent/tools/builtin/workout_plan/adapter.py) | Requires a JSON object with only start date/goal/equipment; any other property, including `preview`, is rejected. Each supplied non-null field must be a string. Missing/null fields and enum values pass to service validation. | Pretty plan JSON with numeric weights, nullable activities, and empty rest-day workout arrays. |
 | [GetUserInfo](../agent-python/src/tyler_agent/tools/builtin/user_info/adapter.py) | Ignores arguments. The service owns profile loading, normalization, and existing missing/unreadable-file fallback. A null top-level stored profile fails; the bridge does not invent a profile. Nullable components are retained. | Java-record-style `UserInfo[user=User[...], other=Other[...]]`, with component order and null/string rendering specified in the protocol guide. |
 | [readFile](../agent-python/src/tyler_agent/tools/builtin/file_read/adapter.py) | Requires an object whose only property is a string `path`; a missing, null, or non-string path or any other property is rejected. Blank, unsafe, and protected paths are sandbox rules: the bridge rejects them as `INVALID_ARGUMENT`. | Raw file contents. |
@@ -56,6 +56,21 @@ Discovery reads only the trusted bundled namespace, never a model-supplied modul
 | [getCurrentTime](../agent-python/src/tyler_agent/tools/builtin/time_current/adapter.py) | Ignores arguments. Python requests an empty-input operation instead of substituting its own local clock/time zone. | Server-local time text in the existing format. |
 
 No-argument tools send `{}` to Java after their adapter parsing. Public tool names are not accepted as private operation names. Protocol version 2 (like version 1) excludes scientific notation and decimal magnitudes above two billion; adapters must honor that documented transport restriction rather than round or silently truncate values. Expanded ISO years remain strings through Python and are interpreted by Java. The seven-day upper-date bound belongs to the shared plan service.
+
+### Food verification
+
+[`verification.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/verification.py) checks every `recordFood` item with the run's provider and model before `food.insert` is requested, so the chat model cannot skip it:
+
+1. Read today's date once through `time.current`.
+2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the model's `recordFood` arguments. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and whether the nutrition values are plausible and consistent.
+3. **Regenerate** a rejected item. Send the same facts, the rejected arguments and the reason, with `recordFood`'s own definition as the only tool. The answer goes through the same argument parser, then is verified again.
+4. An item is refused at its second rejection (`MAX_REJECTIONS`). The tool result tells the chat model that nothing was saved and why, and that it should tell the user instead of retrying.
+
+The verdict tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. A text reply, the wrong tool, several calls, or arguments other than a boolean `valid` and a text `reason` count as a rejection, never as acceptance. A regeneration that doesn't match the `recordFood` parameters also counts as a rejection.
+
+Each item costs one to three extra model requests (verify, regenerate, verify), within the run's existing deadline. Provider failures and cancellation during a check end the run with their usual codes, and nothing is saved for that item. Logs record only the outcome and rejection count, never the conversation, the item or the reason. The model checks its own output, so it catches mismatches with the conversation better than errors in its own nutrition estimates.
+
+Verification is on for every chat. The worker reads it from `RunSettings.verify_food` in the tool context, which defaults to on because Java does not send run settings yet; #98 makes it a user setting. Tests and the #97 eval harness set it directly.
 
 ## Persistence, failures, and file access
 

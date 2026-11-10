@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
-from tyler_agent.tools.contracts import Operation, ToolContext
+from tyler_agent.tools.contracts import Operation, RunSettings, ToolContext
 from tyler_agent.transcript import (
     AssistantTurn,
     Provider,
@@ -34,8 +34,11 @@ def initial_transcript(payload: Message) -> list[TranscriptEntry]:
     return list(conversation(payload))
 
 
-def tool_context(payload: Message, provider: Provider, operation: Operation) -> ToolContext:
-    """Lend tools this run's Java operations, its provider and model, and its conversation."""
+def tool_context(
+    payload: Message, provider: Provider, operation: Operation, settings: RunSettings
+) -> ToolContext:
+    """Lend tools this run's Java operations, its provider and model, its conversation, and
+    its settings."""
     model = payload["model"]
 
     async def respond(
@@ -43,7 +46,7 @@ def tool_context(payload: Message, provider: Provider, operation: Operation) -> 
     ) -> AssistantTurn:
         return await provider.respond(model, transcript, tools)
 
-    return ToolContext(operation, respond, conversation(payload))
+    return ToolContext(operation, respond, conversation(payload), settings)
 
 
 async def run_agent(payload: Message, provider: Provider, tools: ToolAdapters) -> str:

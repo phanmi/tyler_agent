@@ -1,7 +1,6 @@
 """Exercise DeepSeek through the pinned openai SDK and in-memory transport, never live."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -10,6 +9,7 @@ import httpx2
 import pytest
 from openai import AsyncOpenAI
 from support.agent_fakes import fake_context, payload
+from support.http_server import Server
 
 from tyler_agent import deepseek_provider as module
 from tyler_agent.agent import run_agent
@@ -46,21 +46,6 @@ def completion(
         "model": "deepseek-flash",
         "choices": [{"index": 0, "message": message, "finish_reason": finish}],
     }
-
-
-class Server:
-    """Record request bodies and answer from a script, one response per request."""
-
-    def __init__(self, responses: list[httpx2.Response]) -> None:
-        self.responses = responses
-        self.requests: list[httpx2.Request] = []
-
-    def __call__(self, request: httpx2.Request) -> httpx2.Response:
-        self.requests.append(request)
-        return self.responses.pop(0)
-
-    def body(self, index: int) -> Any:
-        return json.loads(self.requests[index].content)
 
 
 def run[T](

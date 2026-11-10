@@ -19,6 +19,18 @@ type Respond = Callable[
 
 
 @dataclass(frozen=True)
+class RunSettings:
+    """Behavior switches for one run.
+
+    Java does not send these yet (#98), so the runtime uses the defaults below. Code that drives
+    the agent directly, such as tests and the eval harness, can choose other values.
+    """
+
+    # recordFood saves an item only after the run's model accepts it (#96).
+    verify_food: bool = True
+
+
+@dataclass(frozen=True)
 class ToolContext:
     """What one run lends its tool calls.
 
@@ -31,6 +43,7 @@ class ToolContext:
     operation: Operation
     respond: Respond
     conversation: tuple[UserTurn | AssistantTurn, ...]
+    settings: RunSettings
 
 
 type Handler = Callable[[str, ToolContext], Awaitable[str]]
