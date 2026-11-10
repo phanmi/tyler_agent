@@ -48,7 +48,7 @@ The workflow builds the image, runs the container smoke test, pushes the image t
 
 If the new image crashes or does not answer within 3 minutes, the script restores the previous image and the workflow fails. A rollback restores the image, not the data, so anything the failed image wrote stays on the volume.
 
-Workflow logs are public, so they never include container output. To see why a deployment failed, read the `tyler-backend` stream in the `/tyler/containers` CloudWatch log group.
+Workflow logs are public, so they never include the deployed backend's output. To see why a deployment failed, read the `tyler-backend` stream in the `/tyler/containers` CloudWatch log group. A failing smoke test prints its own container's output, as it does in CI, but that container runs before the workflow signs in to AWS, with a throwaway volume and token.
 
 ## Verification
 
