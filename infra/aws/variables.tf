@@ -15,6 +15,12 @@ variable "region" {
   default     = "us-east-2"
 }
 
+variable "github_repository" {
+  description = "GitHub repository, as owner/name, whose main branch can deploy."
+  type        = string
+  default     = "phanmi/tyler_agent"
+}
+
 variable "instance_type" {
   description = "EC2 instance type for the single backend host."
   type        = string

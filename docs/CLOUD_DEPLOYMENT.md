@@ -40,8 +40,18 @@ docker run --init --detach --name tyler \
 - **Host directories mounted at `/data` must be owned by UID 10001**, the image's non-root user.
 - **The agent's file tools act on `/data/workspace`** on the server, not on the client's computer.
 
+## Deploying to AWS
+
+Create the infrastructure first, following [infra/aws](../infra/aws/README.md). Then start a deployment from the **Deploy backend** workflow on the GitHub Actions page, or with `gh workflow run deploy.yml --ref main`. It only runs from `main`.
+
+The workflow builds the image, runs the container smoke test, pushes the image to ECR, and runs `deploy/deploy-on-host.sh` on the host through SSM. That script stops the old container, starts the new image, and polls `GET /api/llm/settings` with the token. A chat in progress when the old container stops is lost.
+
+If the new image crashes or does not answer within 3 minutes, the script restores the previous image and the workflow fails. A rollback restores the image, not the data, so anything the failed image wrote stays on the volume.
+
+Workflow logs are public, so they never include container output. To see why a deployment failed, read the `tyler-backend` stream in the `/tyler/containers` CloudWatch log group.
+
 ## Verification
 
-`bash deploy/smoke-test-image.sh <image>` runs the real image and checks that it refuses to start without a token, that the backend and worker start, that a request without the token gets 401, that the container is not running as root, and that saved data survives replacing the container. The **Backend container smoke** CI job runs this script and the worker bundle tests against the Linux build.
+`bash deploy/smoke-test-image.sh <image>` runs the real image and checks that it refuses to start without a token, that the backend and worker start, that a request without the token gets 401, that the container is not running as root, and that saved data survives replacing the container. `deploy/test-deploy-on-host.sh` runs the host deployment script against real Docker and checks that it refuses an unmounted data volume, starts a first deployment, and rolls back an image that cannot start. The **Backend container smoke** CI job runs both scripts and the worker bundle tests against the Linux build.
 
 These checks make no model-provider calls. After deploying, send one real chat that uses a tool, such as recording a food.

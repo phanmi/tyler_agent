@@ -2,7 +2,7 @@
 
 [Container guide](../../docs/CLOUD_DEPLOYMENT.md)
 
-Terraform for one backend host for a single user: an EC2 instance, an encrypted data volume with daily snapshots, an Elastic IP, a DNS record, an ECR repository, and a CloudWatch log group. Caddy on the host serves HTTPS and forwards to the backend container. There is no SSH; connect with SSM Session Manager.
+Terraform for one backend host for a single user: an EC2 instance, an encrypted data volume with daily snapshots, an Elastic IP, a DNS record, an ECR repository, a CloudWatch log group, and the role GitHub Actions deploys with. Caddy on the host serves HTTPS and forwards to the backend container. There is no SSH; connect with SSM Session Manager.
 
 Terraform state is kept in this directory and ignored by Git. It holds no secrets, but keep a copy: without it, Terraform cannot manage these resources.
 
@@ -25,6 +25,19 @@ Terraform state is kept in this directory and ignored by Git. It holds no secret
    terraform apply -var domain_name=example.com
    ```
 
+   An AWS account can hold only one GitHub OIDC provider. If yours already has one, run `terraform import aws_iam_openid_connect_provider.github <its ARN>` first, and make sure the plan does not remove an audience something else relies on.
+
+6. Give the deploy workflow its settings, using your own [time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). The role ARN is a secret only to keep the account ID out of the public workflow logs.
+
+   ```shell
+   gh secret set AWS_DEPLOY_ROLE_ARN --body "$(terraform output -raw deploy_role_arn)"
+   gh variable set TIME_ZONE --body America/New_York
+   ```
+
+7. Give the host a few minutes to finish its first boot, then [deploy the backend](../../docs/CLOUD_DEPLOYMENT.md#deploying-to-aws).
+
+The deploy workflow sets its region in `.github/workflows/deploy.yml`. Change it there if you deploy somewhere other than `us-east-2`.
+
 The data volume has `prevent_destroy` set, so `terraform destroy` stops with an error rather than deleting your data.
 
-Replacing the host with `terraform apply -replace=aws_instance.host` keeps the data volume.
+Replacing the host with `terraform apply -replace=aws_instance.host` keeps the data volume. The backend does not run on the new host until you deploy it again.
