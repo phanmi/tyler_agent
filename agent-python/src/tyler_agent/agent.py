@@ -2,9 +2,11 @@
 
 import asyncio
 import logging
+from collections.abc import Sequence
 
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.contracts import Operation, ToolContext
 from tyler_agent.transcript import (
     AssistantTurn,
     Provider,
@@ -17,14 +19,31 @@ from tyler_agent.transcript import (
 log = logging.getLogger(__name__)
 
 
-def initial_transcript(payload: Message) -> list[TranscriptEntry]:
+def conversation(payload: Message) -> tuple[UserTurn | AssistantTurn, ...]:
     """Saved history is plain text; the current message is the last user turn."""
-    transcript: list[TranscriptEntry] = [
+    turns: list[UserTurn | AssistantTurn] = [
         UserTurn(item["content"]) if item["role"] == "user" else AssistantTurn((), item["content"])
         for item in payload["history"]
     ]
-    transcript.append(UserTurn(payload["message"]))
-    return transcript
+    turns.append(UserTurn(payload["message"]))
+    return tuple(turns)
+
+
+def initial_transcript(payload: Message) -> list[TranscriptEntry]:
+    """The run's transcript starts as its conversation and grows with each tool round."""
+    return list(conversation(payload))
+
+
+def tool_context(payload: Message, provider: Provider, operation: Operation) -> ToolContext:
+    """Lend tools this run's Java operations, its provider and model, and its conversation."""
+    model = payload["model"]
+
+    async def respond(
+        transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        return await provider.respond(model, transcript, tools)
+
+    return ToolContext(operation, respond, conversation(payload))
 
 
 async def run_agent(payload: Message, provider: Provider, tools: ToolAdapters) -> str:

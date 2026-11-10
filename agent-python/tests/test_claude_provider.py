@@ -9,7 +9,7 @@ from typing import Any
 import httpx2
 import pytest
 from anthropic import AsyncAnthropic
-from support.agent_fakes import payload
+from support.agent_fakes import fake_context, payload
 
 from tyler_agent import claude_provider as module
 from tyler_agent.agent import run_agent
@@ -216,7 +216,7 @@ def test_agent_runs_claude_tool_rounds_end_to_end() -> None:
         return {"text": "clock"}
 
     async def scenario(provider: ClaudeProvider) -> str:
-        return await run_agent(payload(), provider, ToolAdapters(clock))
+        return await run_agent(payload(), provider, ToolAdapters(fake_context(clock)))
 
     assert run(server, scenario) == "It is clock."
     results = server.body(1)["messages"][-1]

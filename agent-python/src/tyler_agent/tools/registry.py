@@ -5,6 +5,7 @@ import json
 import logging
 from collections.abc import Iterable
 from copy import deepcopy
+from dataclasses import replace
 from types import MappingProxyType
 
 from jsonschema import Draft202012Validator
@@ -12,7 +13,7 @@ from jsonschema.exceptions import SchemaError
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import MAX_FRAME_BYTES, Message
-from tyler_agent.tools.contracts import Handler, Operation, Tool
+from tyler_agent.tools.contracts import Handler, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import ArgumentsRejected
 
@@ -58,12 +59,12 @@ class ToolCatalog:
 
 
 class ToolAdapters:
-    """Bind the current run's Java capability to a catalog without storing it in handlers."""
+    """Bind the current run's tool context to a catalog without storing it in handlers."""
 
     def __init__(
-        self, operation: Operation, tools: Iterable[Tool] | ToolCatalog | None = None
+        self, context: ToolContext, tools: Iterable[Tool] | ToolCatalog | None = None
     ) -> None:
-        self._operation = operation
+        self._context = context
         self._catalog = (
             tools
             if isinstance(tools, ToolCatalog)
@@ -86,10 +87,12 @@ class ToolAdapters:
         async def tracked(operation: str, value: Message) -> Message:
             nonlocal requested
             requested = True
-            return await self._operation(operation, value)
+            return await self._context.operation(operation, value)
 
         try:
-            result = await self._catalog.handler(name)(raw, tracked)
+            result = await self._catalog.handler(name)(
+                raw, replace(self._context, operation=tracked)
+            )
         except ArgumentsRejected as error:
             if requested:
                 # "No action was taken" would be false, and the model might repeat a write.
@@ -126,6 +129,6 @@ def _validate(tool: Tool) -> str:
         inspect.signature(tool.execute).bind("", None)
     except TypeError as error:
         raise ValueError(
-            f"Tool handler must accept raw arguments and an operation: {name}"
+            f"Tool handler must accept raw arguments and a tool context: {name}"
         ) from error
     return name

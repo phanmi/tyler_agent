@@ -20,7 +20,7 @@ src/tyler_agent/
   failures.py          # Classified run errors
   tools/
     __init__.py        # Public facade only
-    contracts.py       # Typed handler and operation contracts
+    contracts.py       # Typed handler, operation and per-run tool context contracts
     discovery.py       # Discover trusted bundled tool packages
     registry.py        # Validated catalog and request-scoped dispatch
     builtin/

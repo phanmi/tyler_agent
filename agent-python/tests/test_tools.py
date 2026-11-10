@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import FIXTURES, sequence_message
+from support.agent_fakes import fake_context
 
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message
@@ -53,7 +54,7 @@ def test_all_six_adapters_use_private_operations(prefix: str, name: str, field: 
         return result
 
     raw = request["input"]["food"] if prefix == "food" else request["input"]
-    output = asyncio.run(ToolAdapters(operation).execute(name, model_json(raw)))
+    output = asyncio.run(ToolAdapters(fake_context(operation)).execute(name, model_json(raw)))
     assert seen == [(request["operation"], request["input"])]
     if prefix in {"food", "plan"}:
         assert (
@@ -132,7 +133,7 @@ def recorded(result: Message | None = None) -> tuple[ToolAdapters, list[tuple[st
         seen.append((name, value))
         return result or {"content": "", "path": "", "food": {}, "plan": {}}
 
-    return ToolAdapters(operation, CATALOG), seen
+    return ToolAdapters(fake_context(operation), CATALOG), seen
 
 
 def rejected(name: str, raw: str) -> None:
@@ -394,7 +395,7 @@ def test_java_storage_and_domain_failures_still_end_the_run(
         raise OperationFailure(error)
 
     with pytest.raises(OperationFailure) as caught:
-        asyncio.run(ToolAdapters(operation).execute(name, json.dumps(VALID[name])))
+        asyncio.run(ToolAdapters(fake_context(operation)).execute(name, json.dumps(VALID[name])))
     assert caught.value.error == error
 
 
@@ -404,7 +405,7 @@ def test_noargument_tools_ignore_malformed_arguments(name: str) -> None:
         assert value == {}
         return {"text": "clock", "profile": {"User": None, "Other": None}}
 
-    result = asyncio.run(ToolAdapters(operation).execute(name, "not json"))
+    result = asyncio.run(ToolAdapters(fake_context(operation)).execute(name, "not json"))
     assert result in {"clock", "UserInfo[user=null, other=null]"}
 
 

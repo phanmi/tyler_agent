@@ -6,7 +6,7 @@ from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 
-from tyler_agent.agent import run_agent
+from tyler_agent.agent import run_agent, tool_context
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message, ProtocolError
 from tyler_agent.provider import Provider, open_provider
@@ -102,7 +102,8 @@ class WorkerRuntime:
                     async def operation(name: str, value: Message) -> Message:
                         return await self._operation(run, name, value)
 
-                    reply = await run_agent(payload, provider, ToolAdapters(operation, self._tools))
+                    tools = ToolAdapters(tool_context(payload, provider, operation), self._tools)
+                    reply = await run_agent(payload, provider, tools)
             if not self._closing:
                 self._send("completed", run.request_id, {"reply": reply})
                 log.info("Agent run completed")

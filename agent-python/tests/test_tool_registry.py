@@ -3,26 +3,29 @@
 import asyncio
 import importlib
 import json
+from collections.abc import Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
 
 import pytest
 from conftest import FIXTURES
+from support.agent_fakes import fake_context
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
-from tyler_agent.tools.contracts import Handler, Operation, Tool
+from tyler_agent.tools.contracts import Handler, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import ArgumentsRejected
 from tyler_agent.tools.registry import MALFORMED_CALL_RESULT, ToolCatalog
+from tyler_agent.transcript import AssistantTurn, ToolDefinition, TranscriptEntry, UserTurn
 
 
 def test_builtin_definitions_preserve_released_contracts() -> None:
     """The release snapshot replaces parity with the retired Java schema builders."""
     expected = json.loads((FIXTURES / "tool-definitions.json").read_text(encoding="utf-8"))
-    actual = ToolAdapters(operation).definitions()
+    actual = ToolAdapters(fake_context(operation)).definitions()
     assert sorted(actual, key=lambda item: item["name"]) == sorted(
         expected, key=lambda item: item["name"]
     )
@@ -38,8 +41,8 @@ def definition(name: str = "example") -> Message:
     }
 
 
-async def execute(raw: str, operation: Operation) -> str:
-    return str((await operation("time.current", {}))["text"]) + raw
+async def execute(raw: str, context: ToolContext) -> str:
+    return str((await context.operation("time.current", {}))["text"]) + raw
 
 
 async def operation(name: str, value: Message) -> Message:
@@ -48,7 +51,7 @@ async def operation(name: str, value: Message) -> Message:
 
 
 def test_independent_tool_can_be_registered_without_dispatcher_changes() -> None:
-    tools = ToolAdapters(operation, [Tool(definition(), execute)])
+    tools = ToolAdapters(fake_context(operation), [Tool(definition(), execute)])
     assert asyncio.run(tools.execute("example", "raw")) == "clockraw"
     assert tools.definitions() == [definition()]
     # An unknown model call goes back to the model; the catalog itself still refuses it.
@@ -58,12 +61,28 @@ def test_independent_tool_can_be_registered_without_dispatcher_changes() -> None
     assert error.value.code == "UNKNOWN_TOOL"
 
 
+def test_a_registered_tool_can_ask_the_run_model_about_the_conversation() -> None:
+    async def respond(
+        transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        (turn,) = transcript
+        assert isinstance(turn, UserTurn) and tools == []
+        return AssistantTurn((), "model saw " + turn.text)
+
+    async def ask(raw: str, context: ToolContext) -> str:
+        reply = await context.respond(context.conversation[-1:], [])
+        return reply.text
+
+    tools = ToolAdapters(fake_context(operation, respond), [Tool(definition(), ask)])
+    assert asyncio.run(tools.execute("example", "{}")) == "model saw current"
+
+
 def test_rejection_after_an_operation_fails_the_run_instead_of_claiming_no_action() -> None:
-    async def operation_then_rejection(raw: str, run_operation: Operation) -> str:
-        await run_operation("time.current", {})
+    async def operation_then_rejection(raw: str, context: ToolContext) -> str:
+        await context.operation("time.current", {})
         raise ArgumentsRejected
 
-    tools = ToolAdapters(operation, [Tool(definition(), operation_then_rejection)])
+    tools = ToolAdapters(fake_context(operation), [Tool(definition(), operation_then_rejection)])
     with pytest.raises(AgentFailure) as error:
         asyncio.run(tools.execute("example", "{}"))
     assert (error.value.category, error.value.code) == ("worker", "INTERNAL_FAILURE")
@@ -73,12 +92,12 @@ def test_registry_copies_inputs_and_provider_definitions_and_binds_each_request(
     value = definition()
     registered = [Tool(value, execute)]
     catalog = ToolCatalog(registered)
-    first = ToolAdapters(operation, catalog)
+    first = ToolAdapters(fake_context(operation), catalog)
 
     async def other_operation(name: str, value: Message) -> Message:
         return {"text": "other"}
 
-    second = ToolAdapters(other_operation, catalog)
+    second = ToolAdapters(fake_context(other_operation), catalog)
     value["name"] = "changed"
     value["parameters"]["properties"]["changed"] = {}
     registered.clear()
@@ -99,7 +118,7 @@ def test_registry_copies_inputs_and_provider_definitions_and_binds_each_request(
 )
 def test_empty_and_duplicate_registration_fails(tools: list[Tool], reason: str) -> None:
     with pytest.raises(ValueError, match=reason):
-        ToolAdapters(operation, tools)
+        ToolAdapters(fake_context(operation), tools)
 
 
 @pytest.mark.parametrize(
@@ -119,29 +138,31 @@ def test_empty_and_duplicate_registration_fails(tools: list[Tool], reason: str) 
 def test_invalid_definition_fails_before_execution(field: str, value: object) -> None:
     invalid = definition() | {field: value}
     with pytest.raises(ValueError):
-        ToolAdapters(operation, [Tool(invalid, execute)])
+        ToolAdapters(fake_context(operation), [Tool(invalid, execute)])
 
 
 def test_missing_schema_and_invalid_handler_contracts_are_rejected() -> None:
     invalid = definition()
     del invalid["parameters"]
     with pytest.raises(ValueError, match="parameters"):
-        ToolAdapters(operation, [Tool(invalid, execute)])
+        ToolAdapters(fake_context(operation), [Tool(invalid, execute)])
     with pytest.raises(ValueError, match="asynchronous"):
-        ToolAdapters(operation, [Tool(definition(), cast(Handler, lambda raw, op: "sync"))])
+        ToolAdapters(
+            fake_context(operation), [Tool(definition(), cast(Handler, lambda raw, op: "sync"))]
+        )
 
     async def wrong_signature() -> str:
         return "wrong"
 
-    with pytest.raises(ValueError, match="raw arguments and an operation"):
-        ToolAdapters(operation, [Tool(definition(), cast(Handler, wrong_signature))])
+    with pytest.raises(ValueError, match="raw arguments and a tool context"):
+        ToolAdapters(fake_context(operation), [Tool(definition(), cast(Handler, wrong_signature))])
 
 
 def test_bad_handler_result_is_a_serialization_failure() -> None:
-    async def bad_result(raw: str, operation: Operation) -> str:
+    async def bad_result(raw: str, context: ToolContext) -> str:
         return cast(str, None)
 
-    tools = ToolAdapters(operation, [Tool(definition(), bad_result)])
+    tools = ToolAdapters(fake_context(operation), [Tool(definition(), bad_result)])
     with pytest.raises(AgentFailure) as error:
         asyncio.run(tools.execute("example", ""))
     assert error.value.code == "SERIALIZATION_FAILURE"
@@ -167,7 +188,7 @@ def add_tool(root: Path, folder: str, name: str) -> Path:
     (path / "__init__.py").write_text("", encoding="utf-8")
     (path / "definition.json").write_text(json.dumps(definition(name)), encoding="utf-8")
     (path / "adapter.py").write_text(
-        'async def execute(raw, operation):\n    return "example:" + raw\n', encoding="utf-8"
+        'async def execute(raw, context):\n    return "example:" + raw\n', encoding="utf-8"
     )
     return path
 
@@ -178,7 +199,9 @@ def test_discovery_picks_up_new_packages_in_deterministic_order(
     root = make_package(tmp_path, monkeypatch)
     add_tool(root, "z_tool", "last")
     add_tool(root, "a_tool", "first")
-    tools = ToolAdapters(operation, discover_tools(importlib.import_module(root.name)))
+    tools = ToolAdapters(
+        fake_context(operation), discover_tools(importlib.import_module(root.name))
+    )
     assert [item["name"] for item in tools.definitions()] == ["first", "last"]
     assert asyncio.run(tools.execute("first", "input")) == "example:input"
 

@@ -11,7 +11,24 @@ from tyler_agent.provider import (
     ToolCall,
     ToolDefinition,
     TranscriptEntry,
+    UserTurn,
 )
+from tyler_agent.tools.contracts import Operation, Respond, ToolContext
+
+
+async def no_model(
+    transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+) -> AssistantTurn:
+    raise AssertionError("A tool made a model request this test does not expect")
+
+
+def fake_context(
+    operation: Operation,
+    respond: Respond = no_model,
+    conversation: tuple[UserTurn | AssistantTurn, ...] = (UserTurn("current"),),
+) -> ToolContext:
+    """A run context for direct tool tests; its model fails the test unless one is supplied."""
+    return ToolContext(operation, respond, conversation)
 
 
 def payload() -> Message:
