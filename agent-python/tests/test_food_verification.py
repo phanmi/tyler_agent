@@ -157,12 +157,14 @@ def test_a_rejected_item_is_regenerated_with_the_reason_and_saved_when_accepted(
     assert model.saved_at_request == [0, 0, 0]
 
 
-def test_stated_nutrition_is_checked_too_and_never_replaced_by_an_estimate() -> None:
-    """The prompts must not exempt values the user stated, nor let a correction change them."""
-    _, _, model = record([verdict(False, "1900 kcal is impossible."), regenerated(), verdict(True)])
-    assert "This applies to values the user stated too." in model.prompts[0]
-    assert "correct as given" not in model.prompts[0]
-    assert "Never replace a nutrition value the user stated" in model.prompts[1]
+def test_stated_nutrition_is_respected_and_only_estimates_are_judged() -> None:
+    """The user's stated values win: the verifier checks the record matches them and judges
+    plausibility only for values the user did not state; a correction keeps them."""
+    _, _, model = record([verdict(False, "Calories differ."), regenerated(), verdict(True)])
+    assert "differs from one the user stated" in model.prompts[0]
+    assert "never reject a value for matching what the user said" in model.prompts[0]
+    assert "A value the user did not state is implausible" in model.prompts[0]
+    assert "Keep every value the user stated, including nutrition values" in model.prompts[1]
 
 
 def test_an_item_rejected_twice_is_not_saved() -> None:
