@@ -94,12 +94,14 @@ start_registry() {
     done
 }
 
-# Pushes the image and prints the digest reference a deployment uses.
+# Pushes the image and prints the digest reference a deployment uses. The image also has digests
+# under its other names, so only the one under the local registry is printed.
 publish_image() {
     local target="${REGISTRY}/tyler-backend:$2"
     docker tag "$1" "$target"
     docker push --quiet "$target" >/dev/null
-    docker inspect --format '{{index .RepoDigests 0}}' "$target"
+    docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$target" \
+        | grep --max-count=1 "^${REGISTRY}/"
 }
 
 mount_data_volume() {
