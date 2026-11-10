@@ -1,0 +1,65 @@
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# Only one backend copy may run, so deployments wait for each other.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+env:
+  # Matches var.region in infra/aws.
+  AWS_REGION: us-east-2
+  ECR_REPOSITORY: tyler-backend
+  LOCAL_IMAGE: tyler-backend:deploy
+  # ECR tags are immutable, so every run and re-run needs its own.
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+  TIME_ZONE: ${{ vars.TIME_ZONE }}
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check the branch and settings
+        run: |
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Deployments run only from main." >&2; exit 1; }
+          [[ -n "$TIME_ZONE" ]] || { echo "Set the TIME_ZONE repository variable. See infra/aws/README.md." >&2; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - name: Build the backend image
+        run: docker build --tag "$LOCAL_IMAGE" .
+
+      - name: Smoke-test the backend image
+        run: bash deploy/smoke-test-image.sh "$LOCAL_IMAGE"
+
+      # These logs are public, so the ARN is a secret and the account ID is masked.
+      - name: Sign in to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Push the image to ECR
+        id: push
+        run: |
+          registry="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+          docker tag "$LOCAL_IMAGE" "${registry}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker push "${registry}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          digest="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=${IMAGE_TAG}" --query 'imageDetails[0].imageDigest' --output text)"
+          echo "image=${registry}/${ECR_REPOSITORY}@${digest}" >>"$GITHUB_OUTPUT"
+
+      - name: Deploy on the host
+        env:
+          IMAGE: ${{ steps.push.outputs.image }}
+        run: bash deploy/send-deploy-to-host.sh "$IMAGE" "$TIME_ZONE"

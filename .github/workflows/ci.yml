@@ -104,6 +104,8 @@ jobs:
         run: docker build --tag tyler-backend:ci .
       - name: Smoke-test the backend image
         run: bash deploy/smoke-test-image.sh tyler-backend:ci
+      - name: Test deploying and rolling back on a host
+        run: sudo bash deploy/test-deploy-on-host.sh tyler-backend:ci
 
   windows-package:
     name: Windows packaged smoke

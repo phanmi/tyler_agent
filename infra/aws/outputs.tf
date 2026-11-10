@@ -13,6 +13,11 @@ output "ecr_repository_url" {
   value       = aws_ecr_repository.backend.repository_url
 }
 
+output "deploy_role_arn" {
+  description = "Role the GitHub Actions deploy workflow assumes."
+  value       = aws_iam_role.deploy.arn
+}
+
 output "log_group_name" {
   description = "CloudWatch log group for the host's containers."
   value       = aws_cloudwatch_log_group.containers.name
