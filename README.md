@@ -33,6 +33,8 @@ Describe what you ate, including the amount and date when possible. For example:
 
 > I ate 200 grams of chicken breast and a bowl of rice for lunch today. Please record it.
 
+Before saving each food, Tyler checks it against what you said: the food, the amount, the date, and whether the nutrition values Tyler estimated are plausible. Nutrition values you state yourself are saved exactly as you gave them. If a food fails the check twice, Tyler doesn't save it and tells you why, so you can describe it again with more detail. The check makes up to three extra requests to your provider for each food, which your provider bills like any other use.
+
 Open **Calendar** on the Chat page and choose a date to see your food records and daily nutrition totals. You can delete one record or all records for that day after confirming the deletion.
 
 Tyler keeps recent conversation history between sessions. Use **Clear conversation** when you want to start fresh.

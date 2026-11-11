@@ -19,7 +19,10 @@ from tyler_agent.provider import (
     TranscriptEntry,
     responses_input,
 )
+from tyler_agent.tools.builtin.food_record.verification import VERDICT_TOOL
 from tyler_agent.worker import main
+
+ACCEPT = ToolCall("verdict", VERDICT_TOOL.name, '{"valid": true, "reason": "Matches."}')
 
 
 def food_call(**changes: object) -> ToolCall:
@@ -93,6 +96,9 @@ class PersistenceProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
+        if [tool.name for tool in tools] == [VERDICT_TOOL.name]:
+            # recordFood verifies each item first; accept it so Java services decide validity.
+            return AssistantTurn((ACCEPT,), "")
         first = not any(isinstance(entry, ToolResult) for entry in transcript)
         if first:
             assert responses_input(transcript) == self.history + [

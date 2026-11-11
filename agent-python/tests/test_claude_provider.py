@@ -1,7 +1,6 @@
 """Exercise the pinned Anthropic SDK through an in-memory HTTP transport, never a live endpoint."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -9,7 +8,8 @@ from typing import Any
 import httpx2
 import pytest
 from anthropic import AsyncAnthropic
-from support.agent_fakes import payload
+from support.agent_fakes import fake_context, payload
+from support.http_server import Server
 
 from tyler_agent import claude_provider as module
 from tyler_agent.agent import run_agent
@@ -64,21 +64,6 @@ def tool_use(call_id: str, name: str = "readFile", value: Message | None = None)
 
 def text(value: str) -> Message:
     return {"type": "text", "text": value}
-
-
-class Server:
-    """Record request bodies and answer from a script, one response per request."""
-
-    def __init__(self, responses: list[httpx2.Response]) -> None:
-        self.responses = responses
-        self.requests: list[httpx2.Request] = []
-
-    def __call__(self, request: httpx2.Request) -> httpx2.Response:
-        self.requests.append(request)
-        return self.responses.pop(0)
-
-    def body(self, index: int) -> Any:
-        return json.loads(self.requests[index].content)
 
 
 def run[T](
@@ -216,7 +201,7 @@ def test_agent_runs_claude_tool_rounds_end_to_end() -> None:
         return {"text": "clock"}
 
     async def scenario(provider: ClaudeProvider) -> str:
-        return await run_agent(payload(), provider, ToolAdapters(clock))
+        return await run_agent(payload(), provider, ToolAdapters(fake_context(clock)))
 
     assert run(server, scenario) == "It is clock."
     results = server.body(1)["messages"][-1]

@@ -20,13 +20,13 @@ src/tyler_agent/
   failures.py          # Classified run errors
   tools/
     __init__.py        # Public facade only
-    contracts.py       # Typed handler and operation contracts
+    contracts.py       # Typed handler, operation and per-run tool context contracts
     discovery.py       # Discover trusted bundled tool packages
     registry.py        # Validated catalog and request-scoped dispatch
     builtin/
       file_read/       # Each tool owns __init__.py, adapter.py, definition.json
       file_write/
-      food_record/
+      food_record/     # Also verification.py: the model checks each item before it is saved
       time_current/
       user_info/
       workout_plan/

@@ -4,9 +4,9 @@ import asyncio
 from copy import deepcopy
 
 import pytest
-from support.agent_fakes import FakeProvider, call, payload
+from support.agent_fakes import VERIFICATION_ON, FakeProvider, call, fake_context, payload
 
-from tyler_agent.agent import run_agent
+from tyler_agent.agent import run_agent, tool_context
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.provider import (
@@ -33,7 +33,10 @@ def test_initial_context_model_and_fresh_tool_definitions() -> None:
     ]
     original = deepcopy(data)
     provider = FakeProvider([AssistantTurn((), "answer")])
-    assert asyncio.run(run_agent(data, provider, ToolAdapters(clock_operation))) == "answer"
+    assert (
+        asyncio.run(run_agent(data, provider, ToolAdapters(fake_context(clock_operation))))
+        == "answer"
+    )
     assert data == original
     request = provider.requests[0]
     assert request["model"] == data["model"]
@@ -42,11 +45,37 @@ def test_initial_context_model_and_fresh_tool_definitions() -> None:
         AssistantTurn((), "reply"),
         UserTurn("current"),
     )
-    definitions = ToolAdapters(clock_operation).definitions()
+    definitions = ToolAdapters(fake_context(clock_operation)).definitions()
     assert request["tools"] == [ToolDefinition.from_definition(item) for item in definitions]
     assert len(request["tools"]) == 6
     request["tools"][0].parameters["type"] = "changed"
-    assert ToolAdapters(clock_operation).definitions()[0]["parameters"]["type"] == "object"
+    assert (
+        ToolAdapters(fake_context(clock_operation)).definitions()[0]["parameters"]["type"]
+        == "object"
+    )
+
+
+def test_tool_context_lends_the_run_model_operations_and_text_conversation() -> None:
+    data = payload()
+    data["history"] = [
+        {"role": "user", "content": "old"},
+        {"role": "assistant", "content": "reply"},
+    ]
+    provider = FakeProvider([AssistantTurn((), "answer")])
+    context = tool_context(data, provider, clock_operation, VERIFICATION_ON)
+    assert context.settings == VERIFICATION_ON
+    assert context.conversation == (
+        UserTurn("old"),
+        AssistantTurn((), "reply"),
+        UserTurn("current"),
+    )
+    question = (UserTurn("question"),)
+
+    async def use() -> tuple[AssistantTurn, Message]:
+        return await context.respond(question, []), await context.operation("time.current", {})
+
+    assert asyncio.run(use()) == (AssistantTurn((), "answer"), {"text": "clock"})
+    assert provider.requests == [{"model": "configured-model", "transcript": question, "tools": []}]
 
 
 @pytest.mark.parametrize(
@@ -73,7 +102,11 @@ def test_initial_context_model_and_fresh_tool_definitions() -> None:
 def test_text_refusal_empty_and_nonmessage_output(output: list[Message], expected: str) -> None:
     response = parse_response({"id": "response", "status": "completed", "output": output})
     assert (
-        asyncio.run(run_agent(payload(), FakeProvider([response]), ToolAdapters(clock_operation)))
+        asyncio.run(
+            run_agent(
+                payload(), FakeProvider([response]), ToolAdapters(fake_context(clock_operation))
+            )
+        )
         == expected
     )
 
@@ -95,7 +128,10 @@ def test_ordered_calls_original_ids_and_full_transcript_each_round() -> None:
     )
     second = AssistantTurn((call("readFile", '{"path":"b"}', "third-id"),), "discard too")
     provider = FakeProvider([first, second, AssistantTurn((), "final")])
-    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(operation))) == "final"
+    assert (
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(operation))))
+        == "final"
+    )
     assert [name for name, _ in calls] == ["file.write", "file.read", "file.read"]
     start = (UserTurn("current"),)
     round_one = (
@@ -114,7 +150,10 @@ def test_ordered_calls_original_ids_and_full_transcript_each_round() -> None:
 @pytest.mark.parametrize("text", ["", "last response"])
 def test_exactly_five_rounds_returns_last_text_without_sixth_tool(text: str) -> None:
     provider = FakeProvider([AssistantTurn((call(call_id=f"call-{i}"),), text) for i in range(6)])
-    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation))) == text
+    assert (
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
+        == text
+    )
     assert len(provider.requests) == 6
 
 
@@ -122,7 +161,7 @@ def test_number_beyond_protocol_bound_does_not_call_java_or_continue() -> None:
     raw = '{"genericInfo":{"amount":2000000001}}'
     provider = FakeProvider([AssistantTurn((call("recordFood", raw),), "")])
     with pytest.raises(AgentFailure) as error:
-        asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation)))
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
     assert (error.value.category, error.value.code) == ("validation", "INVALID_ARGUMENT")
     assert len(provider.requests) == 1
 
@@ -150,7 +189,7 @@ def test_java_failure_stops_later_calls_and_retains_classification(
 
     provider = FakeProvider([AssistantTurn((call(), call("generateWorkoutPlan"), call()), "")])
     with pytest.raises(OperationFailure) as caught:
-        asyncio.run(run_agent(payload(), provider, ToolAdapters(operation)))
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(operation))))
     assert caught.value is failure
     assert caught.value.payload("none") == error_payload | {"writeOutcome": "none"}
     assert error_payload["writeOutcome"] == failure.error["writeOutcome"] == "unknown"
@@ -169,7 +208,7 @@ def test_provider_failure_never_replays(after_tool: bool, category: str, code: s
         responses.insert(0, AssistantTurn((call(),), ""))
     provider = FakeProvider(responses)
     with pytest.raises(AgentFailure) as caught:
-        asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation)))
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
     assert caught.value is failure
     assert len(provider.requests) == (2 if after_tool else 1)
 
@@ -206,14 +245,19 @@ def test_malformed_calls_go_back_to_the_model_without_java(name: str, raw: str) 
         return {"text": "clock"}
 
     provider = FakeProvider([AssistantTurn((call(name, raw, "bad"),), ""), AssistantTurn((), "ok")])
-    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(operation))) == "ok"
+    assert (
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(operation)))) == "ok"
+    )
     assert used == []
     assert provider.requests[1]["transcript"][-1] == ToolResult("bad", MALFORMED_CALL_RESULT)
 
 
 def test_no_argument_tools_still_ignore_malformed_arguments() -> None:
     provider = FakeProvider([AssistantTurn((call(raw="not json"),), ""), AssistantTurn((), "ok")])
-    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation))) == "ok"
+    assert (
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
+        == "ok"
+    )
     assert provider.requests[1]["transcript"][-1] == ToolResult("call-1", "clock")
 
 
@@ -221,7 +265,10 @@ def test_repeated_malformed_calls_stop_at_the_round_limit() -> None:
     rounds = payload()["maxToolRounds"]
     bad = AssistantTurn((call("read_file"),), "")
     provider = FakeProvider([bad] * (rounds + 1))
-    assert asyncio.run(run_agent(payload(), provider, ToolAdapters(clock_operation))) == ""
+    assert (
+        asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
+        == ""
+    )
     assert len(provider.requests) == rounds + 1
 
 

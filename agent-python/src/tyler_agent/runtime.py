@@ -6,12 +6,13 @@ from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 
-from tyler_agent.agent import run_agent
+from tyler_agent.agent import run_agent, tool_context
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message, ProtocolError
 from tyler_agent.provider import Provider, open_provider
 from tyler_agent.session import WRITES
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.contracts import RunSettings
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.registry import ToolCatalog
 
@@ -102,7 +103,10 @@ class WorkerRuntime:
                     async def operation(name: str, value: Message) -> Message:
                         return await self._operation(run, name, value)
 
-                    reply = await run_agent(payload, provider, ToolAdapters(operation, self._tools))
+                    # The run payload carries no run settings, so every chat uses the defaults.
+                    context = tool_context(payload, provider, operation, RunSettings())
+                    tools = ToolAdapters(context, self._tools)
+                    reply = await run_agent(payload, provider, tools)
             if not self._closing:
                 self._send("completed", run.request_id, {"reply": reply})
                 log.info("Agent run completed")
