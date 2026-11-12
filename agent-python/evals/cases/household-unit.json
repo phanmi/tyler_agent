@@ -13,8 +13,7 @@
           ],
           "amount": 2,
           "units": [
-            "slice",
-            "slices"
+            "slice"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -39,8 +38,7 @@
           ],
           "amount": 1,
           "units": [
-            "cup",
-            "cups"
+            "cup"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -65,9 +63,7 @@
           ],
           "amount": 2,
           "units": [
-            "tbsp",
-            "tablespoon",
-            "tablespoons"
+            "tbsp"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -92,9 +88,7 @@
           ],
           "amount": 1,
           "units": [
-            "tbsp",
-            "tablespoon",
-            "tablespoons"
+            "tbsp"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -120,10 +114,8 @@
           "amount": 3,
           "units": [
             "egg",
-            "eggs",
             "large",
             "large egg",
-            "large eggs",
             "piece",
             "item",
             "serving",
@@ -156,8 +148,7 @@
           ],
           "amount": 0.5,
           "units": [
-            "cup",
-            "cups"
+            "cup"
           ],
           "date": "2026-11-12",
           "nutrition": {

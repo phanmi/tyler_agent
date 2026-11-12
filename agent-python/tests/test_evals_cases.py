@@ -146,10 +146,21 @@ def test_an_unreadable_file_a_repeated_id_and_an_empty_directory_are_refused(
     with pytest.raises(InvalidCases, match="used more than once: rice"):
         load_cases(tmp_path)
 
-    tmp_path.joinpath("two.json").write_text("{not json", "utf-8")
-    with pytest.raises(InvalidCases, match="Cannot read case file two.json") as caught:
+
+def test_a_file_that_is_not_json_or_cannot_be_opened_says_why(tmp_path: Path) -> None:
+    write(tmp_path)
+    tmp_path.joinpath("two.json").write_text('{"category": "test",}', "utf-8")
+    with pytest.raises(InvalidCases) as caught:
         load_cases(tmp_path)
-    assert caught.value.__cause__ is not None
+    assert str(caught.value).startswith("two.json is not valid JSON: ")
+    assert "line 1 column 21" in str(caught.value)
+    assert isinstance(caught.value.__cause__, json.JSONDecodeError)
+
+    tmp_path.joinpath("two.json").unlink()
+    tmp_path.joinpath("folder.json").mkdir()
+    with pytest.raises(InvalidCases, match="Cannot open case file folder.json: ") as caught:
+        load_cases(tmp_path)
+    assert isinstance(caught.value.__cause__, OSError)
 
 
 def test_cases_are_selected_by_id_or_category_in_file_order() -> None:

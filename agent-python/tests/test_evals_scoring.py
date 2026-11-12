@@ -36,10 +36,19 @@ def test_a_record_within_every_tolerance_is_correct() -> None:
         ("CHICKEN   BREAST (grilled)", ("chicken breast",), True),
         ("Chicken thigh", ("chicken breast",), False),
         ("Wholemeal toast", ("bread", "toast"), True),
+        # A plural of an accepted word matches; a longer word that merely contains it does not.
         ("Rolled oats", ("oat",), True),
+        ("Boiled eggs", ("egg",), True),
+        ("Baked potatoes", ("potato",), True),
+        ("Goat cheese", ("oat",), False),
+        ("Eggplant parmesan", ("egg",), False),
+        ("Oatmeal", ("oat", "oatmeal"), True),
+        # The words must be next to each other and in order.
+        ("Chicken, breast", ("chicken breast",), True),
+        ("Breast of chicken", ("chicken breast",), False),
     ],
 )
-def test_a_saved_name_matches_when_it_contains_an_accepted_name(
+def test_a_saved_name_matches_when_it_contains_an_accepted_name_as_whole_words(
     saved_name: str, accepted: tuple[str, ...], matches: bool
 ) -> None:
     scores = score(case(expected(names=accepted)), [record(foodName=saved_name)])
@@ -121,9 +130,18 @@ def test_units_match_after_normalizing_common_spellings(unit: str, passes: bool)
 
 @pytest.mark.parametrize(
     "spelling,unit",
-    [("Tablespoons", "tbsp"), ("ounces", "oz"), ("Slices", "slice"), ("fillet", "fillet")],
+    [
+        ("Tablespoons", "tbsp"),
+        ("ounces", "oz"),
+        ("Slices", "slice"),
+        ("fillet", "fillet"),
+        # A unit that is not listed loses only a plural "s".
+        ("Items", "item"),
+        ("large eggs", "large egg"),
+        ("s", "s"),
+    ],
 )
-def test_unit_spellings_share_one_form_and_unknown_units_keep_their_text(
+def test_unit_spellings_share_one_form_and_unknown_units_drop_a_plural(
     spelling: str, unit: str
 ) -> None:
     assert normal_unit(spelling) == unit
@@ -197,6 +215,23 @@ def test_a_record_saved_twice_is_one_match_and_one_wrong_save() -> None:
 
     assert [(item.expected, item.saved) for item in scores] == [(0, 0), (None, 1)]
     assert scores[0].correct and scores[1].wrong_save
+
+
+def test_an_expected_record_pairs_with_the_saved_record_that_fits_it_best() -> None:
+    rice = expected(names=("rice",), amount=Decimal(250), nutrition={"calories": Decimal(325)})
+    saved = [
+        record(foodName="White rice", amount="150", calories="195"),
+        record(foodName="White rice", amount="250", calories="325"),
+    ]
+
+    scores = score(case(rice), saved)
+
+    # The first record has the right name, but only the second is the expected one.
+    assert [(item.expected, item.saved, item.wrong) for item in scores] == [
+        (0, 1, ()),
+        (None, 0, ()),
+    ]
+    assert sum(item.wrong_save for item in scores) == 1
 
 
 def test_several_expected_records_pair_with_their_own_saved_records() -> None:

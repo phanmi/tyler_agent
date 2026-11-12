@@ -1,10 +1,12 @@
 """Compare the records a chat saved with the records its case expects. No model is involved.
 
-Each expected record is paired with the first unpaired saved record whose name contains one
-of its accepted names. A pair is correct when every checked field matches; an expected
-record with no pair was missed; a saved record with no pair should not have been saved.
+Each expected record is paired with an unpaired saved record whose name contains one of its
+accepted names as whole words; when several qualify, the one with the fewest wrong fields
+wins. A pair is correct when every checked field matches; an expected record with no pair
+was missed; a saved record with no pair should not have been saved.
 """
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -24,7 +26,7 @@ MACROS = ("protein", "carbs", "fat", "fiber")
 NUTRIENTS = ("calories", *MACROS)
 
 # Spellings a model commonly uses for one unit. A unit that is not listed is compared by its
-# lower-case text.
+# lower-case text without a plural "s", so "items" and "item" are the same unit.
 UNIT_SPELLINGS: dict[str, tuple[str, ...]] = {
     "g": ("g", "gm", "gram", "grams"),
     "kg": ("kg", "kilogram", "kilograms"),
@@ -42,6 +44,8 @@ UNIT_SPELLINGS: dict[str, tuple[str, ...]] = {
 _CANONICAL_UNIT = {
     spelling: unit for unit, spellings in UNIT_SPELLINGS.items() for spelling in spellings
 }
+_WORD = re.compile(r"[a-z0-9]+")
+PLURAL_ENDINGS = ("", "s", "es")
 
 
 @dataclass(frozen=True)
@@ -78,10 +82,12 @@ def score(case: Case, saved: Sequence[Message]) -> tuple[ItemScore, ...]:
     unpaired = list(range(len(saved)))
     scores: list[ItemScore] = []
     for position, expected in enumerate(case.expected):
-        match = next((index for index in unpaired if _named(expected, saved[index])), None)
-        if match is None:
+        named = [index for index in unpaired if _named(expected, saved[index])]
+        if not named:
             scores.append(ItemScore(position, None))
             continue
+        # A chat can save the same food twice, for example before and after a correction.
+        match = min(named, key=lambda index: len(wrong_fields(expected, saved[index])))
         unpaired.remove(match)
         scores.append(
             ItemScore(
@@ -100,13 +106,24 @@ def fully_correct(scores: Sequence[ItemScore]) -> bool:
     return all(item.correct for item in scores)
 
 
-def normal_name(name: str) -> str:
-    return " ".join(name.lower().split())
+def name_matches(saved: str, accepted: str) -> bool:
+    """True when the saved name contains the accepted name as whole words, in order. A saved
+    word may be a plural, so "Boiled eggs" matches "egg" and "Eggplant" does not."""
+    words, wanted = _WORD.findall(saved.lower()), _WORD.findall(accepted.lower())
+    return bool(wanted) and any(
+        all(
+            word in {target + ending for ending in PLURAL_ENDINGS}
+            for word, target in zip(words[start:], wanted, strict=False)
+        )
+        for start in range(len(words) - len(wanted) + 1)
+    )
 
 
 def normal_unit(unit: str) -> str:
     text = unit.strip().lower().rstrip(".")
-    return _CANONICAL_UNIT.get(text, text)
+    if text in _CANONICAL_UNIT:
+        return _CANONICAL_UNIT[text]
+    return text[:-1] if len(text) > 1 and text.endswith("s") else text
 
 
 def wrong_fields(expected: Expected, record: Message) -> tuple[str, ...]:
@@ -143,7 +160,7 @@ def _named(expected: Expected, record: Message) -> bool:
     name = _part(record, "genericInfo").get("foodName")
     if not isinstance(name, str):
         return False
-    return any(normal_name(accepted) in normal_name(name) for accepted in expected.names)
+    return any(name_matches(name, accepted) for accepted in expected.names)
 
 
 def _amount_matches(expected: Expected, record: Message) -> bool:

@@ -99,16 +99,16 @@ def select_cases(
 
 def _file(path: Path, validator: Draft202012Validator) -> list[Case]:
     try:
-        text = path.read_text("utf-8")
-        plain = json.loads(text)
-    except (OSError, ValueError) as error:
-        raise InvalidCases(f"Cannot read case file {path.name}") from error
-    problem = next(iter(validator.iter_errors(plain)), None)
+        # Numbers are read as exact decimals, which the scorer compares saved values with.
+        document = json.loads(path.read_text("utf-8"), parse_float=Decimal, parse_int=Decimal)
+    except OSError as error:
+        raise InvalidCases(f"Cannot open case file {path.name}: {error.strerror}") from error
+    except ValueError as error:
+        raise InvalidCases(f"{path.name} is not valid JSON: {error}") from error
+    problem = next(iter(validator.iter_errors(document)), None)
     if problem is not None:
         raise InvalidCases(f"{path.name}: {problem.json_path}: {problem.message}")
-    # The schema needs ordinary JSON numbers; the scorer needs them exact, so parse again.
-    exact = json.loads(text, parse_float=Decimal, parse_int=Decimal)
-    return [_case(item, exact["category"], path.name) for item in exact["cases"]]
+    return [_case(item, document["category"], path.name) for item in document["cases"]]
 
 
 def _case(item: dict[str, Any], category: str, file_name: str) -> Case:

@@ -12,9 +12,7 @@
           ],
           "amount": 200,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -39,9 +37,7 @@
           ],
           "amount": 150,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -66,9 +62,7 @@
           ],
           "amount": 30,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -94,9 +88,7 @@
           ],
           "amount": 170,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -121,9 +113,7 @@
           ],
           "amount": 6,
           "units": [
-            "oz",
-            "ounce",
-            "ounces"
+            "oz"
           ],
           "date": "2026-11-12",
           "nutrition": {

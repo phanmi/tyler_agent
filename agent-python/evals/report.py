@@ -1,8 +1,10 @@
 """Aggregate scored chats into the summary table and the results file.
 
 Every measurement covers one target (a provider and model) in one mode (verification off or
-on) and uses only the chats that finished; a failed chat adds to the error count and to
-nothing else. Each measurement is one entry in METRICS, so adding one changes no other code.
+on). A chat is measured only when it finished and the chat for the same case and repeat in
+the other mode finished too, so both modes are measured over the same chats and their totals
+can be compared. A failed chat adds to the error count and to nothing else. Each measurement
+is one entry in METRICS, so adding one changes no other code.
 """
 
 import math
@@ -30,23 +32,24 @@ class Scored:
 
 @dataclass(frozen=True)
 class Group:
-    """One target's chats in one mode, and that model's price when the table has one."""
+    """One target's chats in one mode: all of them, the ones that are measured, and that
+    model's price when the table has one."""
 
     chats: tuple[Scored, ...]
+    compared: tuple[Scored, ...]
     price: Price | None
 
-    @property
-    def finished(self) -> tuple[Scored, ...]:
-        return tuple(chat for chat in self.chats if chat.result.error is None)
+    def failed(self) -> int:
+        return sum(chat.result.error is not None for chat in self.chats)
 
     def items(self) -> list[ItemScore]:
-        return [item for chat in self.finished for item in chat.scores]
+        return [item for chat in self.compared for item in chat.scores]
 
     def checks(self) -> list[FoodCheck]:
-        return [check for chat in self.finished for check in chat.result.checks]
+        return [check for chat in self.compared for check in chat.result.checks]
 
     def calls(self) -> list[ModelCall]:
-        return [call for chat in self.finished for call in chat.result.calls]
+        return [call for chat in self.compared for call in chat.result.calls]
 
 
 @dataclass(frozen=True)
@@ -78,7 +81,7 @@ def _tokens(count: Callable[[Usage], int]) -> Callable[[Group], float | None]:
         return _mean(
             [
                 float(sum(count(call.usage) for call in chat.result.calls if call.usage))
-                for chat in group.finished
+                for chat in group.compared
             ]
         )
 
@@ -86,7 +89,7 @@ def _tokens(count: Callable[[Usage], int]) -> Callable[[Group], float | None]:
 
 
 def _fully_correct_percent(group: Group) -> float | None:
-    return _mean([100.0 if fully_correct(chat.scores) else 0.0 for chat in group.finished])
+    return _mean([100.0 if fully_correct(chat.scores) else 0.0 for chat in group.compared])
 
 
 def _median_calorie_error(group: Group) -> float | None:
@@ -103,18 +106,19 @@ def _cost_per_chat(group: Group) -> float | None:
     return _mean(
         [
             float(sum(cost(call.usage, price) for call in chat.result.calls if call.usage))
-            for chat in group.finished
+            for chat in group.compared
         ]
     )
 
 
 def _seconds(group: Group) -> list[float]:
-    return [chat.result.seconds for chat in group.finished]
+    return [chat.result.seconds for chat in group.compared]
 
 
 METRICS: tuple[Metric, ...] = (
     Metric("chats", "Chats run", 0, lambda group: float(len(group.chats))),
-    Metric("errors", "Chats that failed", 0, lambda g: float(len(g.chats) - len(g.finished))),
+    Metric("errors", "Chats that failed", 0, lambda group: float(group.failed())),
+    Metric("compared", "Chats compared", 0, lambda group: float(len(group.compared))),
     Metric("fullyCorrectPercent", "Fully correct chats (%)", 1, _fully_correct_percent),
     Metric("wrongSaves", "Wrong saves", 0, lambda g: float(sum(i.wrong_save for i in g.items()))),
     Metric("missedItems", "Missed items", 0, lambda g: float(sum(i.missed for i in g.items()))),
@@ -130,7 +134,7 @@ METRICS: tuple[Metric, ...] = (
         "modelCallsPerChat",
         "Model calls per chat",
         2,
-        lambda g: _mean([float(len(chat.result.calls)) for chat in g.finished]),
+        lambda g: _mean([float(len(chat.result.calls)) for chat in g.compared]),
     ),
     Metric("inputTokensPerChat", "Input tokens per chat", 0, _tokens(lambda u: u.input_tokens)),
     Metric(
@@ -151,7 +155,7 @@ METRICS: tuple[Metric, ...] = (
         "latencyMedianSeconds",
         "Latency per chat, median (s)",
         1,
-        lambda g: statistics.median(_seconds(g)) if g.finished else None,
+        lambda g: statistics.median(_seconds(g)) if g.compared else None,
     ),
     Metric(
         "latencyP95Seconds",
@@ -194,20 +198,29 @@ def summarize(scored: Sequence[Scored], prices: PriceTable) -> tuple[Summary, ..
     summaries: list[Summary] = []
     for target in targets:
         price = prices.models.get(target.model)
-        off, on = (
-            Group(
-                tuple(
-                    chat
-                    for chat in scored
-                    if chat.result.chat.target == target and chat.result.chat.verify is verify
-                ),
-                price,
+        modes = [
+            tuple(
+                chat
+                for chat in scored
+                if chat.result.chat.target == target and chat.result.chat.verify is verify
             )
             for verify in (False, True)
+        ]
+        finished_in_both = set.intersection(
+            *({_pair(chat) for chat in chats if chat.result.error is None} for chats in modes)
+        )
+        off, on = (
+            Group(chats, tuple(chat for chat in chats if _pair(chat) in finished_in_both), price)
+            for chats in modes
         )
         rows = tuple(Row(metric, metric.value(off), metric.value(on)) for metric in METRICS)
         summaries.append(Summary(target, price is not None, rows))
     return tuple(summaries)
+
+
+def _pair(chat: Scored) -> tuple[str, int]:
+    """What the off and on chats of one comparison share: the case and the repeat."""
+    return chat.result.chat.case.id, chat.result.chat.repeat
 
 
 def _shown(value: float | None, digits: int, signed: bool = False) -> str:

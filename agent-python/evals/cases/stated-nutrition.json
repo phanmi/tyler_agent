@@ -65,9 +65,7 @@
           ],
           "amount": 300,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -99,9 +97,7 @@
           ],
           "amount": 200,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {

@@ -31,6 +31,10 @@ RECORD_FOOD = "recordFood"
 MAX_TOOL_ROUNDS = 5
 CHAT_TIMEOUT_MS = 300_000
 OPERATION_TIMEOUT_MS = 60_000
+# How a failed chat is described in its result. An agent failure is "category/code".
+TIMEOUT_ERROR = "timeout"
+UNEXPECTED_OPERATION_ERROR = "unexpected operation: {name}"
+INTERNAL_ERROR = "internal: {exception}"
 
 
 @dataclass(frozen=True)
@@ -182,13 +186,13 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
     except AgentFailure as failure:
         error = f"{failure.category}/{failure.code}"
     except UnexpectedOperation as unexpected:
-        error = f"unexpected operation: {unexpected.name}"
+        error = UNEXPECTED_OPERATION_ERROR.format(name=unexpected.name)
     except TimeoutError:
-        error = "timeout"
+        error = TIMEOUT_ERROR
     except Exception as unknown:
         # Deliberate boundary: a bug in one chat must not discard the chats already paid
         # for. Only the exception type is kept, because its text could quote a request.
-        error = f"internal: {type(unknown).__name__}"
+        error = INTERNAL_ERROR.format(exception=type(unknown).__name__)
     return ChatResult(
         chat,
         error,

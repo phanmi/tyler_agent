@@ -46,18 +46,23 @@ uv run --locked python -m evals --model openai:gpt-6-sol --model anthropic:claud
 
 A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
+The results file is created before the first call and rewritten after every chat. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
+
 ## Read the report
 
 The command prints one block per model and writes everything it measured to a JSON file. Each row shows the value with verification off, with it on, and the change.
 
+Every case and repeat runs once in each mode. A chat is measured only when it finished in both modes, so both columns cover the same chats and their totals can be compared.
+
 | Row | Meaning |
 |---|---|
-| Chats run, Chats that failed | A chat that fails, for example on a rate limit, is counted here and left out of every other row. The providers do not retry. |
+| Chats run, Chats that failed | A chat that fails, for example on a rate limit, is counted here and left out of every row below. The providers do not retry. |
+| Chats compared | Chats that finished in both modes. Every row below is measured over these. |
 | Fully correct chats (%) | Chats where every expected record was saved correctly and nothing else was saved. |
 | Wrong saves | Saved records with a field outside tolerance, plus records that should not have been saved. |
 | Missed items | Expected records that were not saved, including ones verification refused. |
 | Median calorie error (%) | Over saved records that matched an expected one. Calories the user stated are left out. |
-| Items saved after a rejection | Records verification rejected at least once and then accepted. |
+| Items saved after a rejection | Records verification rejected at least once and then accepted. As in verification itself, a check that returned no usable verdict counts as a rejection. |
 | Items refused | Records verification rejected twice, so nothing was saved. |
 | Model calls, tokens, cost | Averages per chat. They include the verification and regeneration calls inside `recordFood`. |
 | Latency | Wall time per chat: the median and the 95th percentile. |
@@ -67,9 +72,9 @@ Wrong saves should fall with verification on. Missed items and cost will rise. W
 
 ## How records are scored
 
-Scoring uses no model. [scoring.py](scoring.py) pairs each expected record with the first saved record whose name contains one of its accepted names, ignoring case.
+Scoring uses no model. [scoring.py](scoring.py) pairs each expected record with a saved record whose name contains one of its accepted names as whole words, ignoring case. A plural also matches, so "Boiled eggs" matches `egg` and "Eggplant" does not. When several saved records qualify, the one with the fewest wrong fields is paired.
 
-- **Amount and unit** must match exactly, after common unit spellings are treated as one (`g`, `gram`, `grams`). They are not checked when the user gave no amount.
+- **Amount and unit** must match exactly. Common spellings of a unit count as the same unit (`g`, `gram`, `grams`), and so does a plural (`item`, `items`). Neither is checked when the user gave no amount.
 - **Date** must match exactly.
 - **Calories** may differ from the reference by 20% or 15 kcal, whichever is larger.
 - **Protein, carbs, fat and fiber** may differ by 20% or 2 g, whichever is larger.
@@ -91,7 +96,7 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
     {
       "names": ["chicken breast"],
       "amount": 200,
-      "units": ["g", "gram", "grams"],
+      "units": ["g"],
       "date": "2026-11-11",
       "nutrition": { "calories": 302, "protein": 61, "carbs": 0, "fat": 6.3, "fiber": 0 },
       "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: ...; values for 200 g."
@@ -106,8 +111,8 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 | `now` | The date and time the chat happens at, in the text Java's `time.current` returns. Relative dates such as "yesterday" are counted from it. |
 | `history` | Optional earlier turns, each with `role` (`user` or `assistant`) and `content`. |
 | `expected` | The records the chat should save. Use `[]` for a message that should record nothing. |
-| `names` | Accepted food names. A saved name matches when it contains one of them. |
-| `amount`, `units` | The amount and the accepted unit spellings. Use `null` and `[]` when the user gave no amount. |
+| `names` | Accepted food names. A saved name matches when it contains one of them as whole words. List a different word, such as `oatmeal` beside `oat`, separately. |
+| `amount`, `units` | The amount and the accepted units, one spelling each. Use `null` and `[]` when the user gave no amount. |
 | `nutrition` | Reference values for the expected amount. A nutrient you leave out is not checked. |
 | `stated` | Optional. The nutrients the user stated, which must be saved exactly. |
 | `source` | Where the reference values come from. Required. |
@@ -117,12 +122,13 @@ Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) an
 
 ## Update the prices
 
-[prices.json](prices.json) holds each model's prices per million tokens, the pricing page they came from, and the date they were checked. When prices change, edit the values and the `checked` date. A model that is not in the table still gets its tokens reported, with no cost.
+[prices.json](prices.json) holds each model's prices per million tokens, the pricing page they came from, and the date they were checked. When prices change, edit the values and the `checked` date. A model that is not in the table still gets its tokens reported, with no cost. List only standard prices: a promotional price would be wrong once it ends.
 
 ## Limits
 
 - **Java's rules are not applied.** A stand-in answers the Java operations and keeps whatever `recordFood` sends. A record Java would reject, such as an impossible date, is scored as a wrong save.
 - **Other tools are not answered.** Only the time, food and profile operations have a stand-in. A chat that reads or writes a file, or saves a workout plan, ends as a failed chat that names the operation.
 - **Verification outcomes are inferred.** The harness counts the model calls inside each `recordFood` call. One call means the item was accepted straight away, and more than one means it was rejected at least once. This holds while verification checks one item per call.
+- **Chats run one at a time**, including across providers, so a full run of several models takes a long time.
 - **A fallback model is priced as the requested one.** Claude can serve a declined request with another model. Food messages should not trigger it.
 - **Prices are the standard tier.** Long-prompt and off-peak rates are noted in `prices.json` and not applied.

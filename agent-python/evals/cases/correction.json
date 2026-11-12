@@ -23,10 +23,8 @@
           "amount": 3,
           "units": [
             "egg",
-            "eggs",
             "large",
             "large egg",
-            "large eggs",
             "piece",
             "item",
             "serving",
@@ -69,9 +67,7 @@
           ],
           "amount": 250,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -106,9 +102,7 @@
           ],
           "amount": 200,
           "units": [
-            "g",
-            "gram",
-            "grams"
+            "g"
           ],
           "date": "2026-11-11",
           "nutrition": {

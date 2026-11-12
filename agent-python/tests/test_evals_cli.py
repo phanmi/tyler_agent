@@ -2,7 +2,7 @@
 
 import io
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,10 +10,24 @@ import pytest
 from support.eval_fakes import KEY, RuleProvider
 
 from evals.cases import load_cases
-from evals.cli import DEFAULT_REPEATS, UsageError, api_keys, main, plan
+from evals.cli import (
+    DEFAULT_REPEATS,
+    EXIT_COULD_NOT_START,
+    EXIT_FINISHED,
+    EXIT_INTERRUPTED,
+    UsageError,
+    api_keys,
+    main,
+    plan,
+)
 from evals.runner import Target
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.transcript import Provider
+from tyler_agent.transcript import (
+    AssistantTurn,
+    Provider,
+    ToolDefinition,
+    TranscriptEntry,
+)
 
 
 @asynccontextmanager
@@ -34,7 +48,7 @@ def run(
 def test_a_missing_key_stops_the_run_before_any_provider_call() -> None:
     code, output, progress = run(["--model", "openai:gpt-6-sol"], {})
 
-    assert code == 2 and output == ""
+    assert code == EXIT_COULD_NOT_START and output == ""
     assert progress == "error: Set OPENAI_API_KEY before running the harness.\n"
 
 
@@ -61,7 +75,47 @@ def test_an_unknown_case_stops_the_run_and_is_named() -> None:
         ["--model", "openai:gpt-6-sol", "--case", "no-such-case"], {"OPENAI_API_KEY": KEY}
     )
 
-    assert code == 2 and progress == "error: No such case or category: no-such-case\n"
+    assert code == EXIT_COULD_NOT_START
+    assert progress == "error: No such case or category: no-such-case\n"
+
+
+def test_results_that_cannot_be_written_stop_the_run_before_any_provider_call(
+    tmp_path: Path,
+) -> None:
+    occupied = tmp_path / "results"
+    occupied.write_text("not a directory", "utf-8")
+
+    code, output, progress = run(
+        ["--model", "openai:gpt-6-sol", "--results", str(occupied)], {"OPENAI_API_KEY": KEY}
+    )
+
+    assert code == EXIT_COULD_NOT_START and output == ""
+    assert progress.startswith(f"error: Cannot write results in {occupied}: ")
+
+
+def test_an_interrupted_run_keeps_and_reports_the_chats_that_finished(tmp_path: Path) -> None:
+    class Interrupted(RuleProvider):
+        async def respond(
+            self,
+            model: str,
+            transcript: Sequence[TranscriptEntry],
+            tools: Sequence[ToolDefinition],
+        ) -> AssistantTurn:
+            if self.opened == 3:
+                raise KeyboardInterrupt
+            return await super().respond(model, transcript, tools)
+
+    arguments = ["--model", "openai:m", "--case", "grams-chicken", "--results", str(tmp_path)]
+
+    code, output, progress = run(arguments, {"OPENAI_API_KEY": KEY}, Interrupted())
+
+    assert code == EXIT_INTERRUPTED
+    assert progress.splitlines()[-1] == "Interrupted after 2 of 6 chats."
+    chats = next(line for line in output.splitlines() if line.startswith("Chats run"))
+    assert chats.split()[-3:] == ["1", "1", "+0"]
+    (results,) = tmp_path.glob("*.json")
+    saved = json.loads(results.read_text("utf-8"))
+    assert [chat["verification"] for chat in saved["chats"]] == [False, True]
 
 
 @pytest.mark.parametrize(
@@ -121,7 +175,7 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
 
     code, output, progress = run(arguments, {"OPENAI_API_KEY": KEY}, provider)
 
-    assert code == 0 and provider.opened == 4
+    assert code == EXIT_FINISHED and provider.opened == 4
     assert progress.splitlines() == [
         f"[{number}/4] openai/configured-model grams-chicken verification={mode} "
         f"repeat={repeat}: finished"
@@ -164,7 +218,26 @@ def test_a_category_runs_all_of_its_cases(tmp_path: Path) -> None:
     )
 
     nothing = sum(case.category == "record-nothing" for case in load_cases())
-    assert code == 0 and provider.opened == nothing * 2
+    assert code == EXIT_FINISHED and provider.opened == nothing * 2
     # The fake model records chicken for every message, which these cases must count as wrong.
     wrong = next(line for line in output.splitlines() if line.startswith("Wrong saves"))
     assert wrong.split()[-3:] == [str(nothing), str(nothing), "+0"]
+
+
+def test_the_results_file_exists_before_the_first_provider_call(tmp_path: Path) -> None:
+    class Checking(RuleProvider):
+        @asynccontextmanager
+        async def open(self, value: Message) -> AsyncIterator[Provider]:
+            # A failed check here fails the chat, which the progress line would show.
+            assert list(tmp_path.glob("*.json"))
+            async with super().open(value) as provider:
+                yield provider
+
+    arguments = ["--model", "openai:m", "--case", "grams-chicken", "--repeats", "1"]
+
+    code, _, progress = run(
+        [*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, Checking()
+    )
+
+    assert code == EXIT_FINISHED
+    assert [line.rsplit(": ", 1)[1] for line in progress.splitlines()] == ["finished"] * 2

@@ -5,19 +5,24 @@ import asyncio
 import json
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
 from evals.cases import Case, InvalidCases, load_cases, select_cases
-from evals.pricing import load_prices
+from evals.pricing import PriceTable, load_prices
 from evals.report import Scored, document, summarize, table
 from evals.runner import Chat, ProviderFactory, Session, Target, run_chat
 from evals.scoring import score
 from tyler_agent.provider import open_provider
 
 DEFAULT_REPEATS = 3
+EXIT_FINISHED = 0
+# The same code argparse uses for a command it cannot parse.
+EXIT_COULD_NOT_START = 2
+# The conventional code for a command stopped with Ctrl-C.
+EXIT_INTERRUPTED = 130
 RESULTS_DIRECTORY = Path(__file__).parent / "results"
 # The environment variable that holds each provider's API key.
 KEY_VARIABLES = {
@@ -115,12 +120,38 @@ def plan(cases: Sequence[Case], targets: Sequence[Target], repeats: int) -> list
     ]
 
 
-async def run_all(chats: Sequence[Chat], session: Session, progress: TextIO) -> list[Scored]:
-    """Run the chats one at a time, in order."""
-    scored: list[Scored] = []
+def results_file(directory: Path, started: datetime) -> Path:
+    """Create the results file before any paid call, so a place that cannot be written stops
+    the run first instead of losing it at the end."""
+    path = directory / f"{started:%Y%m%d-%H%M%S}.json"
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        path.write_text("", "utf-8")
+    except OSError as error:
+        raise UsageError(f"Cannot write results in {directory}: {error.strerror}") from error
+    return path
+
+
+def save_results(path: Path, scored: Sequence[Scored], prices: PriceTable) -> None:
+    text = json.dumps(
+        document(scored, summarize(scored, prices), prices), indent=2, ensure_ascii=False
+    )
+    path.write_text(text, "utf-8")
+
+
+async def run_all(
+    chats: Sequence[Chat],
+    session: Session,
+    progress: TextIO,
+    scored: list[Scored],
+    save: Callable[[Sequence[Scored]], None],
+) -> None:
+    """Run the chats one at a time, in order. Each finished chat is added to `scored` and
+    saved at once, so stopping the run keeps every chat already paid for."""
     for number, chat in enumerate(chats, start=1):
         result = await run_chat(chat, session)
         scored.append(Scored(result, score(chat.case, result.saved)))
+        save(scored)
         mode = "on" if chat.verify else "off"
         print(
             f"[{number}/{len(chats)}] {chat.target.provider}/{chat.target.model} "
@@ -128,7 +159,6 @@ async def run_all(chats: Sequence[Chat], session: Session, progress: TextIO) -> 
             f"{result.error or 'finished'}",
             file=progress,
         )
-    return scored
 
 
 def main(
@@ -138,24 +168,34 @@ def main(
     output: TextIO = sys.stdout,
     progress: TextIO = sys.stderr,
 ) -> int:
-    """Run the harness. Returns 0 after a run, even one with failed chats, which the report
-    counts; returns 2 when the run could not start."""
+    """Run the harness and report it. A run with failed chats still finishes, and the report
+    counts them. A run stopped with Ctrl-C reports the chats that had finished."""
     options = parser().parse_args(arguments)
     try:
         cases = select_cases(load_cases(), options.cases, options.categories)
         keys = api_keys(options.targets, environment)
+        results = results_file(options.results, datetime.now(UTC))
     except (InvalidCases, UsageError) as error:
         print(f"error: {error}", file=progress)
-        return 2
+        return EXIT_COULD_NOT_START
     prices = load_prices()
     chats = plan(cases, options.targets, options.repeats)
-    scored = asyncio.run(run_all(chats, Session(keys, opener), progress))
-    summaries = summarize(scored, prices)
-    options.results.mkdir(parents=True, exist_ok=True)
-    results = options.results / f"{datetime.now(UTC):%Y%m%d-%H%M%S}.json"
-    results.write_text(
-        json.dumps(document(scored, summaries, prices), indent=2, ensure_ascii=False), "utf-8"
-    )
-    print(table(summaries, prices), file=output)
-    print(f"\nFull results: {results}", file=output)
-    return 0
+    scored: list[Scored] = []
+    code = EXIT_FINISHED
+    try:
+        asyncio.run(
+            run_all(
+                chats,
+                Session(keys, opener),
+                progress,
+                scored,
+                lambda finished: save_results(results, finished, prices),
+            )
+        )
+    except KeyboardInterrupt:
+        print(f"Interrupted after {len(scored)} of {len(chats)} chats.", file=progress)
+        code = EXIT_INTERRUPTED
+    print(table(summarize(scored, prices), prices), file=output)
+    print(file=output)
+    print(f"Full results: {results}", file=output)
+    return code

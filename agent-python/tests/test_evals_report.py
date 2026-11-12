@@ -16,11 +16,10 @@ from tyler_agent.transcript import Usage
 
 PRICE = Price(Decimal(2), Decimal("0.2"), Decimal("2.5"), Decimal(10))
 PRICES = PriceTable("2026-11-11", {TARGET.model: PRICE})
-# The models Settings suggests; the report can only price a model the table lists.
-SUGGESTED_MODELS = {
+# The models Settings suggests that had a standard price on the checked date.
+PRICED_MODELS = {
     "gpt-6-sol",
     "gpt-6.1-sol",
-    "gpt-5.6",
     "claude-sonnet-5-5",
     "claude-opus-5-5",
     "claude-haiku-5-5",
@@ -57,11 +56,12 @@ def test_cost_prices_each_kind_of_token_at_its_own_rate() -> None:
     assert cost(USAGE, PRICE) == expected_cost
 
 
-def test_the_shipped_price_table_covers_the_suggested_models() -> None:
+def test_the_shipped_price_table_lists_the_models_with_a_standard_price() -> None:
     prices = load_prices()
 
     assert prices.checked == "2026-11-11"
-    assert prices.models.keys() == SUGGESTED_MODELS
+    # gpt-5.6 had only a promotional price, so it is reported without a cost.
+    assert prices.models.keys() == PRICED_MODELS
     sonnet = prices.models["claude-sonnet-5-5"]
     assert sonnet == Price(Decimal("2.00"), Decimal("0.10"), Decimal("2.50"), Decimal("10.00"))
 
@@ -91,6 +91,7 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
     assert summary.target == TARGET and summary.priced
     assert result["chats"] == (2, 2, 0)
     assert result["errors"] == (0, 0, 0)
+    assert result["compared"] == (2, 2, 0)
     assert result["fullyCorrectPercent"] == (50, 50, 0)
     assert result["wrongSaves"] == (1, 0, -1)
     assert result["missedItems"] == (0, 1, 1)
@@ -110,17 +111,18 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
 
 
 def test_median_calorie_error_uses_estimated_calories_of_matched_records() -> None:
-    chats = [
+    off = [
         scored(False, (record(calories="330"),)),
         scored(False, (record(calories="270"),), repeat=2),
         scored(False, (record(calories="360"),), repeat=3),
         scored(False, (), repeat=4),
     ]
+    on = [scored(True, (), repeat=repeat) for repeat in (1, 2, 3, 4)]
 
-    (summary,) = summarize(chats, PRICES)
+    (summary,) = summarize(off + on, PRICES)
 
-    off, on, change = values(summary)["medianCalorieErrorPercent"]
-    assert off == pytest.approx(10.0) and on is None and change is None
+    median_off, median_on, change = values(summary)["medianCalorieErrorPercent"]
+    assert median_off == pytest.approx(10.0) and median_on is None and change is None
 
 
 def test_a_failed_chat_counts_as_an_error_and_in_nothing_else() -> None:
@@ -136,19 +138,44 @@ def test_a_failed_chat_counts_as_an_error_and_in_nothing_else() -> None:
             seconds=99.0,
             repeat=2,
         ),
+        scored(True, (record(),), calls=3),
+        scored(True, (record(),), calls=3, repeat=2),
     ]
 
     result = values(summarize(chats, PRICES)[0])
 
-    assert result["chats"][0] == 2 and result["errors"][0] == 1
+    assert result["chats"] == (2, 2, 0) and result["errors"] == (1, 0, -1)
     assert result["fullyCorrectPercent"][0] == 100
     assert result["wrongSaves"][0] == 0 and result["refused"][0] == 0
     assert result["modelCallsPerChat"][0] == 2
     assert result["latencyP95Seconds"][0] == 1.0
 
 
+def test_both_modes_are_measured_over_the_chats_that_finished_in_both() -> None:
+    wrong = record(calories="900")
+    chats = [
+        scored(False, (wrong,)),
+        scored(False, (wrong,), repeat=2),
+        scored(False, (wrong,), repeat=3),
+        scored(True, (wrong,), calls=3),
+        # Verification makes more calls, so it fails more often on a rate limit.
+        scored(True, (), calls=1, error="provider/PROVIDER_FAILURE", repeat=2),
+        scored(True, (), calls=1, error="timeout", repeat=3),
+    ]
+
+    result = values(summarize(chats, PRICES)[0])
+
+    assert result["chats"] == (3, 3, 0) and result["errors"] == (0, 2, 2)
+    assert result["compared"] == (1, 1, 0)
+    # Counting all three off chats would show two wrong saves "removed" by failures alone.
+    assert result["wrongSaves"] == (1, 1, 0)
+    assert result["modelCallsPerChat"] == (2, 3, 1)
+
+
 def test_a_model_missing_from_the_price_table_reports_tokens_and_no_cost() -> None:
-    (summary,) = summarize([scored(False, (record(),))], PriceTable("2026-11-11", {}))
+    chats = [scored(False, (record(),)), scored(True, (record(),))]
+
+    (summary,) = summarize(chats, PriceTable("2026-11-11", {}))
     result = values(summary)
 
     assert not summary.priced
@@ -157,9 +184,11 @@ def test_a_model_missing_from_the_price_table_reports_tokens_and_no_cost() -> No
 
 
 def test_calls_without_usage_are_counted_and_add_no_tokens() -> None:
-    result = values(summarize([scored(False, (record(),), usage=None)], PRICES)[0])
+    chats = [scored(False, (record(),), usage=None), scored(True, (record(),))]
 
-    assert result["callsWithoutUsage"][0] == 2
+    result = values(summarize(chats, PRICES)[0])
+
+    assert result["callsWithoutUsage"] == (2, 0, -2)
     assert result["inputTokensPerChat"][0] == 0 and result["costPerChat"][0] == 0
 
 
@@ -186,6 +215,17 @@ def test_the_table_shows_every_metric_with_off_on_and_change() -> None:
     assert calls.split()[-3:] == ["2.00", "3.00", "+1.00"]
     errors = next(line for line in lines if line.startswith("Chats that failed"))
     assert errors.split()[-3:] == ["0", "0", "+0"]
+
+
+def test_a_run_with_no_finished_chats_still_reports() -> None:
+    assert summarize([], PRICES) == () and table((), PRICES) == ""
+
+    failed = [scored(False, (), error="timeout"), scored(True, (), error="timeout")]
+    result = values(summarize(failed, PRICES)[0])
+
+    assert result["errors"] == (1, 1, 0) and result["compared"] == (0, 0, 0)
+    assert result["fullyCorrectPercent"] == (None, None, None)
+    assert result["latencyP95Seconds"] == (None, None, None)
 
 
 def test_the_results_document_is_json_and_holds_every_chat_without_a_key() -> None:
