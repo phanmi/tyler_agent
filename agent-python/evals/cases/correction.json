@@ -1,0 +1,126 @@
+{
+  "category": "correction",
+  "cases": [
+    {
+      "id": "corrected-count",
+      "now": "2026-11-12 19:30:00 EST",
+      "history": [
+        {
+          "role": "user",
+          "content": "I had two large hard-boiled eggs for breakfast."
+        },
+        {
+          "role": "assistant",
+          "content": "Got it. Would you like me to record that in your food diary?"
+        }
+      ],
+      "message": "Yes please, but actually it was three eggs, not two.",
+      "expected": [
+        {
+          "names": [
+            "egg"
+          ],
+          "amount": 3,
+          "units": [
+            "egg",
+            "eggs",
+            "large",
+            "large egg",
+            "large eggs",
+            "piece",
+            "item",
+            "serving",
+            "each",
+            "unit",
+            "count",
+            "whole",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 232.5,
+            "protein": 18.9,
+            "carbs": 1.7,
+            "fat": 15.9,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173424: Egg, whole, cooked, hard-boiled; values for 150 g (1 large = 50 g)."
+        }
+      ]
+    },
+    {
+      "id": "corrected-amount",
+      "now": "2026-11-12 19:30:00 EST",
+      "history": [
+        {
+          "role": "user",
+          "content": "I ate 150 g of cooked white rice at lunch."
+        },
+        {
+          "role": "assistant",
+          "content": "Shall I record 150 g of cooked white rice for today?"
+        }
+      ],
+      "message": "Sorry, it was 250 g, not 150 g. Yes, log it.",
+      "expected": [
+        {
+          "names": [
+            "rice"
+          ],
+          "amount": 250,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 325.0,
+            "protein": 6.7,
+            "carbs": 70.5,
+            "fat": 0.7,
+            "fiber": 1.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 168878: Rice, white, long-grain, regular, enriched, cooked; values for 250 g."
+        }
+      ]
+    },
+    {
+      "id": "corrected-date",
+      "now": "2026-11-12 19:30:00 EST",
+      "history": [
+        {
+          "role": "user",
+          "content": "For dinner I had 200 g of grilled chicken breast."
+        },
+        {
+          "role": "assistant",
+          "content": "Shall I record 200 g of grilled chicken breast for today?"
+        }
+      ],
+      "message": "It was yesterday's dinner actually, not today's. Please record it.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 200,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-11",
+          "nutrition": {
+            "calories": 302.0,
+            "protein": 61.0,
+            "carbs": 0.0,
+            "fat": 6.3,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled; values for 200 g."
+        }
+      ]
+    }
+  ]
+}

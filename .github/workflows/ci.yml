@@ -34,8 +34,8 @@ jobs:
       - name: Check Python formatting, lint, and types
         working-directory: agent-python
         run: |
-          uv run --locked ruff format --check src tests
-          uv run --locked ruff check src tests
+          uv run --locked ruff format --check src tests evals
+          uv run --locked ruff check src tests evals
           uv run --locked mypy --platform linux
           uv run --locked mypy --platform win32
 

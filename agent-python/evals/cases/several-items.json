@@ -1,0 +1,213 @@
+{
+  "category": "several-items",
+  "cases": [
+    {
+      "id": "two-items-lunch",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "For lunch I had 200 g of grilled chicken breast and 150 g of cooked white rice.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 200,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 302.0,
+            "protein": 61.0,
+            "carbs": 0.0,
+            "fat": 6.3,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled; values for 200 g."
+        },
+        {
+          "names": [
+            "rice"
+          ],
+          "amount": 150,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 195.0,
+            "protein": 4.0,
+            "carbs": 42.3,
+            "fat": 0.4,
+            "fiber": 0.6
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 168878: Rice, white, long-grain, regular, enriched, cooked; values for 150 g."
+        }
+      ]
+    },
+    {
+      "id": "three-items-breakfast",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Breakfast today was 40 g of dry rolled oats, 244 g of whole milk and 30 g of almonds.",
+      "expected": [
+        {
+          "names": [
+            "oat"
+          ],
+          "amount": 40,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 151.6,
+            "protein": 5.3,
+            "carbs": 27.1,
+            "fat": 2.6,
+            "fiber": 4.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173904: Cereals, oats, regular and quick, not fortified, dry; values for 40 g."
+        },
+        {
+          "names": [
+            "milk"
+          ],
+          "amount": 244,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 148.8,
+            "protein": 7.7,
+            "carbs": 11.7,
+            "fat": 7.9,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171265: Milk, whole, 3.25% milkfat, with added vitamin D; values for 244 g."
+        },
+        {
+          "names": [
+            "almond"
+          ],
+          "amount": 30,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 173.7,
+            "protein": 6.4,
+            "carbs": 6.5,
+            "fat": 15.0,
+            "fiber": 3.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170567: Nuts, almonds; values for 30 g."
+        }
+      ]
+    },
+    {
+      "id": "two-items-dinner",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Dinner: 150 g of baked salmon and 100 g of boiled broccoli. Log both please.",
+      "expected": [
+        {
+          "names": [
+            "salmon"
+          ],
+          "amount": 150,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 309.0,
+            "protein": 33.1,
+            "carbs": 0.0,
+            "fat": 18.6,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 175168: Fish, salmon, Atlantic, farmed, cooked, dry heat; values for 150 g."
+        },
+        {
+          "names": [
+            "broccoli"
+          ],
+          "amount": 100,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 35.0,
+            "protein": 2.4,
+            "carbs": 7.2,
+            "fat": 0.4,
+            "fiber": 3.3
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 169967: Broccoli, cooked, boiled, drained, without salt; values for 100 g."
+        }
+      ]
+    },
+    {
+      "id": "two-items-household",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 2 slices of whole wheat bread with 2 tablespoons of smooth peanut butter.",
+      "expected": [
+        {
+          "names": [
+            "bread",
+            "toast"
+          ],
+          "amount": 2,
+          "units": [
+            "slice",
+            "slices"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 161.3,
+            "protein": 7.9,
+            "carbs": 27.3,
+            "fat": 2.2,
+            "fiber": 3.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 172688: Bread, whole-wheat, commercially prepared; values for 64 g (1 slice = 32 g)."
+        },
+        {
+          "names": [
+            "peanut butter"
+          ],
+          "amount": 2,
+          "units": [
+            "tbsp",
+            "tablespoon",
+            "tablespoons"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 191.4,
+            "protein": 7.1,
+            "carbs": 7.1,
+            "fat": 16.4,
+            "fiber": 1.6
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 174266: Peanut butter, smooth style, with salt (Includes foods for USDA's Food Distribution Program); values for 32 g (2 tbsp = 32 g)."
+        }
+      ]
+    }
+  ]
+}

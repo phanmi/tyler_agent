@@ -1,0 +1,175 @@
+{
+  "category": "household-unit",
+  "cases": [
+    {
+      "id": "slices-of-bread",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 2 slices of whole wheat bread.",
+      "expected": [
+        {
+          "names": [
+            "bread",
+            "toast"
+          ],
+          "amount": 2,
+          "units": [
+            "slice",
+            "slices"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 161.3,
+            "protein": 7.9,
+            "carbs": 27.3,
+            "fat": 2.2,
+            "fiber": 3.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 172688: Bread, whole-wheat, commercially prepared; values for 64 g (1 slice = 32 g)."
+        }
+      ]
+    },
+    {
+      "id": "cup-of-milk",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I drank 1 cup of whole milk.",
+      "expected": [
+        {
+          "names": [
+            "milk"
+          ],
+          "amount": 1,
+          "units": [
+            "cup",
+            "cups"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 148.8,
+            "protein": 7.7,
+            "carbs": 11.7,
+            "fat": 7.9,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171265: Milk, whole, 3.25% milkfat, with added vitamin D; values for 244 g (1 cup = 244 g)."
+        }
+      ]
+    },
+    {
+      "id": "tablespoons-of-peanut-butter",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had 2 tablespoons of smooth peanut butter.",
+      "expected": [
+        {
+          "names": [
+            "peanut butter"
+          ],
+          "amount": 2,
+          "units": [
+            "tbsp",
+            "tablespoon",
+            "tablespoons"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 191.4,
+            "protein": 7.1,
+            "carbs": 7.1,
+            "fat": 16.4,
+            "fiber": 1.6
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 174266: Peanut butter, smooth style, with salt (Includes foods for USDA's Food Distribution Program); values for 32 g (2 tbsp = 32 g)."
+        }
+      ]
+    },
+    {
+      "id": "tablespoon-of-olive-oil",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I used 1 tablespoon of olive oil on my salad and ate all of it.",
+      "expected": [
+        {
+          "names": [
+            "olive oil"
+          ],
+          "amount": 1,
+          "units": [
+            "tbsp",
+            "tablespoon",
+            "tablespoons"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 119.3,
+            "protein": 0.0,
+            "carbs": 0.0,
+            "fat": 13.5,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171413: Oil, olive, salad or cooking; values for 13.5 g (1 tbsp = 13.5 g)."
+        }
+      ]
+    },
+    {
+      "id": "three-eggs",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 3 large hard-boiled eggs.",
+      "expected": [
+        {
+          "names": [
+            "egg"
+          ],
+          "amount": 3,
+          "units": [
+            "egg",
+            "eggs",
+            "large",
+            "large egg",
+            "large eggs",
+            "piece",
+            "item",
+            "serving",
+            "each",
+            "unit",
+            "count",
+            "whole",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 232.5,
+            "protein": 18.9,
+            "carbs": 1.7,
+            "fat": 15.9,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173424: Egg, whole, cooked, hard-boiled; values for 150 g (1 large = 50 g)."
+        }
+      ]
+    },
+    {
+      "id": "half-cup-of-broccoli",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had half a cup of chopped boiled broccoli.",
+      "expected": [
+        {
+          "names": [
+            "broccoli"
+          ],
+          "amount": 0.5,
+          "units": [
+            "cup",
+            "cups"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 27.3,
+            "protein": 1.9,
+            "carbs": 5.6,
+            "fat": 0.3,
+            "fiber": 2.6
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 169967: Broccoli, cooked, boiled, drained, without salt; values for 78 g (0.5 cup, chopped = 78 g)."
+        }
+      ]
+    }
+  ]
+}

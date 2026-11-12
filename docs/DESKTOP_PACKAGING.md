@@ -31,8 +31,8 @@ Run each command successfully before continuing. From the repository root:
 ```powershell
 uv sync --project agent-python --locked --group dev
 cd agent-python
-uv run --locked ruff format --check src tests
-uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests evals
+uv run --locked ruff check src tests evals
 uv run --locked mypy --platform linux
 uv run --locked mypy --platform win32
 uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.spec

@@ -15,7 +15,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 
 ## PY-02 — Layout, naming, and formatting
 
-- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
+- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Development tools that drive the agent but do not ship with it, such as the [eval harness](../agent-python/evals/README.md), belong in their own package under `agent-python/` (`evals/`), follow these standards, and are tested from `agent-python/tests/`. Production code MUST NOT import them. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
 - Group modules by cohesive responsibility. Separate provider access, orchestration, tool adapters, and transport where their contracts or lifecycles differ. Extract helpers for clarity and reuse, not arbitrary file-size limits.
 - Use `snake_case` for modules, functions, and variables; `PascalCase` for types; and `UPPER_SNAKE_CASE` for constants. Follow configured Ruff formatting and import ordering, four-space indentation, and English identifiers, comments, docstrings, errors, and logs.
 - Imports MUST NOT start workers, make network calls, load request credentials, or mutate application data. Perform initialization at an explicit entry point. Avoid wildcard imports and unrelated formatting changes.
@@ -106,8 +106,8 @@ For Python behavior changes, run these checks from `agent-python/` using the con
 
 ```powershell
 uv sync --locked
-uv run --locked ruff format --check src tests
-uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests evals
+uv run --locked ruff check src tests evals
 uv run --locked mypy --platform linux
 uv run --locked mypy --platform win32
 uv run --locked pytest tests

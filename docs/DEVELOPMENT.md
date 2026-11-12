@@ -333,7 +333,7 @@ mvn "-Dtest=PythonAgentServiceTest,AgentPersistenceIntegrationTest,AgentRestartI
 uv run --locked pytest tests/test_agent.py tests/test_tools.py tests/test_tool_registry.py
 ```
 
-The suites use deterministic provider mocks and synthetic credentials without network requests. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
+The suites use deterministic provider mocks and synthetic credentials without network requests. To measure how accurately a real model records food, and what food verification costs, run the [eval harness](../agent-python/evals/README.md) by hand; it makes paid provider calls with your own API keys. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
 
 ## Release version and packaging
 

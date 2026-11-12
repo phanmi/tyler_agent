@@ -1,0 +1,29 @@
+{
+  "category": "record-nothing",
+  "cases": [
+    {
+      "id": "question-about-snacks",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "What's a healthy snack for the afternoon?",
+      "expected": []
+    },
+    {
+      "id": "plan-not-eaten",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I'm thinking of ordering pizza tonight.",
+      "expected": []
+    },
+    {
+      "id": "question-about-calories",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "How many calories are in an avocado?",
+      "expected": []
+    },
+    {
+      "id": "someone-else-ate",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "My brother ate a whole Big Mac meal yesterday, can you believe it?",
+      "expected": []
+    }
+  ]
+}

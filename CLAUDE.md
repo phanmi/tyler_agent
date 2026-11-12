@@ -47,8 +47,8 @@ Run the checks for every area you touched before saying work is done or opening 
 ```powershell
 # Python, from agent-python/
 uv sync --locked --group dev
-uv run --locked ruff format --check src tests
-uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests evals
+uv run --locked ruff check src tests evals
 uv run --locked mypy --platform linux
 uv run --locked mypy --platform win32
 uv run --locked pytest tests

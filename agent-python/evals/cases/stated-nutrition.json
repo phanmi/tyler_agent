@@ -1,0 +1,118 @@
+{
+  "category": "stated-nutrition",
+  "cases": [
+    {
+      "id": "unusual-stated-calories",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate a banana. Record it as 1900 kcal, that is what my tracker says.",
+      "expected": [
+        {
+          "names": [
+            "banana"
+          ],
+          "amount": null,
+          "units": [],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 1900
+          },
+          "stated": [
+            "calories"
+          ],
+          "source": "Stated by the user in the message."
+        }
+      ]
+    },
+    {
+      "id": "all-values-stated",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had a protein shake after the gym: 160 kcal, 30 g protein, 4 g carbs, 2 g fat and 1 g fiber. Please log it.",
+      "expected": [
+        {
+          "names": [
+            "shake"
+          ],
+          "amount": null,
+          "units": [],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 160,
+            "protein": 30,
+            "carbs": 4,
+            "fat": 2,
+            "fiber": 1
+          },
+          "stated": [
+            "calories",
+            "protein",
+            "carbs",
+            "fat",
+            "fiber"
+          ],
+          "source": "Stated by the user in the message."
+        }
+      ]
+    },
+    {
+      "id": "recipe-values-stated",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Lunch was 300 g of homemade lasagna. From my recipe that is 520 kcal, 28 g protein, 45 g carbs, 24 g fat and 4 g fiber.",
+      "expected": [
+        {
+          "names": [
+            "lasagna",
+            "lasagne"
+          ],
+          "amount": 300,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 520,
+            "protein": 28,
+            "carbs": 45,
+            "fat": 24,
+            "fiber": 4
+          },
+          "stated": [
+            "calories",
+            "protein",
+            "carbs",
+            "fat",
+            "fiber"
+          ],
+          "source": "Stated by the user in the message."
+        }
+      ]
+    },
+    {
+      "id": "label-calories-stated",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 200 g of grilled chicken breast. The package says that is 220 kcal, so use that.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 200,
+          "units": [
+            "g",
+            "gram",
+            "grams"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 220
+          },
+          "stated": [
+            "calories"
+          ],
+          "source": "Stated by the user in the message."
+        }
+      ]
+    }
+  ]
+}
