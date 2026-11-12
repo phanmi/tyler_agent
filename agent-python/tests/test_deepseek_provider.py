@@ -23,6 +23,7 @@ from tyler_agent.transcript import (
     ToolDefinition,
     ToolResult,
     TranscriptEntry,
+    Usage,
     UserTurn,
 )
 
@@ -307,3 +308,26 @@ def test_production_factory_explicit_settings_cleanup_and_sdk_log_redaction(
     asyncio.run(scenario())
     assert created[0].is_closed()
     assert "secret" not in caplog.text
+
+
+def test_usage_is_read_from_the_sdk_response_with_deepseeks_cache_field() -> None:
+    body = completion("Hi")
+    body["usage"] = {
+        "prompt_tokens": 120,
+        "completion_tokens": 30,
+        "total_tokens": 150,
+        "prompt_cache_hit_tokens": 100,
+        "prompt_cache_miss_tokens": 20,
+    }
+    server = Server([httpx2.Response(200, json=body)])
+
+    turn = run(server, lambda provider: provider.respond("deepseek-flash", [UserTurn("x")], []))
+
+    # prompt_tokens already includes the cache hits; DeepSeek reports no cache writes.
+    assert turn.usage == Usage(120, 30, 100, 0)
+
+
+def test_a_completion_without_usage_is_still_a_reply() -> None:
+    turn = parse_completion(completion("Hi"))
+
+    assert turn.text == "Hi" and turn.usage is None

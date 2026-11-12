@@ -20,11 +20,15 @@ from tyler_agent.transcript import (
     ToolDefinition,
     ToolResult,
     TranscriptEntry,
+    Usage,
     UserTurn,
     checked_calls,
     checked_text,
+    nested,
     provider_errors,
+    reported_usage,
     suppress_sdk_logs,
+    token_count,
 )
 
 CLAUDE_BASE_URL = "https://api.anthropic.com"
@@ -91,7 +95,7 @@ def parse_message(value: Message) -> AssistantTurn:
     """Check the stop reason before content; keep text and calls after any fallback boundary."""
     stop = value.get("stop_reason")
     if stop == "refusal":
-        return AssistantTurn((), REFUSAL_REPLY)
+        return AssistantTurn((), REFUSAL_REPLY, usage=claude_usage(value))
     if stop not in COMPLETE_STOPS:
         # max_tokens and the context-window stop can cut a tool call short; never run it.
         raise AgentFailure("provider", "PROVIDER_FAILURE")
@@ -123,7 +127,22 @@ def parse_message(value: Message) -> AssistantTurn:
                 )
             )
         native.append(block)
-    return AssistantTurn(checked_calls(calls), checked_text("".join(text)), tuple(native))
+    return AssistantTurn(
+        checked_calls(calls), checked_text("".join(text)), tuple(native), claude_usage(value)
+    )
+
+
+def claude_usage(value: Message) -> Usage | None:
+    """Claude reports uncached, cache-read and cache-write input separately; the input total
+    is their sum. A reply a fallback model served is still reported as one total."""
+    uncached = token_count(nested(value, "usage", "input_tokens"))
+    if uncached is None:
+        return None
+    read = token_count(nested(value, "usage", "cache_read_input_tokens")) or 0
+    written = token_count(nested(value, "usage", "cache_creation_input_tokens")) or 0
+    return reported_usage(
+        uncached + read + written, nested(value, "usage", "output_tokens"), read, written
+    )
 
 
 def supports_adaptive_features(model: str) -> bool:

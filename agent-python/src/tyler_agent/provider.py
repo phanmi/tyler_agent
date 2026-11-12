@@ -23,10 +23,13 @@ from tyler_agent.transcript import (
     ToolDefinition,
     ToolResult,
     TranscriptEntry,
+    Usage,
     UserTurn,
     checked_calls,
     checked_text,
+    nested,
     provider_errors,
+    reported_usage,
     suppress_sdk_logs,
 )
 
@@ -81,7 +84,19 @@ def parse_response(value: Message) -> AssistantTurn:
             text.extend(_message_text(item))
         if item.get("type") in OPENAI_REPLAYED_ITEMS:
             native.append(item)
-    return AssistantTurn(checked_calls(calls), checked_text("".join(text)), tuple(native))
+    return AssistantTurn(
+        checked_calls(calls), checked_text("".join(text)), tuple(native), responses_usage(value)
+    )
+
+
+def responses_usage(value: Message) -> Usage | None:
+    """OpenAI's input total already includes the tokens it read from and wrote to its cache."""
+    return reported_usage(
+        nested(value, "usage", "input_tokens"),
+        nested(value, "usage", "output_tokens"),
+        nested(value, "usage", "input_tokens_details", "cached_tokens"),
+        nested(value, "usage", "input_tokens_details", "cache_write_tokens"),
+    )
 
 
 def _message_text(item: Message) -> list[str]:

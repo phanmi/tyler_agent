@@ -28,6 +28,7 @@ from tyler_agent.transcript import (
     ToolDefinition,
     ToolResult,
     TranscriptEntry,
+    Usage,
     UserTurn,
 )
 
@@ -173,7 +174,7 @@ def test_multi_round_tool_use_replays_content_and_groups_results() -> None:
         ]
         return await provider.respond("model", transcript, [TOOL])
 
-    assert run(server, scenario) == AssistantTurn((), "Done", (text("Done"),))
+    assert run(server, scenario) == AssistantTurn((), "Done", (text("Done"),), Usage(1, 1))
     assert server.body(1)["messages"] == [
         {"role": "user", "content": "go"},
         # The thinking block, signature included, returns exactly as Claude sent it.
@@ -212,7 +213,7 @@ def test_agent_runs_claude_tool_rounds_end_to_end() -> None:
 def test_refusal_returns_fixed_reply_and_runs_no_tool() -> None:
     refused = message([tool_use("unsafe", "writeFile")], stop="refusal")
     turn = parse_message(refused)
-    assert turn == AssistantTurn((), REFUSAL_REPLY)
+    assert turn == AssistantTurn((), REFUSAL_REPLY, usage=Usage(1, 1))
 
 
 @pytest.mark.parametrize(
@@ -374,3 +375,36 @@ def test_production_factory_explicit_settings_cleanup_and_sdk_log_redaction(
     asyncio.run(scenario())
     assert created[0].is_closed()
     assert "secret" not in caplog.text
+
+
+def test_usage_adds_cache_reads_and_writes_to_the_input_total() -> None:
+    body = message([text("Hi")])
+    body["usage"] = {
+        "input_tokens": 20,
+        "cache_read_input_tokens": 100,
+        "cache_creation_input_tokens": 8,
+        "output_tokens": 30,
+    }
+    server = Server([httpx2.Response(200, json=body)])
+
+    turn = run(server, lambda provider: provider.respond("claude-sonnet-5-5", [UserTurn("x")], []))
+
+    # Claude's input_tokens excludes cached tokens, unlike the other providers' totals.
+    assert turn.usage == Usage(128, 30, 100, 8)
+
+
+def test_usage_without_cache_fields_and_on_a_refusal() -> None:
+    plain = parse_message(message([text("Hi")]))
+    refusal = parse_message(message([], stop="refusal"))
+
+    assert plain.usage == Usage(1, 1, 0, 0)
+    assert refusal.text == REFUSAL_REPLY and refusal.usage == Usage(1, 1, 0, 0)
+
+
+def test_a_message_without_usage_is_still_a_reply() -> None:
+    body = message([text("Hi")])
+    del body["usage"]
+
+    turn = parse_message(body)
+
+    assert turn.text == "Hi" and turn.usage is None

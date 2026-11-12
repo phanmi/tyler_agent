@@ -20,7 +20,9 @@ from tyler_agent.provider import (
     ToolResult,
     UserTurn,
     open_provider,
+    parse_response,
 )
+from tyler_agent.transcript import Usage, reported_usage
 
 TOOL = ToolDefinition("readFile", "Read a file.", {"type": "object"})
 OUTPUT = [
@@ -304,3 +306,60 @@ def test_worker_startup_does_not_load_the_anthropic_sdk() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True
     ).stdout
     assert output.strip() == "False"
+
+
+def test_usage_is_read_from_the_sdk_response() -> None:
+    usage = {
+        "input_tokens": 120,
+        "input_tokens_details": {"cached_tokens": 100, "cache_write_tokens": 8},
+        "output_tokens": 30,
+        "output_tokens_details": {"reasoning_tokens": 5},
+        "total_tokens": 150,
+    }
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        body = {"id": "r1", "status": "completed", "output": OUTPUT, "usage": usage}
+        return httpx2.Response(200, json=body)
+
+    async def scenario() -> AssistantTurn:
+        async with AsyncOpenAI(
+            api_key="synthetic",
+            max_retries=0,
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
+        ) as client:
+            return await ResponsesProvider(client).respond("configured", [UserTurn("text")], [])
+
+    # OpenAI's input total already includes the cached and cache-write tokens.
+    assert asyncio.run(scenario()).usage == Usage(120, 30, 100, 8)
+
+
+def test_a_response_without_usage_is_still_a_reply() -> None:
+    turn = parse_response({"id": "r1", "status": "completed", "output": OUTPUT})
+
+    assert turn.text == "no" and turn.usage is None
+
+
+@pytest.mark.parametrize(
+    "input_tokens,output_tokens,cached,cache_write,expected",
+    [
+        (120, 30, 100, 8, Usage(120, 30, 100, 8)),
+        (120, 30, None, None, Usage(120, 30, 0, 0)),
+        (0, 0, 0, 0, Usage(0, 0, 0, 0)),
+        # Without both totals there is nothing to report.
+        (None, 30, 100, 8, None),
+        (120, None, 100, 8, None),
+        # Counts that are not counts: text, a negative number, and a boolean, which is an int.
+        ("120", 30, 0, 0, None),
+        (-1, 30, 0, 0, None),
+        (True, 30, 0, 0, None),
+        (120, 30, "many", -5, Usage(120, 30, 0, 0)),
+    ],
+)
+def test_reported_counts_become_usage_only_when_both_totals_are_counts(
+    input_tokens: object,
+    output_tokens: object,
+    cached: object,
+    cache_write: object,
+    expected: Usage | None,
+) -> None:
+    assert reported_usage(input_tokens, output_tokens, cached, cache_write) == expected

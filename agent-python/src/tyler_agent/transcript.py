@@ -45,13 +45,30 @@ class UserTurn:
 
 
 @dataclass(frozen=True)
+class Usage:
+    """Tokens one provider request reported, in the same terms for every provider.
+
+    `input_tokens` counts every input token, including the `cached_input_tokens` the provider
+    read from its prompt cache and the `cache_write_tokens` it stored there, which providers
+    bill at their own rates. `output_tokens` includes reasoning tokens.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cached_input_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
+@dataclass(frozen=True)
 class AssistantTurn:
     """One model reply. `native` holds the provider's own output for exact replay in this run;
-    it is empty for turns loaded from saved history."""
+    it is empty for turns loaded from saved history. `usage` is None for those turns, and for
+    a reply whose provider reported no token counts."""
 
     calls: tuple[ToolCall, ...]
     text: str
     native: tuple[Message, ...] = ()
+    usage: Usage | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +104,35 @@ def checked_calls(calls: list[ToolCall]) -> tuple[ToolCall, ...]:
     if any(not call.call_id or not call.name for call in calls):
         raise AgentFailure("provider", "PROVIDER_FAILURE")
     return tuple(calls)
+
+
+def token_count(value: object) -> int | None:
+    """A token count a provider reported; None when it is absent or not a count."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def reported_usage(
+    input_tokens: object, output_tokens: object, cached: object, cache_write: object = None
+) -> Usage | None:
+    """Build a Usage from reported counts. Without both totals there is no usage, so a reply
+    is never failed for it; a missing cache count means the provider reported no cache use.
+    """
+    total, output = token_count(input_tokens), token_count(output_tokens)
+    if total is None or output is None:
+        return None
+    return Usage(total, output, token_count(cached) or 0, token_count(cache_write) or 0)
+
+
+def nested(value: Message, *path: str) -> object:
+    """Read a field under nested objects of provider output; None when any level is absent."""
+    current: object = value
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
 
 
 @contextmanager
