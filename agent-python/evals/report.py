@@ -1,4 +1,4 @@
-"""Aggregate scored chats into the summary table and the results file.
+"""Aggregate scored chats and write them up as one Markdown report.
 
 Every measurement covers one target (a provider and model) in one mode (verification off or
 on). A chat is measured only when it finished and the chat for the same case and repeat in
@@ -9,13 +9,13 @@ is one entry in METRICS, so adding one changes no other code.
 
 import math
 import statistics
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from evals.pricing import Price, PriceTable, cost
 from evals.runner import ChatResult, FoodCheck, ModelCall, Target
-from evals.scoring import ItemScore, fully_correct
-from tyler_agent.protocol.protocol import Message
+from evals.scoring import ItemScore, expected_value, fully_correct, saved_value
 from tyler_agent.transcript import Usage
 
 LATENCY_PERCENTILE = 95
@@ -139,13 +139,13 @@ METRICS: tuple[Metric, ...] = (
     Metric("inputTokensPerChat", "Input tokens per chat", 0, _tokens(lambda u: u.input_tokens)),
     Metric(
         "cachedInputTokensPerChat",
-        "  of which read from cache",
+        "Input tokens read from cache per chat",
         0,
         _tokens(lambda u: u.cached_input_tokens),
     ),
     Metric(
         "cacheWriteTokensPerChat",
-        "  of which written to cache",
+        "Input tokens written to cache per chat",
         0,
         _tokens(lambda u: u.cache_write_tokens),
     ),
@@ -226,88 +226,152 @@ def _pair(chat: Scored) -> tuple[str, int]:
 def _shown(value: float | None, digits: int, signed: bool = False) -> str:
     if value is None:
         return MISSING
+    # A difference that rounds to zero must not print as "-0.0".
+    value = round(value, digits) or 0.0
     return f"{value:+.{digits}f}" if signed else f"{value:.{digits}f}"
 
 
-def table(summaries: Iterable[Summary], prices: PriceTable) -> str:
-    """The summary as text: one block per target, a row per metric."""
-    blocks: list[str] = []
-    for summary in summaries:
-        lines = [(row.metric.label, row) for row in summary.rows]
-        width = max(len(label) for label, _ in lines)
-        title = f"{summary.target.provider} / {summary.target.model}"
-        if summary.priced:
-            title += f"  (prices checked {prices.checked})"
+@dataclass(frozen=True)
+class RunInfo:
+    """What a report says about the run itself. `planned` is the number of chats the run set
+    out to make, so a report written part-way through can say how far it got."""
+
+    started: datetime
+    version: str
+    cases: int
+    repeats: int
+    planned: int
+    interrupted: bool
+
+
+def _cell(text: str) -> str:
+    """Model output can hold anything; keep it inside one table cell."""
+    return " ".join(text.replace("|", "\\|").split())
+
+
+def markdown_table(headers: Sequence[str], rows: Sequence[Sequence[str]], numbers_from: int) -> str:
+    """A Markdown table, padded so it also reads as plain text in a terminal. Columns from
+    `numbers_from` on are right-aligned."""
+    lines = [list(headers), *([_cell(value) for value in row] for row in rows)]
+    widths = [max(len(line[column]) for line in lines) for column in range(len(headers))]
+
+    def padded(line: Sequence[str]) -> str:
+        cells = [
+            value.rjust(width) if column >= numbers_from else value.ljust(width)
+            for column, (value, width) in enumerate(zip(line, widths, strict=True))
+        ]
+        return "| " + " | ".join(cells) + " |"
+
+    rule = [
+        "-" * (width + 1) + ":" if column >= numbers_from else "-" * (width + 2)
+        for column, width in enumerate(widths)
+    ]
+    return "\n".join([padded(lines[0]), "|" + "|".join(rule) + "|", *map(padded, lines[1:])])
+
+
+def _summary_table(summary: Summary) -> str:
+    rows = [
+        [
+            row.metric.label,
+            _shown(row.off, row.metric.digits),
+            _shown(row.on, row.metric.digits),
+            _shown(row.change, row.metric.digits, signed=True),
+        ]
+        for row in summary.rows
+    ]
+    return markdown_table(["Metric", "Off", "On", "Change"], rows, numbers_from=1)
+
+
+def _problem(chat: Scored, item: ItemScore) -> str:
+    """One record that was not right, with the saved and expected values that differ."""
+    case, saved = chat.result.chat.case, chat.result.saved
+    if item.expected is None:
+        return f'Saved "{saved_value(saved[item.saved or 0], "foodName")}", which nothing expected'
+    expected = case.expected[item.expected]
+    if item.saved is None:
+        return f"Missed {expected.names[0]}"
+    record = saved[item.saved]
+    differences = ", ".join(
+        f"{field} {saved_value(record, field)} (expected {expected_value(expected, field)})"
+        for field in item.wrong
+    )
+    return f"{expected.names[0]}: {differences}"
+
+
+def _problems(chats: Sequence[Scored]) -> list[list[str]]:
+    """A row for every chat that failed or was not fully correct, in run order."""
+    rows: list[list[str]] = []
+    for chat in chats:
+        result = chat.result
+        if result.error is not None:
+            problem = f"Failed: {result.error}"
+        elif fully_correct(chat.scores):
+            continue
         else:
-            title += "  (no price for this model, so no cost)"
-        block = [title, f"{'':<{width}}  {'off':>12}  {'on':>12}  {'change':>12}"]
-        for label, row in lines:
-            digits = row.metric.digits
-            block.append(
-                f"{label:<{width}}  {_shown(row.off, digits):>12}  {_shown(row.on, digits):>12}"
-                f"  {_shown(row.change, digits, signed=True):>12}"
-            )
-        blocks.append("\n".join(block))
-    return "\n\n".join(blocks)
+            problem = "; ".join(_problem(chat, item) for item in chat.scores if not item.correct)
+        mode = "on" if result.chat.verify else "off"
+        rows.append([result.chat.case.id, mode, str(result.chat.repeat), problem])
+    return rows
 
 
-def _chat_entry(chat: Scored) -> Message:
-    result = chat.result
-    return {
-        "case": result.chat.case.id,
-        "provider": result.chat.target.provider,
-        "model": result.chat.target.model,
-        "verification": result.chat.verify,
-        "repeat": result.chat.repeat,
-        "error": result.error,
-        "seconds": result.seconds,
-        "reply": result.reply,
-        "saved": list(result.saved),
-        "foodChecks": [
-            {"modelCalls": check.model_calls, "refused": check.refused} for check in result.checks
-        ],
-        "modelCalls": [
-            {
-                "seconds": call.seconds,
-                "usage": None
-                if call.usage is None
-                else {
-                    "inputTokens": call.usage.input_tokens,
-                    "cachedInputTokens": call.usage.cached_input_tokens,
-                    "cacheWriteTokens": call.usage.cache_write_tokens,
-                    "outputTokens": call.usage.output_tokens,
-                },
-            }
-            for call in result.calls
-        ],
-        "scores": [
-            {
-                "expected": item.expected,
-                "saved": item.saved,
-                "wrong": list(item.wrong),
-                "calorieError": None if item.calorie_error is None else float(item.calorie_error),
-            }
-            for item in chat.scores
-        ],
-    }
+def _target_section(summary: Summary, chats: Sequence[Scored], prices: PriceTable) -> str:
+    price = (
+        f"Prices checked {prices.checked}."
+        if summary.priced
+        else "This model has no price in the table, so no cost is shown."
+    )
+    problems = _problems(chats)
+    detail = (
+        markdown_table(["Case", "Verification", "Repeat", "Problem"], problems, numbers_from=4)
+        if problems
+        else "Every chat finished and was fully correct."
+    )
+    return "\n\n".join(
+        [
+            f"## {summary.target.provider} / {summary.target.model}",
+            price,
+            _summary_table(summary),
+            "### Chats that failed or were not fully correct",
+            detail,
+        ]
+    )
 
 
-def document(scored: Sequence[Scored], summaries: Sequence[Summary], prices: PriceTable) -> Message:
-    """Everything a run measured, as JSON values. It holds case text, saved records and
-    replies, and no API key: a ChatResult never carries one."""
-    return {
-        "pricesChecked": prices.checked,
-        "summary": [
-            {
-                "provider": summary.target.provider,
-                "model": summary.target.model,
-                "priced": summary.priced,
-                "metrics": {
-                    row.metric.key: {"off": row.off, "on": row.on, "change": row.change}
-                    for row in summary.rows
-                },
-            }
-            for summary in summaries
-        ],
-        "chats": [_chat_entry(chat) for chat in scored],
-    }
+def _times(count: int) -> str:
+    return "once" if count == 1 else f"{count} times"
+
+
+def _progress(run: RunInfo, ran: int) -> str:
+    if run.interrupted:
+        return f"Interrupted: {ran} of {run.planned} chats ran."
+    if ran < run.planned:
+        return f"In progress: {ran} of {run.planned} chats ran so far."
+    return f"All {run.planned} chats ran."
+
+
+def report(scored: Sequence[Scored], prices: PriceTable, run: RunInfo) -> str:
+    """The whole run as Markdown: what was run, then one section per model. It holds case
+    IDs, saved values and failure labels, and no API key: a ChatResult never carries one."""
+    heading = "\n".join(
+        [
+            "# Food recording eval report",
+            "",
+            f"- **Tyler version:** {run.version}",
+            f"- **Run started:** {run.started:%Y-%m-%d %H:%M} UTC",
+            f"- **Cases:** {run.cases}, each run {_times(run.repeats)} with food verification "
+            "off and on",
+            f"- **Status:** {_progress(run, len(scored))}",
+            "",
+            "Each model's table compares verification off and on over the chats that finished "
+            "in both modes. `agent-python/evals/README.md` explains every row.",
+        ]
+    )
+    sections = [
+        _target_section(
+            summary,
+            [chat for chat in scored if chat.result.chat.target == summary.target],
+            prices,
+        )
+        for summary in summarize(scored, prices)
+    ]
+    return "\n\n".join([heading, *sections]) + "\n"

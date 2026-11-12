@@ -131,6 +131,25 @@ def wrong_fields(expected: Expected, record: Message) -> tuple[str, ...]:
     return tuple(name for name, matches in _CHECKS if not matches(expected, record))
 
 
+def saved_value(record: Message, field: str) -> str:
+    """A saved field as the report shows it; "nothing" when the record lacks it."""
+    part = "macroNutrients" if field in MACROS else "genericInfo"
+    value = _part(record, part).get(field)
+    return "nothing" if value is None else str(value)
+
+
+def expected_value(expected: Expected, field: str) -> str:
+    """What a checked field should have been, as the report shows it."""
+    if field == "amount":
+        return str(expected.amount)
+    if field == "unit":
+        return " or ".join(expected.units)
+    if field == "date":
+        return expected.date
+    stated = ", as the user stated" if field in expected.stated else ""
+    return f"{expected.nutrition[field]}{stated}"
+
+
 def calorie_error(expected: Expected, record: Message) -> Decimal | None:
     reference = expected.nutrition.get("calories")
     saved = _number(record, "genericInfo", "calories")

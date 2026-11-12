@@ -23,6 +23,7 @@ from evals.cli import (
 from evals.keys import KEYS_FILE_NAME, save_key
 from evals.runner import Target
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.resources import release_version
 from tyler_agent.transcript import (
     AssistantTurn,
     Provider,
@@ -43,6 +44,12 @@ def keys_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     directory = tmp_path / "saved-keys"
     monkeypatch.setattr("evals.cli.KEYS_DIRECTORY", directory)
     return directory
+
+
+def row(output: str, label: str) -> list[str]:
+    """The off, on and change cells of one metric row in the report."""
+    line = next(line for line in output.splitlines() if line.startswith(f"| {label}"))
+    return [cell.strip() for cell in line.strip("|").split("|")][1:]
 
 
 def never_asked(prompt: str) -> str:
@@ -91,7 +98,7 @@ def test_a_saved_key_is_asked_for_hidden_and_then_runs_without_a_variable(
 
     assert code == EXIT_FINISHED and provider.keys == [KEY, KEY]
     assert KEY not in output and KEY not in progress
-    assert KEY not in next((tmp_path / "r").glob("*.json")).read_text("utf-8")
+    assert KEY not in next((tmp_path / "r").glob("*.md")).read_text("utf-8")
 
 
 def test_saving_a_second_key_keeps_the_first_and_an_empty_entry_saves_nothing(
@@ -146,13 +153,12 @@ def test_all_models_runs_every_suggested_model_of_the_providers_with_a_key(
 
     assert code == EXIT_FINISHED
     assert progress.splitlines()[0] == "Skipping anthropic: no API key is saved or set for it."
-    blocks = [line for line in output.splitlines() if " / " in line]
-    assert [line.split("  ")[0] for line in blocks] == [
-        "openai / gpt-6-sol",
-        "openai / gpt-6.1-sol",
-        "openai / gpt-5.6",
-        "deepseek / deepseek-flash",
-        "deepseek / deepseek-v4-pro",
+    assert [line for line in output.splitlines() if line.startswith("## ")] == [
+        "## openai / gpt-6-sol",
+        "## openai / gpt-6.1-sol",
+        "## openai / gpt-5.6",
+        "## deepseek / deepseek-flash",
+        "## deepseek / deepseek-v4-pro",
     ]
     # One chat in each mode for each of the five models, each with its own provider's key.
     assert provider.keys == [KEY] * 6 + ["deepseek-key"] * 4
@@ -191,7 +197,7 @@ def test_an_unknown_case_stops_the_run_and_is_named() -> None:
     assert progress == "error: No such case or category: no-such-case\n"
 
 
-def test_results_that_cannot_be_written_stop_the_run_before_any_provider_call(
+def test_a_report_that_cannot_be_written_stops_the_run_before_any_provider_call(
     tmp_path: Path,
 ) -> None:
     occupied = tmp_path / "results"
@@ -202,7 +208,7 @@ def test_results_that_cannot_be_written_stop_the_run_before_any_provider_call(
     )
 
     assert code == EXIT_COULD_NOT_START and output == ""
-    assert progress.startswith(f"error: Cannot write results in {occupied}: ")
+    assert progress.startswith(f"error: Cannot write the report in {occupied}: ")
 
 
 def test_an_interrupted_run_keeps_and_reports_the_chats_that_finished(tmp_path: Path) -> None:
@@ -223,11 +229,12 @@ def test_an_interrupted_run_keeps_and_reports_the_chats_that_finished(tmp_path: 
 
     assert code == EXIT_INTERRUPTED
     assert progress.splitlines()[-1] == "Interrupted after 2 of 6 chats."
-    chats = next(line for line in output.splitlines() if line.startswith("Chats run"))
-    assert chats.split()[-3:] == ["1", "1", "+0"]
-    (results,) = tmp_path.glob("*.json")
-    saved = json.loads(results.read_text("utf-8"))
-    assert [chat["verification"] for chat in saved["chats"]] == [False, True]
+    assert row(output, "Chats run") == ["1", "1", "+0"]
+    (report,) = tmp_path.glob("*.md")
+    saved = report.read_text("utf-8")
+    assert "- **Status:** Interrupted: 2 of 6 chats ran." in saved.splitlines()
+    assert row(saved, "Chats run") == ["1", "1", "+0"]
+    assert output == f"{saved}\nReport: {report}\n"
 
 
 @pytest.mark.parametrize(
@@ -299,7 +306,12 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
         )
     ]
     lines = output.splitlines()
-    assert lines[0] == "openai / configured-model  (no price for this model, so no cost)"
+    assert lines[0] == "# Food recording eval report"
+    assert f"- **Tyler version:** {release_version()}" in lines
+    assert "- **Cases:** 1, each run 2 times with food verification off and on" in lines
+    assert "- **Status:** All 4 chats ran." in lines
+    assert "## openai / configured-model" in lines
+    assert "This model has no price in the table, so no cost is shown." in lines
     for label, shown in [
         ("Chats run", ["2", "2", "+0"]),
         ("Fully correct chats (%)", ["100.0", "100.0", "+0.0"]),
@@ -307,21 +319,15 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
         ("Input tokens per chat", ["200", "300", "+100"]),
         ("Cost per chat (USD)", ["-", "-", "-"]),
     ]:
-        line = next(line for line in lines if line.startswith(label))
-        assert line.split()[-3:] == shown, label
+        assert row(output, label) == shown, label
+    assert "Every chat finished and was fully correct." in lines
 
-    (results,) = (tmp_path / "results").glob("*.json")
-    assert lines[-1] == f"Full results: {results}"
-    text = results.read_text("utf-8")
+    # The Markdown report is the only file a run writes, and the terminal shows the same text.
+    (report,) = (tmp_path / "results").iterdir()
+    assert report.suffix == ".md" and lines[-1] == f"Report: {report}"
+    text = report.read_text("utf-8")
+    assert output == f"{text}\nReport: {report}\n"
     assert KEY not in text and KEY not in output and KEY not in progress
-    value = json.loads(text)
-    assert [(chat["case"], chat["verification"], chat["repeat"]) for chat in value["chats"]] == [
-        ("grams-chicken", False, 1),
-        ("grams-chicken", True, 1),
-        ("grams-chicken", False, 2),
-        ("grams-chicken", True, 2),
-    ]
-    assert all(chat["scores"][0]["wrong"] == [] for chat in value["chats"])
 
 
 def test_a_category_runs_all_of_its_cases(tmp_path: Path) -> None:
@@ -335,16 +341,26 @@ def test_a_category_runs_all_of_its_cases(tmp_path: Path) -> None:
     nothing = sum(case.category == "record-nothing" for case in load_cases())
     assert code == EXIT_FINISHED and provider.opened == nothing * 2
     # The fake model records chicken for every message, which these cases must count as wrong.
-    wrong = next(line for line in output.splitlines() if line.startswith("Wrong saves"))
-    assert wrong.split()[-3:] == [str(nothing), str(nothing), "+0"]
+    assert row(output, "Wrong saves") == [str(nothing), str(nothing), "+0"]
+    problems = [line for line in output.splitlines() if "which nothing expected" in line]
+    assert len(problems) == nothing * 2
+    assert all(
+        'Saved "Grilled chicken breast", which nothing expected' in line for line in problems
+    )
 
 
-def test_the_results_file_exists_before_the_first_provider_call(tmp_path: Path) -> None:
+def test_the_report_file_exists_before_the_first_call_and_grows_with_each_chat(
+    tmp_path: Path,
+) -> None:
+    on_disk: list[list[str]] = []
+
     class Checking(RuleProvider):
         @asynccontextmanager
         async def open(self, value: Message) -> AsyncIterator[Provider]:
-            # A failed check here fails the chat, which the progress line would show.
-            assert list(tmp_path.glob("*.json"))
+            # A missing file here fails the chat, which the progress line would show.
+            (report,) = tmp_path.glob("*.md")
+            text = report.read_text("utf-8")
+            on_disk.append([line for line in text.splitlines() if "Status" in line])
             async with super().open(value) as provider:
                 yield provider
 
@@ -356,3 +372,6 @@ def test_the_results_file_exists_before_the_first_provider_call(tmp_path: Path) 
 
     assert code == EXIT_FINISHED
     assert [line.rsplit(": ", 1)[1] for line in progress.splitlines()] == ["finished"] * 2
+    # Empty before the first call; after the first chat it already holds that chat, so a
+    # run that is killed outright still leaves a report of what it paid for.
+    assert on_disk == [[], ["- **Status:** In progress: 1 of 2 chats ran so far."]]

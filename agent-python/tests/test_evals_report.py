@@ -1,6 +1,9 @@
 """Cost lookup and the aggregation behind the eval report (#97)."""
 
 import json
+import re
+from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -8,7 +11,7 @@ import pytest
 from support.eval_fakes import KEY, TARGET, USAGE, case, chat, expected, record
 
 from evals.pricing import Price, PriceTable, cost, load_prices
-from evals.report import Scored, Summary, document, summarize, table
+from evals.report import RunInfo, Scored, Summary, markdown_table, report, summarize
 from evals.runner import Chat, ChatResult, FoodCheck, ModelCall, Target
 from evals.scoring import score
 from tyler_agent.protocol.protocol import Message
@@ -16,6 +19,7 @@ from tyler_agent.transcript import Usage
 
 PRICE = Price(Decimal(2), Decimal("0.2"), Decimal("2.5"), Decimal(10))
 PRICES = PriceTable("2026-11-11", {TARGET.model: PRICE})
+RUN = RunInfo(datetime(2026, 11, 11, 20, 15, tzinfo=UTC), "0.2.1", 1, 2, 4, False)
 # The models Settings suggests that had a standard price on the checked date.
 PRICED_MODELS = {
     "gpt-6-sol",
@@ -39,9 +43,7 @@ def scored(
     usage: Usage | None = USAGE,
 ) -> Scored:
     subject = chat(verify, repeat)
-    result = ChatResult(
-        subject, error, "reply", saved, checks, (ModelCall(usage, 0.5),) * calls, seconds
-    )
+    result = ChatResult(subject, error, saved, checks, (ModelCall(usage, 0.5),) * calls, seconds)
     return Scored(result, score(subject.case, saved))
 
 
@@ -180,7 +182,8 @@ def test_a_model_missing_from_the_price_table_reports_tokens_and_no_cost() -> No
 
     assert not summary.priced
     assert result["inputTokensPerChat"][0] == 200 and result["costPerChat"][0] is None
-    assert "no price for this model, so no cost" in table([summary], PRICES)
+    text = report(chats, PriceTable("2026-11-11", {}), RUN)
+    assert "This model has no price in the table, so no cost is shown." in text.splitlines()
 
 
 def test_calls_without_usage_are_counted_and_add_no_tokens() -> None:
@@ -196,7 +199,7 @@ def test_each_target_gets_its_own_summary_in_run_order() -> None:
     other = Target("deepseek", "deepseek-flash")
     first = scored(False, (record(),))
     elsewhere = Chat(case(expected()), other, False, 1)
-    second = Scored(ChatResult(elsewhere, None, "", (), (), (), 1.0), ())
+    second = Scored(ChatResult(elsewhere, None, (), (), (), 1.0), ())
 
     summaries = summarize([first, second], PRICES)
 
@@ -204,21 +207,131 @@ def test_each_target_gets_its_own_summary_in_run_order() -> None:
     assert [values(summary)["chats"][0] for summary in summaries] == [1, 1]
 
 
-def test_the_table_shows_every_metric_with_off_on_and_change() -> None:
+def cells(line: str) -> list[str]:
+    """The cells of one Markdown table row; an escaped pipe stays inside its cell."""
+    return [cell.strip() for cell in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
+
+
+def table_after(text: str, heading: str) -> list[list[str]]:
+    """The body rows of the first table whose header starts with `heading`."""
+    lines = text.splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith(f"| {heading}"))
+    rows = []
+    for line in lines[start + 2 :]:
+        if not line.startswith("|"):
+            break
+        rows.append(cells(line))
+    return rows
+
+
+def test_a_markdown_table_is_padded_aligned_and_keeps_text_in_its_cell() -> None:
+    text = markdown_table(
+        ["Metric", "Off"], [["Chats run", "2"], ["A | B\nC", "10.5"]], numbers_from=1
+    )
+
+    assert text.splitlines() == [
+        "| Metric    |  Off |",
+        "|-----------|-----:|",
+        "| Chats run |    2 |",
+        "| A \\| B C  | 10.5 |",
+    ]
+
+
+def test_the_report_is_markdown_with_the_run_and_a_table_for_each_model() -> None:
     chats = [scored(False, (record(),), calls=2), scored(True, (record(),), calls=3)]
-    text = table(summarize(chats, PRICES), PRICES)
+
+    text = report(chats, PRICES, replace(RUN, planned=2))
     lines = text.splitlines()
 
-    assert lines[0] == "openai / configured-model  (prices checked 2026-11-11)"
-    assert lines[1].split() == ["off", "on", "change"]
-    calls = next(line for line in lines if line.startswith("Model calls per chat"))
-    assert calls.split()[-3:] == ["2.00", "3.00", "+1.00"]
-    errors = next(line for line in lines if line.startswith("Chats that failed"))
-    assert errors.split()[-3:] == ["0", "0", "+0"]
+    assert lines[:6] == [
+        "# Food recording eval report",
+        "",
+        "- **Tyler version:** 0.2.1",
+        "- **Run started:** 2026-11-11 20:15 UTC",
+        "- **Cases:** 1, each run 2 times with food verification off and on",
+        "- **Status:** All 2 chats ran.",
+    ]
+    assert "## openai / configured-model" in lines and "Prices checked 2026-11-11." in lines
+    header = next(index for index, line in enumerate(lines) if line.startswith("| Metric"))
+    assert cells(lines[header]) == ["Metric", "Off", "On", "Change"]
+    assert re.fullmatch(r"\|-+\|-+:\|-+:\|-+:\|", lines[header + 1])
+    metrics = {row[0]: row[1:] for row in table_after(text, "Metric")}
+    assert metrics["Model calls per chat"] == ["2.00", "3.00", "+1.00"]
+    assert metrics["Chats that failed"] == ["0", "0", "+0"]
+    assert metrics["Median calorie error (%)"] == ["0.7", "0.7", "+0.0"]
+    assert len(metrics) == len(summarize(chats, PRICES)[0].rows)
+    assert "Every chat finished and was fully correct." in lines
+    assert text.endswith("\n") and KEY not in text
+
+
+def test_the_report_lists_each_chat_that_failed_or_was_not_fully_correct() -> None:
+    chats = [
+        scored(False, (record(date="2026-11-11", calories="900"),)),
+        scored(True, ()),
+        scored(False, (record(), record(foodName="Fried | rice\npudding")), repeat=2),
+        scored(True, (record(),), error="provider/PROVIDER_FAILURE", repeat=2),
+        scored(False, (record(),), repeat=3),
+        scored(True, (record(unit=None),), repeat=3),
+    ]
+
+    text = report(chats, PRICES, replace(RUN, planned=6))
+
+    assert table_after(text, "Case") == [
+        [
+            "chicken",
+            "off",
+            "1",
+            "chicken breast: date 2026-11-11 (expected 2026-11-12), calories 900 (expected 300)",
+        ],
+        ["chicken", "on", "1", "Missed chicken breast"],
+        ["chicken", "off", "2", 'Saved "Fried \\| rice pudding", which nothing expected'],
+        ["chicken", "on", "2", "Failed: provider/PROVIDER_FAILURE"],
+        ["chicken", "on", "3", "chicken breast: unit nothing (expected g or gram or grams)"],
+    ]
+
+
+def test_a_stated_value_that_was_changed_is_reported_as_stated() -> None:
+    stated = expected(nutrition={"calories": Decimal(1900)}, stated=frozenset({"calories"}))
+    subject = Chat(case(stated), TARGET, True, 1)
+    saved = (record(calories="105"),)
+    chats = [Scored(ChatResult(subject, None, saved, (), (), 1.0), score(subject.case, saved))]
+
+    text = report(chats, PRICES, RUN)
+
+    assert table_after(text, "Case")[0][3] == (
+        "chicken breast: calories 105 (expected 1900, as the user stated)"
+    )
+
+
+def test_a_difference_that_rounds_to_zero_is_shown_without_a_minus_sign() -> None:
+    chats = [scored(False, (record(),), seconds=0.1 + 0.2), scored(True, (record(),), seconds=0.3)]
+
+    metrics = {row[0]: row[1:] for row in table_after(report(chats, PRICES, RUN), "Metric")}
+
+    assert metrics["Latency per chat, median (s)"] == ["0.3", "0.3", "+0.0"]
+
+
+def test_a_single_repeat_is_described_as_once() -> None:
+    text = report([], PRICES, replace(RUN, repeats=1))
+
+    assert "- **Cases:** 1, each run once with food verification off and on" in text.splitlines()
+
+
+def test_the_report_says_how_far_an_unfinished_run_got() -> None:
+    one = [scored(False, (record(),))]
+
+    running = report(one, PRICES, RUN)
+    stopped = report(one, PRICES, replace(RUN, interrupted=True))
+
+    assert "- **Status:** In progress: 1 of 4 chats ran so far." in running.splitlines()
+    assert "- **Status:** Interrupted: 1 of 4 chats ran." in stopped.splitlines()
 
 
 def test_a_run_with_no_finished_chats_still_reports() -> None:
-    assert summarize([], PRICES) == () and table((), PRICES) == ""
+    empty = report([], PRICES, RUN)
+    assert summarize([], PRICES) == ()
+    assert "- **Status:** In progress: 0 of 4 chats ran so far." in empty.splitlines()
+    assert "## " not in empty
 
     failed = [scored(False, (), error="timeout"), scored(True, (), error="timeout")]
     result = values(summarize(failed, PRICES)[0])
@@ -226,32 +339,5 @@ def test_a_run_with_no_finished_chats_still_reports() -> None:
     assert result["errors"] == (1, 1, 0) and result["compared"] == (0, 0, 0)
     assert result["fullyCorrectPercent"] == (None, None, None)
     assert result["latencyP95Seconds"] == (None, None, None)
-
-
-def test_the_results_document_is_json_and_holds_every_chat_without_a_key() -> None:
-    chats = [
-        scored(False, (record(),), checks=(FoodCheck(0, False),)),
-        scored(True, (), error="timeout", usage=None),
-    ]
-    summaries = summarize(chats, PRICES)
-
-    text = json.dumps(document(chats, summaries, PRICES))
-    value = json.loads(text)
-
-    assert KEY not in text
-    assert value["pricesChecked"] == "2026-11-11"
-    assert value["summary"][0]["metrics"]["chats"] == {"off": 1.0, "on": 1.0, "change": 0.0}
-    first, second = value["chats"]
-    assert first["case"] == "chicken" and first["verification"] is False
-    assert first["saved"] == [record()]
-    assert first["foodChecks"] == [{"modelCalls": 0, "refused": False}]
-    assert first["modelCalls"][0]["usage"] == {
-        "inputTokens": 100,
-        "cachedInputTokens": 40,
-        "cacheWriteTokens": 5,
-        "outputTokens": 10,
-    }
-    assert first["scores"] == [
-        {"expected": 0, "saved": 0, "wrong": [], "calorieError": pytest.approx(2 / 300)}
-    ]
-    assert second["error"] == "timeout" and second["modelCalls"][0]["usage"] is None
+    metrics = {row[0]: row[1:] for row in table_after(report(failed, PRICES, RUN), "Metric")}
+    assert metrics["Fully correct chats (%)"] == ["-", "-", "-"]

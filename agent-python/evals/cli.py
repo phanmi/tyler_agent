@@ -22,11 +22,12 @@ from evals.keys import (
     save_key,
     saved_keys,
 )
-from evals.pricing import PriceTable, load_prices
-from evals.report import Scored, document, summarize, table
+from evals.pricing import load_prices
+from evals.report import RunInfo, Scored, report
 from evals.runner import Chat, ProviderFactory, Session, Target, run_chat
 from evals.scoring import score
 from tyler_agent.provider import open_provider
+from tyler_agent.resources import release_version
 
 DEFAULT_REPEATS = 3
 EXIT_FINISHED = 0
@@ -114,7 +115,7 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=RESULTS_DIRECTORY,
         metavar="DIRECTORY",
-        help="where the full results file is written",
+        help="where the Markdown report is written",
     )
     command.add_argument(
         "--keys",
@@ -162,23 +163,16 @@ def plan(cases: Sequence[Case], targets: Sequence[Target], repeats: int) -> list
     ]
 
 
-def results_file(directory: Path, started: datetime) -> Path:
-    """Create the results file before any paid call, so a place that cannot be written stops
+def report_file(directory: Path, started: datetime) -> Path:
+    """Create the report file before any paid call, so a place that cannot be written stops
     the run first instead of losing it at the end."""
-    path = directory / f"{started:%Y%m%d-%H%M%S}.json"
+    path = directory / f"{started:%Y%m%d-%H%M%S}.md"
     try:
         directory.mkdir(parents=True, exist_ok=True)
         path.write_text("", "utf-8")
     except OSError as error:
-        raise UsageError(f"Cannot write results in {directory}: {error.strerror}") from error
+        raise UsageError(f"Cannot write the report in {directory}: {error.strerror}") from error
     return path
-
-
-def save_results(path: Path, scored: Sequence[Scored], prices: PriceTable) -> None:
-    text = json.dumps(
-        document(scored, summarize(scored, prices), prices), indent=2, ensure_ascii=False
-    )
-    path.write_text(text, "utf-8")
 
 
 async def run_all(
@@ -186,14 +180,14 @@ async def run_all(
     session: Session,
     progress: TextIO,
     scored: list[Scored],
-    save: Callable[[Sequence[Scored]], None],
+    save: Callable[[], object],
 ) -> None:
     """Run the chats one at a time, in order. Each finished chat is added to `scored` and
-    saved at once, so stopping the run keeps every chat already paid for."""
+    the report is saved at once, so stopping the run keeps every chat already paid for."""
     for number, chat in enumerate(chats, start=1):
         result = await run_chat(chat, session)
         scored.append(Scored(result, score(chat.case, result.saved)))
-        save(scored)
+        save()
         mode = "on" if chat.verify else "off"
         print(
             f"[{number}/{len(chats)}] {chat.target.provider}/{chat.target.model} "
@@ -226,27 +220,28 @@ def run_command(
     cases = select_cases(load_cases(), options.cases, options.categories)
     keys = available_keys(environment, saved_keys(options.keys))
     targets = chosen_targets(options, keys, progress)
-    results = results_file(options.results, datetime.now(UTC))
+    started = datetime.now(UTC)
+    path = report_file(options.results, started)
     prices = load_prices()
     chats = plan(cases, targets, options.repeats)
     scored: list[Scored] = []
+
+    def save(interrupted: bool = False) -> str:
+        run = RunInfo(
+            started, release_version(), len(cases), options.repeats, len(chats), interrupted
+        )
+        text = report(scored, prices, run)
+        path.write_text(text, "utf-8")
+        return text
+
     code = EXIT_FINISHED
     try:
-        asyncio.run(
-            run_all(
-                chats,
-                Session(keys, opener),
-                progress,
-                scored,
-                lambda finished: save_results(results, finished, prices),
-            )
-        )
+        asyncio.run(run_all(chats, Session(keys, opener), progress, scored, save))
     except KeyboardInterrupt:
         print(f"Interrupted after {len(scored)} of {len(chats)} chats.", file=progress)
         code = EXIT_INTERRUPTED
-    print(table(summarize(scored, prices), prices), file=output)
-    print(file=output)
-    print(f"Full results: {results}", file=output)
+    print(save(code == EXIT_INTERRUPTED), file=output)
+    print(f"Report: {path}", file=output)
     return code
 
 

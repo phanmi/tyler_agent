@@ -33,7 +33,7 @@ def test_verification_off_saves_through_the_real_tool_with_no_extra_model_calls(
 
     result = run(provider, verify=False)
 
-    assert result.error is None and result.reply == "Recorded."
+    assert result.error is None
     assert result.saved == (record(),)
     assert result.checks == (FoodCheck(0, False),)
     assert [call.usage for call in result.calls] == [USAGE, USAGE]

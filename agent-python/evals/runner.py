@@ -82,7 +82,6 @@ class ChatResult:
 
     chat: Chat
     error: str | None
-    reply: str
     saved: tuple[Message, ...]
     checks: tuple[FoodCheck, ...]
     calls: tuple[ModelCall, ...]
@@ -173,7 +172,6 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
     meter: MeteredProvider | None = None
     tools: RecordedTools | None = None
     error: str | None = None
-    reply = ""
     started = session.clock()
     try:
         async with asyncio.timeout(CHAT_TIMEOUT_MS / 1000):
@@ -182,7 +180,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
                 settings = RunSettings(verify_food=chat.verify)
                 context = tool_context(payload, meter, java.operation, settings)
                 tools = RecordedTools(context, session.catalog, meter)
-                reply = await run_agent(payload, meter, tools)
+                await run_agent(payload, meter, tools)
     except AgentFailure as failure:
         error = f"{failure.category}/{failure.code}"
     except UnexpectedOperation as unexpected:
@@ -196,7 +194,6 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
     return ChatResult(
         chat,
         error,
-        reply,
         tuple(java.saved),
         tuple(tools.checks) if tools else (),
         tuple(meter.calls) if meter else (),

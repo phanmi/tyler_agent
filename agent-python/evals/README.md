@@ -22,7 +22,7 @@ Keys are saved in `Documents\.tylerTest\keys.json` under your user folder, for e
 - **To replace a key**, save it again. **To remove the keys**, delete the file.
 - **An environment variable wins over a saved key**, so you can use another key for one run: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `DEEPSEEK_API_KEY`.
 
-Keys are never written to the results file, the progress output, or the report.
+Keys are never written to the report or the progress output.
 
 ## Run it
 
@@ -54,16 +54,20 @@ uv run --locked python -m evals --all-models
 | `--repeats N` | How many times each case runs in each mode. The default is 3, because model output varies. |
 | `--case ID` | Run only this case. Repeat it for several. |
 | `--category NAME` | Run only this category's cases. It combines with `--case`. |
-| `--results DIRECTORY` | Where the results file goes. The default is `evals/results/`, which git ignores. |
+| `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
 A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. `--all-models` with all three keys is eight models, so 1,872 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
-The results file is created before the first call and rewritten after every chat. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
+The report file is created before the first call and rewritten after every chat. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
 ## Read the report
 
-The command prints one block per model and writes everything it measured to a JSON file. Each row shows the value with verification off, with it on, and the change.
+A run writes one Markdown file, named after the time it started, and prints the same text when it ends. It is the only file a run writes.
+
+The report starts with the Tyler version, the start time, the number of cases and repeats, and how far the run got. Each model then has a table, followed by a list of the chats that failed or were not fully correct, with the saved and expected values that differ.
+
+Each table row shows the value with verification off, with it on, and the change.
 
 Every case and repeat runs once in each mode. A chat is measured only when it finished in both modes, so both columns cover the same chats and their totals can be compared.
 
