@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from evals.cases import PACKAGE, InvalidCases, Tolerance, load_cases, select_cases
-from evals.cli import DEFAULT_REPEATS
+from evals.cli import DEFAULT_REPEATS, suggested_targets
 
 REQUIRED_CATEGORIES = {
     "amount-and-unit",
@@ -184,3 +184,10 @@ def test_the_readme_states_the_size_of_a_full_run() -> None:
     chats = len(cases) * DEFAULT_REPEATS * 2
 
     assert f"{chats} chats with the {len(cases)} shipped cases" in readme
+
+
+def test_the_readme_states_the_size_of_an_all_models_run() -> None:
+    readme = PACKAGE.joinpath("README.md").read_text("utf-8")
+    chats = len(load_cases()) * DEFAULT_REPEATS * 2 * len(suggested_targets())
+
+    assert f"{chats:,} chats" in readme

@@ -6,19 +6,21 @@ This harness measures how accurately the agent records food and what that costs.
 
 **A run makes paid API calls on your own provider account.** It is not part of the worker wheel or the Windows bundle, and CI never runs it. CI runs only its tests, which use a fake model.
 
-## Set the API keys
+## Save the API keys
 
-The harness reads each provider's key from an environment variable and stops before any call if one is missing.
-
-| Provider | Variable |
-|---|---|
-| `openai` | `OPENAI_API_KEY` |
-| `anthropic` | `ANTHROPIC_API_KEY` |
-| `deepseek` | `DEEPSEEK_API_KEY` |
+Save each provider's key once. Run this from `agent-python/` for `openai`, `anthropic` and `deepseek`, whichever you have:
 
 ```powershell
-$env:OPENAI_API_KEY = "<your key>"
+uv run --locked python -m evals --save-key openai
 ```
+
+The command asks for the key and hides what you type. The key is never passed as a command-line argument, so it stays out of your shell history.
+
+Keys are saved in `Documents\.tylerTest\keys.json` under your user folder, for example `C:\Users\<you>\Documents\.tylerTest\keys.json`. That is outside the repository, so git cannot pick them up.
+
+- **The file is plain text.** Anyone who can read your user folder can read the keys. If your `Documents` folder is synced to a cloud service, the file is synced too; use `--keys DIRECTORY` to keep it somewhere else.
+- **To replace a key**, save it again. **To remove the keys**, delete the file.
+- **An environment variable wins over a saved key**, so you can use another key for one run: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `DEEPSEEK_API_KEY`.
 
 Keys are never written to the results file, the progress output, or the report.
 
@@ -30,21 +32,32 @@ Run from `agent-python/`. Start with a few cases to check that the keys and mode
 uv run --locked python -m evals --model openai:gpt-6-sol --case grams-chicken --case yesterday --repeats 1
 ```
 
-Then run everything:
+Then run all cases for the models you choose:
 
 ```powershell
 uv run --locked python -m evals --model openai:gpt-6-sol --model anthropic:claude-sonnet-5-5 --model deepseek:deepseek-flash
 ```
 
+Or run every model Tyler suggests in Settings in one run:
+
+```powershell
+uv run --locked python -m evals --all-models
+```
+
+`--all-models` runs the models in [models.json](models.json) for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
+
 | Option | Meaning |
 |---|---|
-| `--model PROVIDER:MODEL` | A model to evaluate. Repeat it for several. Required. |
+| `--model PROVIDER:MODEL` | A model to evaluate. Repeat it for several. |
+| `--all-models` | Evaluate every suggested model of every provider that has a key. Use this or `--model`. |
+| `--save-key PROVIDER` | Ask for that provider's key, save it, and stop. |
 | `--repeats N` | How many times each case runs in each mode. The default is 3, because model output varies. |
 | `--case ID` | Run only this case. Repeat it for several. |
 | `--category NAME` | Run only this category's cases. It combines with `--case`. |
 | `--results DIRECTORY` | Where the results file goes. The default is `evals/results/`, which git ignores. |
+| `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. `--all-models` with all three keys is eight models, so 1,872 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The results file is created before the first call and rewritten after every chat. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 

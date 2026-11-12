@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 import sys
@@ -11,6 +12,16 @@ from pathlib import Path
 from typing import TextIO
 
 from evals.cases import Case, InvalidCases, load_cases, select_cases
+from evals.keys import (
+    KEY_VARIABLES,
+    KEYS_DIRECTORY,
+    SAVE_KEY_HINT,
+    KeyProblem,
+    available_keys,
+    require_keys,
+    save_key,
+    saved_keys,
+)
 from evals.pricing import PriceTable, load_prices
 from evals.report import Scored, document, summarize, table
 from evals.runner import Chat, ProviderFactory, Session, Target, run_chat
@@ -24,12 +35,10 @@ EXIT_COULD_NOT_START = 2
 # The conventional code for a command stopped with Ctrl-C.
 EXIT_INTERRUPTED = 130
 RESULTS_DIRECTORY = Path(__file__).parent / "results"
-# The environment variable that holds each provider's API key.
-KEY_VARIABLES = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "deepseek": "DEEPSEEK_API_KEY",
-}
+# The models Settings suggests for each provider, which --all-models runs.
+MODELS_PATH = Path(__file__).parent / "models.json"
+
+type Ask = Callable[[str], str]
 
 
 class UsageError(Exception):
@@ -62,14 +71,26 @@ def parser() -> argparse.ArgumentParser:
         description="Run labelled food-recording cases against real providers, with food "
         "verification off and on, and report accuracy and cost. This makes paid API calls.",
     )
-    command.add_argument(
+    action = command.add_mutually_exclusive_group(required=True)
+    action.add_argument(
         "--model",
         dest="targets",
         action="append",
-        required=True,
         type=parse_target,
         metavar="PROVIDER:MODEL",
         help="a model to evaluate, such as openai:gpt-6-sol; repeat for several",
+    )
+    action.add_argument(
+        "--all-models",
+        action="store_true",
+        help="evaluate every suggested model of every provider that has an API key",
+    )
+    action.add_argument(
+        "--save-key",
+        choices=tuple(KEY_VARIABLES),
+        metavar="PROVIDER",
+        help=f"ask for this provider's API key ({', '.join(KEY_VARIABLES)}), save it on this "
+        "computer, and stop; the key is typed at a hidden prompt, never as an argument",
     )
     command.add_argument(
         "--repeats",
@@ -95,17 +116,38 @@ def parser() -> argparse.ArgumentParser:
         metavar="DIRECTORY",
         help="where the full results file is written",
     )
+    command.add_argument(
+        "--keys",
+        type=Path,
+        default=KEYS_DIRECTORY,
+        metavar="DIRECTORY",
+        help=f"where saved API keys are kept (default {KEYS_DIRECTORY})",
+    )
     return command
 
 
-def api_keys(targets: Sequence[Target], environment: Mapping[str, str]) -> dict[str, str]:
-    """The key of every requested provider. Any missing key stops the run before a call is
-    made, and the message names the variable to set, never a key."""
-    variables = {target.provider: KEY_VARIABLES[target.provider] for target in targets}
-    missing = [name for name in variables.values() if not environment.get(name)]
-    if missing:
-        raise UsageError(f"Set {' and '.join(missing)} before running the harness.")
-    return {provider: environment[name] for provider, name in variables.items()}
+def suggested_targets() -> list[Target]:
+    """Every provider's suggested models, in the order Settings lists them."""
+    models: dict[str, list[str]] = json.loads(MODELS_PATH.read_text("utf-8"))
+    return [Target(provider, model) for provider, names in models.items() for model in names]
+
+
+def chosen_targets(
+    options: argparse.Namespace, available: Mapping[str, str], progress: TextIO
+) -> list[Target]:
+    """The models to run. Named models must all have a key. With --all-models a provider
+    without a key is left out and named, so the rest can still run."""
+    if not options.all_models:
+        targets: list[Target] = options.targets
+        require_keys([target.provider for target in targets], available)
+        return targets
+    for provider in KEY_VARIABLES:
+        if provider not in available:
+            print(f"Skipping {provider}: no API key is saved or set for it.", file=progress)
+    targets = [target for target in suggested_targets() if target.provider in available]
+    if not targets:
+        raise UsageError(f"No API key is saved or set. Save one with `{SAVE_KEY_HINT}`.")
+    return targets
 
 
 def plan(cases: Sequence[Case], targets: Sequence[Target], repeats: int) -> list[Chat]:
@@ -161,25 +203,32 @@ async def run_all(
         )
 
 
-def main(
-    arguments: Sequence[str] | None = None,
-    environment: Mapping[str, str] = os.environ,
-    opener: ProviderFactory = open_provider,
-    output: TextIO = sys.stdout,
-    progress: TextIO = sys.stderr,
+def save_key_command(options: argparse.Namespace, ask: Ask, output: TextIO) -> int:
+    """Ask for one provider's key without showing it, and save it."""
+    provider: str = options.save_key
+    key = ask(f"API key for {provider} (what you type is hidden): ").strip()
+    if not key:
+        raise KeyProblem("No key was entered, so nothing was saved.")
+    path = save_key(options.keys, provider, key)
+    print(f"Saved the {provider} key in {path}, as plain text.", file=output)
+    return EXIT_FINISHED
+
+
+def run_command(
+    options: argparse.Namespace,
+    environment: Mapping[str, str],
+    opener: ProviderFactory,
+    output: TextIO,
+    progress: TextIO,
 ) -> int:
-    """Run the harness and report it. A run with failed chats still finishes, and the report
-    counts them. A run stopped with Ctrl-C reports the chats that had finished."""
-    options = parser().parse_args(arguments)
-    try:
-        cases = select_cases(load_cases(), options.cases, options.categories)
-        keys = api_keys(options.targets, environment)
-        results = results_file(options.results, datetime.now(UTC))
-    except (InvalidCases, UsageError) as error:
-        print(f"error: {error}", file=progress)
-        return EXIT_COULD_NOT_START
+    """Run the chosen chats and report them. A run with failed chats still finishes, and the
+    report counts them. A run stopped with Ctrl-C reports the chats that had finished."""
+    cases = select_cases(load_cases(), options.cases, options.categories)
+    keys = available_keys(environment, saved_keys(options.keys))
+    targets = chosen_targets(options, keys, progress)
+    results = results_file(options.results, datetime.now(UTC))
     prices = load_prices()
-    chats = plan(cases, options.targets, options.repeats)
+    chats = plan(cases, targets, options.repeats)
     scored: list[Scored] = []
     code = EXIT_FINISHED
     try:
@@ -199,3 +248,23 @@ def main(
     print(file=output)
     print(f"Full results: {results}", file=output)
     return code
+
+
+def main(
+    arguments: Sequence[str] | None = None,
+    environment: Mapping[str, str] = os.environ,
+    opener: ProviderFactory = open_provider,
+    output: TextIO = sys.stdout,
+    progress: TextIO = sys.stderr,
+    ask: Ask = getpass.getpass,
+) -> int:
+    """Save a key or run the harness. A command that cannot start says why and makes no
+    provider call."""
+    options = parser().parse_args(arguments)
+    try:
+        if options.save_key:
+            return save_key_command(options, ask, output)
+        return run_command(options, environment, opener, output, progress)
+    except (InvalidCases, UsageError, KeyProblem) as error:
+        print(f"error: {error}", file=progress)
+        return EXIT_COULD_NOT_START

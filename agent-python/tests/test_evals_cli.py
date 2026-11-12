@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,11 +16,11 @@ from evals.cli import (
     EXIT_COULD_NOT_START,
     EXIT_FINISHED,
     EXIT_INTERRUPTED,
-    UsageError,
-    api_keys,
     main,
     plan,
+    suggested_targets,
 )
+from evals.keys import KEYS_FILE_NAME, save_key
 from evals.runner import Target
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.transcript import (
@@ -36,38 +37,149 @@ async def never_opened(value: Message) -> AsyncIterator[Provider]:
     yield
 
 
+@pytest.fixture(autouse=True)
+def keys_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the default key file at an empty temporary place, never the developer's own."""
+    directory = tmp_path / "saved-keys"
+    monkeypatch.setattr("evals.cli.KEYS_DIRECTORY", directory)
+    return directory
+
+
+def never_asked(prompt: str) -> str:
+    raise AssertionError("The command asked for a key although none was being saved")
+
+
 def run(
-    arguments: list[str], environment: dict[str, str], provider: RuleProvider | None = None
+    arguments: list[str],
+    environment: dict[str, str],
+    provider: RuleProvider | None = None,
+    typed: str | None = None,
 ) -> tuple[int, str, str]:
     output, progress = io.StringIO(), io.StringIO()
     opener = never_opened if provider is None else provider.open
-    code = main(arguments, environment, opener, output, progress)
+    ask = never_asked if typed is None else (lambda prompt: typed)
+    code = main(arguments, environment, opener, output, progress, ask)
     return code, output.getvalue(), progress.getvalue()
 
 
 def test_a_missing_key_stops_the_run_before_any_provider_call() -> None:
-    code, output, progress = run(["--model", "openai:gpt-6-sol"], {})
+    code, output, progress = run(
+        ["--model", "openai:gpt-6-sol", "--model", "deepseek:deepseek-flash"],
+        {"ANTHROPIC_API_KEY": KEY, "OPENAI_API_KEY": ""},
+    )
 
     assert code == EXIT_COULD_NOT_START and output == ""
-    assert progress == "error: Set OPENAI_API_KEY before running the harness.\n"
-
-
-def test_only_the_missing_keys_of_requested_providers_are_named() -> None:
-    targets = [Target("openai", "a"), Target("anthropic", "b"), Target("deepseek", "c")]
-
-    with pytest.raises(UsageError) as caught:
-        api_keys(targets, {"ANTHROPIC_API_KEY": KEY, "OPENAI_API_KEY": ""})
-
-    assert str(caught.value) == (
-        "Set OPENAI_API_KEY and DEEPSEEK_API_KEY before running the harness."
+    assert progress == (
+        "error: No API key for openai and deepseek. Save one with "
+        "`python -m evals --save-key PROVIDER`, or set OPENAI_API_KEY and DEEPSEEK_API_KEY.\n"
     )
-    assert KEY not in str(caught.value)
 
 
-def test_keys_are_read_only_for_the_requested_providers() -> None:
-    environment = {"DEEPSEEK_API_KEY": KEY, "OPENAI_API_KEY": "unused"}
+def test_a_saved_key_is_asked_for_hidden_and_then_runs_without_a_variable(
+    keys_directory: Path, tmp_path: Path
+) -> None:
+    code, output, progress = run(["--save-key", "openai"], {}, typed=f"  {KEY}\n")
 
-    assert api_keys([Target("deepseek", "deepseek-flash")], environment) == {"deepseek": KEY}
+    file = keys_directory / KEYS_FILE_NAME
+    assert code == EXIT_FINISHED and progress == ""
+    assert output == f"Saved the openai key in {file}, as plain text.\n"
+    assert json.loads(file.read_text("utf-8")) == {"openai": KEY}
+
+    provider = RuleProvider()
+    arguments = ["--model", "openai:m", "--case", "grams-chicken", "--repeats", "1"]
+    code, output, progress = run([*arguments, "--results", str(tmp_path / "r")], {}, provider)
+
+    assert code == EXIT_FINISHED and provider.keys == [KEY, KEY]
+    assert KEY not in output and KEY not in progress
+    assert KEY not in next((tmp_path / "r").glob("*.json")).read_text("utf-8")
+
+
+def test_saving_a_second_key_keeps_the_first_and_an_empty_entry_saves_nothing(
+    keys_directory: Path,
+) -> None:
+    run(["--save-key", "openai"], {}, typed="first")
+    run(["--save-key", "deepseek"], {}, typed="second")
+
+    code, output, progress = run(["--save-key", "anthropic"], {}, typed="   ")
+
+    assert code == EXIT_COULD_NOT_START and output == ""
+    assert progress == "error: No key was entered, so nothing was saved.\n"
+    saved = json.loads((keys_directory / KEYS_FILE_NAME).read_text("utf-8"))
+    assert saved == {"openai": "first", "deepseek": "second"}
+
+
+def test_an_environment_variable_wins_over_a_saved_key(
+    keys_directory: Path, tmp_path: Path
+) -> None:
+    save_key(keys_directory, "openai", "saved-key")
+    provider = RuleProvider()
+    arguments = ["--model", "openai:m", "--case", "grams-chicken", "--repeats", "1"]
+
+    run([*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, provider)
+
+    assert provider.keys == [KEY, KEY]
+
+
+def test_the_keys_option_reads_keys_from_another_directory(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "other-keys"
+    save_key(elsewhere, "openai", KEY)
+    provider = RuleProvider()
+    arguments = ["--model", "openai:m", "--case", "grams-chicken", "--repeats", "1"]
+
+    code, _, _ = run(
+        [*arguments, "--keys", str(elsewhere), "--results", str(tmp_path / "r")], {}, provider
+    )
+
+    assert code == EXIT_FINISHED and provider.keys == [KEY, KEY]
+
+
+def test_all_models_runs_every_suggested_model_of_the_providers_with_a_key(
+    keys_directory: Path, tmp_path: Path
+) -> None:
+    save_key(keys_directory, "deepseek", "deepseek-key")
+    provider = RuleProvider()
+    arguments = ["--all-models", "--case", "grams-chicken", "--repeats", "1"]
+
+    code, output, progress = run(
+        [*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, provider
+    )
+
+    assert code == EXIT_FINISHED
+    assert progress.splitlines()[0] == "Skipping anthropic: no API key is saved or set for it."
+    blocks = [line for line in output.splitlines() if " / " in line]
+    assert [line.split("  ")[0] for line in blocks] == [
+        "openai / gpt-6-sol",
+        "openai / gpt-6.1-sol",
+        "openai / gpt-5.6",
+        "deepseek / deepseek-flash",
+        "deepseek / deepseek-v4-pro",
+    ]
+    # One chat in each mode for each of the five models, each with its own provider's key.
+    assert provider.keys == [KEY] * 6 + ["deepseek-key"] * 4
+
+
+def test_all_models_without_any_key_stops_the_run() -> None:
+    code, output, progress = run(["--all-models"], {})
+
+    assert code == EXIT_COULD_NOT_START and output == ""
+    assert progress.splitlines()[-1] == (
+        "error: No API key is saved or set. Save one with `python -m evals --save-key PROVIDER`."
+    )
+
+
+def test_the_suggested_models_are_the_ones_settings_offers() -> None:
+    """models.json repeats the list in LlmProvider.java, so the two must not drift apart."""
+    source = Path(__file__).parents[2] / "src/main/java/org/tyler/model/llm/LlmProvider.java"
+    constants = re.findall(
+        r'\w+\("(\w+)",\s*"[^"]+",\s*"[^"]+",\s*List\.of\(([^)]*)\)\)', source.read_text("utf-8")
+    )
+    offered = [
+        Target(provider, model)
+        for provider, models in constants
+        for model in re.findall(r'"([^"]+)"', models)
+    ]
+
+    assert len(constants) == 3 and suggested_targets() == offered
 
 
 def test_an_unknown_case_stops_the_run_and_is_named() -> None:
@@ -127,6 +239,9 @@ def test_an_interrupted_run_keeps_and_reports_the_chats_that_finished(tmp_path: 
         ["--model", "openai:"],
         ["--model", "openai:gpt-6-sol", "--repeats", "0"],
         ["--model", "openai:gpt-6-sol", "--repeats", "many"],
+        ["--model", "openai:gpt-6-sol", "--all-models"],
+        ["--all-models", "--save-key", "openai"],
+        ["--save-key", "mistral"],
     ],
 )
 def test_a_command_that_names_no_usable_model_or_repeat_count_is_refused(

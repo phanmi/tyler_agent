@@ -112,10 +112,12 @@ def session(opener: ProviderFactory) -> Session:
 
 class RuleProvider:
     """Answers like a well-behaved model for any number of chats: record the food once,
-    accept every verification, then reply. `opened` counts the chats that reached it."""
+    accept every verification, then reply. `opened` counts the chats that reached it, and
+    `keys` holds the API key each of them was opened with."""
 
     def __init__(self) -> None:
         self.opened = 0
+        self.keys: list[str] = []
 
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
@@ -129,4 +131,5 @@ class RuleProvider:
     @asynccontextmanager
     async def open(self, value: Message) -> AsyncIterator[Provider]:
         self.opened += 1
+        self.keys.append(value["apiKey"])
         yield self
