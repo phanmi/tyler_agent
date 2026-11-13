@@ -11,8 +11,9 @@ from evals.scoring import (
     MACRO_TOLERANCE,
     ItemScore,
     fully_correct,
-    normal_unit,
     score,
+    unit_form,
+    units_match,
 )
 
 
@@ -130,21 +131,37 @@ def test_units_match_after_normalizing_common_spellings(unit: str, passes: bool)
 
 @pytest.mark.parametrize(
     "spelling,unit",
+    [("Tablespoons", "tbsp"), ("ounces", "oz"), ("Slices", "slice"), (" Fillet. ", "fillet")],
+)
+def test_unit_spellings_share_one_form(spelling: str, unit: str) -> None:
+    assert unit_form(spelling) == unit
+
+
+@pytest.mark.parametrize(
+    "saved,accepted,matches",
     [
-        ("Tablespoons", "tbsp"),
-        ("ounces", "oz"),
-        ("Slices", "slice"),
-        ("fillet", "fillet"),
-        # A unit that is not listed loses only a plural "s".
-        ("Items", "item"),
-        ("large eggs", "large egg"),
-        ("s", "s"),
+        # A unit that is not listed matches its plural, with "s" or "es" as food names do.
+        ("Items", "item", True),
+        ("large eggs", "large egg", True),
+        ("glasses", "glass", True),
+        ("glass", "glass", True),
+        ("Sandwiches", "sandwich", True),
+        ("boxes", "box", True),
+        ("box", "boxes", True),
+        ("s", "s", True),
+        ("glass", "cup", False),
+        ("bowls", "bowl of rice", False),
     ],
 )
-def test_unit_spellings_share_one_form_and_unknown_units_drop_a_plural(
-    spelling: str, unit: str
-) -> None:
-    assert normal_unit(spelling) == unit
+def test_a_plural_unit_matches_its_singular(saved: str, accepted: str, matches: bool) -> None:
+    assert units_match(saved, accepted) is matches
+
+
+def test_a_saved_plural_unit_ending_in_es_is_scored_as_the_right_unit() -> None:
+    sandwich = expected(names=("big mac",), amount=Decimal(2), units=("sandwich",))
+    saved = record(foodName="Big Mac", amount="2", unit="sandwiches")
+
+    assert "unit" not in only(score(case(sandwich), [saved])).wrong
 
 
 def test_amount_is_compared_as_a_number_and_must_be_exact() -> None:
@@ -246,6 +263,39 @@ def test_several_expected_records_pair_with_their_own_saved_records() -> None:
     ]
 
     scores = score(case(expected(), rice), saved)
+
+    assert [(item.expected, item.saved) for item in scores] == [(0, 1), (1, 0)]
+    assert fully_correct(scores)
+
+
+RICE_VALUES: dict[str, object] = dict(amount=Decimal(150), nutrition={"calories": Decimal(195)})
+
+
+def test_a_more_specific_name_is_paired_before_a_broader_one_can_take_its_record() -> None:
+    rice = expected(names=("rice",), **RICE_VALUES)
+    fried = expected(names=("fried rice",), **RICE_VALUES)
+    saved = [
+        record(foodName="Fried rice", amount="150", calories="195"),
+        record(foodName="White rice", amount="150", calories="195"),
+    ]
+
+    # "rice" is listed first and matches both records, and both fit it equally well.
+    scores = score(case(rice, fried), saved)
+
+    assert [(item.expected, item.saved) for item in scores] == [(0, 1), (1, 0)]
+    assert fully_correct(scores)
+
+
+def test_pairing_specificity_uses_the_accepted_name_that_matched() -> None:
+    # The broad record also lists a two-word name, which must not count for "Fried rice".
+    rice = expected(names=("white rice", "rice"), **RICE_VALUES)
+    fried = expected(names=("fried rice",), **RICE_VALUES)
+    saved = [
+        record(foodName="Fried rice", amount="150", calories="195"),
+        record(foodName="Plain rice", amount="150", calories="195"),
+    ]
+
+    scores = score(case(rice, fried), saved)
 
     assert [(item.expected, item.saved) for item in scores] == [(0, 1), (1, 0)]
     assert fully_correct(scores)

@@ -110,9 +110,9 @@ Wrong saves should fall with verification on. Missed items and cost will rise. W
 
 ## How records are scored
 
-Scoring uses no model. [scoring.py](scoring.py) pairs each expected record with a saved record whose name contains one of its accepted names as whole words, ignoring case. A plural also matches, so "Boiled eggs" matches `egg` and "Eggplant" does not. When several saved records qualify, the one with the fewest wrong fields is paired.
+Scoring uses no model. [scoring.py](scoring.py) pairs each expected record with a saved record whose name contains one of its accepted names as whole words, ignoring case. A plural also matches, so "Boiled eggs" matches `egg` and "Eggplant" does not. A more specific name is paired first: the pair whose matching name has more words wins, so `fried rice` gets "Fried rice" before `rice` can take it. Among equally specific names, the saved record with the fewest wrong fields is paired.
 
-- **Amount and unit** must match exactly. Common spellings of a unit count as the same unit (`g`, `gram`, `grams`), and so does a plural (`item`, `items`). Neither is checked when the user gave no amount.
+- **Amount and unit** must match exactly. Common spellings of a unit count as the same unit (`g`, `gram`, `grams`), and so does a plural ending in "s" or "es" (`item`, `items`; `glass`, `glasses`). Neither is checked when the user gave no amount.
 - **Date** must match exactly.
 - **Calories** may differ from the reference by 20% or 15 kcal, whichever is larger.
 - **Protein, carbs, fat and fiber** may differ by 20% or 2 g, whichever is larger.

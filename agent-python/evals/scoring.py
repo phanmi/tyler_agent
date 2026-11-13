@@ -1,9 +1,11 @@
 """Compare the records a chat saved with the records its case expects. No model is involved.
 
-Each expected record is paired with an unpaired saved record whose name contains one of its
-accepted names as whole words; when several qualify, the one with the fewest wrong fields
-wins. A pair is correct when every checked field matches; an expected record with no pair
-was missed; a saved record with no pair should not have been saved.
+An expected record can pair with a saved record whose name contains one of its accepted names
+as whole words. Pairs are made most specific first: the pair whose matching name has more
+words wins, so "fried rice" gets "Fried rice" before "rice" can take it. Among equally
+specific pairs, the one with fewer wrong fields wins, then the earlier records. A pair is
+correct when every checked field matches; an expected record with no pair was missed; a
+saved record with no pair should not have been saved.
 """
 
 import re
@@ -26,7 +28,8 @@ MACROS = ("protein", "carbs", "fat", "fiber")
 NUTRIENTS = ("calories", *MACROS)
 
 # Spellings a model commonly uses for one unit. A unit that is not listed is compared by its
-# lower-case text without a plural "s", so "items" and "item" are the same unit.
+# lower-case text, and a plural matches its singular as food names do, so "items" matches
+# "item" and "glasses" matches "glass".
 UNIT_SPELLINGS: dict[str, tuple[str, ...]] = {
     "g": ("g", "gm", "gram", "grams"),
     "kg": ("kg", "kilogram", "kilograms"),
@@ -77,28 +80,56 @@ class ItemScore:
         return self.expected is not None and self.saved is not None and not self.wrong
 
 
+@dataclass(frozen=True)
+class _Candidate:
+    """A possible pair: `words` is the word count of the longest accepted name the saved
+    name contains, and `wrong` the checked fields that would not match."""
+
+    expected: int
+    saved: int
+    words: int
+    wrong: tuple[str, ...]
+
+    def order(self) -> tuple[int, int, int, int]:
+        return (-self.words, len(self.wrong), self.expected, self.saved)
+
+
 def score(case: Case, saved: Sequence[Message]) -> tuple[ItemScore, ...]:
-    """Score every expected and every saved record of one chat, expected records first."""
-    unpaired = list(range(len(saved)))
-    scores: list[ItemScore] = []
-    for position, expected in enumerate(case.expected):
-        named = [index for index in unpaired if _named(expected, saved[index])]
-        if not named:
-            scores.append(ItemScore(position, None))
-            continue
+    """Score every expected and every saved record of one chat: the expected records in case
+    order, then the saved records nothing expected. See the module docstring for pairing."""
+    pairs: dict[int, _Candidate] = {}
+    taken: set[int] = set()
+    for candidate in sorted(_candidates(case, saved), key=_Candidate.order):
         # A chat can save the same food twice, for example before and after a correction.
-        match = min(named, key=lambda index: len(wrong_fields(expected, saved[index])))
-        unpaired.remove(match)
-        scores.append(
-            ItemScore(
-                position,
-                match,
-                wrong_fields(expected, saved[match]),
-                calorie_error(expected, saved[match]),
-            )
-        )
-    scores.extend(ItemScore(None, index) for index in unpaired)
+        if candidate.expected not in pairs and candidate.saved not in taken:
+            pairs[candidate.expected] = candidate
+            taken.add(candidate.saved)
+    scores = [
+        _scored(position, expected, saved, pairs.get(position))
+        for position, expected in enumerate(case.expected)
+    ]
+    scores.extend(ItemScore(None, index) for index in range(len(saved)) if index not in taken)
     return tuple(scores)
+
+
+def _candidates(case: Case, saved: Sequence[Message]) -> list[_Candidate]:
+    candidates = []
+    for position, expected in enumerate(case.expected):
+        for index, record in enumerate(saved):
+            words = _matching_words(expected, record)
+            if words:
+                candidates.append(
+                    _Candidate(position, index, words, wrong_fields(expected, record))
+                )
+    return candidates
+
+
+def _scored(
+    position: int, expected: Expected, saved: Sequence[Message], pair: _Candidate | None
+) -> ItemScore:
+    if pair is None:
+        return ItemScore(position, None)
+    return ItemScore(position, pair.saved, pair.wrong, calorie_error(expected, saved[pair.saved]))
 
 
 def fully_correct(scores: Sequence[ItemScore]) -> bool:
@@ -111,19 +142,26 @@ def name_matches(saved: str, accepted: str) -> bool:
     word may be a plural, so "Boiled eggs" matches "egg" and "Eggplant" does not."""
     words, wanted = _WORD.findall(saved.lower()), _WORD.findall(accepted.lower())
     return bool(wanted) and any(
-        all(
-            word in {target + ending for ending in PLURAL_ENDINGS}
-            for word, target in zip(words[start:], wanted, strict=False)
-        )
+        all(word in _plurals(target) for word, target in zip(words[start:], wanted, strict=False))
         for start in range(len(words) - len(wanted) + 1)
     )
 
 
-def normal_unit(unit: str) -> str:
+def unit_form(unit: str) -> str:
+    """A unit in lower case, with a common spelling replaced by its unit: "Grams" is "g"."""
     text = unit.strip().lower().rstrip(".")
-    if text in _CANONICAL_UNIT:
-        return _CANONICAL_UNIT[text]
-    return text[:-1] if len(text) > 1 and text.endswith("s") else text
+    return _CANONICAL_UNIT.get(text, text)
+
+
+def units_match(saved: str, accepted: str) -> bool:
+    """True when both name the same unit. A plural matches its singular, by the same endings
+    as food names, so "items" matches "item" and "glasses" matches "glass"."""
+    first, second = unit_form(saved), unit_form(accepted)
+    return first in _plurals(second) or second in _plurals(first)
+
+
+def _plurals(word: str) -> set[str]:
+    return {word + ending for ending in PLURAL_ENDINGS}
 
 
 def wrong_fields(expected: Expected, record: Message) -> tuple[str, ...]:
@@ -175,11 +213,19 @@ def _number(record: Message, part: str, field: str) -> Decimal | None:
     return number if number.is_finite() else None
 
 
-def _named(expected: Expected, record: Message) -> bool:
+def _matching_words(expected: Expected, record: Message) -> int:
+    """The word count of the longest accepted name the saved name contains; 0 for none."""
     name = _part(record, "genericInfo").get("foodName")
     if not isinstance(name, str):
-        return False
-    return any(name_matches(name, accepted) for accepted in expected.names)
+        return 0
+    return max(
+        (
+            len(_WORD.findall(accepted.lower()))
+            for accepted in expected.names
+            if name_matches(name, accepted)
+        ),
+        default=0,
+    )
 
 
 def _amount_matches(expected: Expected, record: Message) -> bool:
@@ -190,9 +236,7 @@ def _unit_matches(expected: Expected, record: Message) -> bool:
     if expected.amount is None:
         return True
     unit = _part(record, "genericInfo").get("unit")
-    return isinstance(unit, str) and normal_unit(unit) in {
-        normal_unit(accepted) for accepted in expected.units
-    }
+    return isinstance(unit, str) and any(units_match(unit, accepted) for accepted in expected.units)
 
 
 def _date_matches(expected: Expected, record: Message) -> bool:
