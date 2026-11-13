@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Eval harness price table",
+  "type": "object",
+  "required": ["checked", "models"],
+  "additionalProperties": false,
+  "properties": {
+    "checked": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "unit": { "type": "string" },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "models": { "type": "object", "additionalProperties": { "$ref": "#/$defs/price" } }
+  },
+  "$defs": {
+    "rate": { "type": "number", "minimum": 0 },
+    "price": {
+      "type": "object",
+      "required": ["input", "cachedInput", "output", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "input": { "$ref": "#/$defs/rate" },
+        "cachedInput": { "$ref": "#/$defs/rate" },
+        "cacheWrite": { "$ref": "#/$defs/rate" },
+        "output": { "$ref": "#/$defs/rate" },
+        "source": { "type": "string", "pattern": "\\S" }
+      }
+    }
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "category": "amount-and-unit",
+  "cases": [
+    {
+      "id": "grams-chicken",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 200 g of grilled chicken breast for lunch today. Please record it.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 200,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 302.0,
+            "protein": 61.0,
+            "carbs": 0.0,
+            "fat": 6.3,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled; values for 200 g."
+        }
+      ]
+    },
+    {
+      "id": "grams-rice",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Please log 150 grams of cooked white rice that I just had.",
+      "expected": [
+        {
+          "names": [
+            "rice"
+          ],
+          "amount": 150,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 195.0,
+            "protein": 4.0,
+            "carbs": 42.3,
+            "fat": 0.4,
+            "fiber": 0.6
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 168878: Rice, white, long-grain, regular, enriched, cooked; values for 150 g."
+        }
+      ]
+    },
+    {
+      "id": "grams-almonds",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had 30 g of almonds as a snack.",
+      "expected": [
+        {
+          "names": [
+            "almond"
+          ],
+          "amount": 30,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 173.7,
+            "protein": 6.4,
+            "carbs": 6.5,
+            "fat": 15.0,
+            "fiber": 3.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170567: Nuts, almonds; values for 30 g."
+        }
+      ]
+    },
+    {
+      "id": "grams-yogurt",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Record 170 g of plain nonfat Greek yogurt for today.",
+      "expected": [
+        {
+          "names": [
+            "yogurt",
+            "yoghurt"
+          ],
+          "amount": 170,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 100.3,
+            "protein": 17.3,
+            "carbs": 6.1,
+            "fat": 0.7,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170894: Yogurt, Greek, plain, nonfat (Includes foods for USDA's Food Distribution Program); values for 170 g."
+        }
+      ]
+    },
+    {
+      "id": "ounces-chicken",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 6 oz of grilled chicken breast for dinner.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 6,
+          "units": [
+            "oz"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 256.9,
+            "protein": 51.9,
+            "carbs": 0.0,
+            "fat": 5.4,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled; values for 170.1 g (6 oz)."
+        }
+      ]
+    }
+  ]
+}

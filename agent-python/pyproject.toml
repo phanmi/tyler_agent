@@ -28,6 +28,8 @@ required-version = "==0.13.1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The eval harness in evals/ is tested from tests/ and imported from this directory.
+pythonpath = ["."]
 addopts = "-ra"
 
 [tool.ruff]
@@ -40,7 +42,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "evals"]
 
 [dependency-groups]
 dev = [

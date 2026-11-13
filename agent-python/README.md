@@ -40,6 +40,7 @@ src/tyler_agent/
     protocol.py        # JSON codec and bounded frame reader
     validation.py      # Shared wire validation and safe diagnostics
 tests/                 # All Python tests and test helpers
+evals/                 # Food recording eval harness; a development tool, not in the wheel or bundle
 ```
 
 Import shared utilities through `tyler_agent.protocol.protocol` or
@@ -101,8 +102,8 @@ for the supported installation flow.
 Run from `agent-python/`:
 
 ```powershell
-uv run --locked ruff format --check src tests
-uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests evals
+uv run --locked ruff check src tests evals
 uv run --locked mypy --platform linux
 uv run --locked mypy --platform win32
 uv run --locked pytest tests
@@ -111,7 +112,7 @@ uv run --locked pytest tests
 The two mypy targets check Linux CI and Windows desktop APIs independently; they
 do not replace runtime tests on those platforms.
 
-Use `uv run --locked ruff format src tests` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`. Cross-language fixtures stay in the single shared `../contracts/agent/v2/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
+Use `uv run --locked ruff format src tests evals` to apply formatting. Production modules live in `src/tyler_agent/`; all Python tests and test helpers live in `tests/`, including the tests of the [eval harness](evals/README.md) in `evals/`. mypy and pytest already cover `evals/` through `pyproject.toml`. Cross-language fixtures stay in the single shared `../contracts/agent/v2/fixtures/` directory and are loaded by both languages. Never copy fixtures into separate Java/Python versions.
 
 From the repository root, run the Java conformance/error-mapping tests and the full backend suite:
 
@@ -127,6 +128,8 @@ handshake. They also verify that forcefully terminating Java stops Python during
 simulated pending provider work. No live provider credentials are needed.
 
 The [migration tracker](../docs/AGENT_MIGRATION.md#execution-record) records local Windows Maven/Mockito runner options. No API key, network model call, application database, or user workspace is required by these tests.
+
+To measure recording accuracy and cost against a real provider, use the [eval harness](evals/README.md). It makes paid calls with your own API keys, so it is run by hand and never by these checks or CI.
 
 ## Worker behavior
 

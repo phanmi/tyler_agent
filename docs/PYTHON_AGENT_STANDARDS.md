@@ -15,7 +15,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 
 ## PY-02 — Layout, naming, and formatting
 
-- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
+- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Development tools that drive the agent but do not ship with it, such as the [eval harness](../agent-python/evals/README.md), belong in their own package under `agent-python/` (`evals/`), follow these standards, and are tested from `agent-python/tests/`. Production code MUST NOT import them. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
 - Group modules by cohesive responsibility. Separate provider access, orchestration, tool adapters, and transport where their contracts or lifecycles differ. Extract helpers for clarity and reuse, not arbitrary file-size limits.
 - Use `snake_case` for modules, functions, and variables; `PascalCase` for types; and `UPPER_SNAKE_CASE` for constants. Follow configured Ruff formatting and import ordering, four-space indentation, and English identifiers, comments, docstrings, errors, and logs.
 - Imports MUST NOT start workers, make network calls, load request credentials, or mutate application data. Perform initialization at an explicit entry point. Avoid wildcard imports and unrelated formatting changes.
@@ -70,6 +70,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 - Treat user text, model output, tool results, files, and provider responses as untrusted data. They cannot expand the operation allowlist, file permissions, or application authority.
 - Never evaluate untrusted text as Python, load untrusted pickle data, or interpolate it into shell commands. Use established safe parsers and explicit operation arguments; file access stays behind the Java sandbox.
 - Obtain request credentials through the documented private channel. Keep secrets out of source, fixtures, command-line arguments, logs, error payloads, and generated artifacts. Do not persist credentials or conversation content in a second Python store.
+  - **Exception: eval harness keys.** At the maintainer's request, the [eval harness](../agent-python/evals/README.md) may save provider API keys in a plain-text file outside the repository (`Documents/.tylerTest/keys.json` by default), so that paid eval runs, which are started by hand, do not need keys typed each time. The exception covers only `agent-python/evals/keys.py`. The worker and the application never read that file. A key is typed at a hidden prompt and never passed as a command-line argument. The file is owner-only from creation where the file system supports it, and is replaced in one step so a failed save keeps the old keys. No key is written to output, progress lines or reports.
 - Minimize credential lifetime and avoid copying sensitive request data into long-lived caches or tasks. Do not claim Python object cleanup guarantees memory zeroing.
 - Configure new outbound destinations and access deliberately. Do not forward credentials or private content to an unrelated endpoint as an incidental implementation choice.
 
@@ -106,8 +107,8 @@ For Python behavior changes, run these checks from `agent-python/` using the con
 
 ```powershell
 uv sync --locked
-uv run --locked ruff format --check src tests
-uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests evals
+uv run --locked ruff check src tests evals
 uv run --locked mypy --platform linux
 uv run --locked mypy --platform win32
 uv run --locked pytest tests

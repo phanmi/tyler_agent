@@ -1,0 +1,130 @@
+{
+  "category": "relative-date",
+  "cases": [
+    {
+      "id": "yesterday",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Yesterday I ate 200 g of grilled chicken breast.",
+      "expected": [
+        {
+          "names": [
+            "chicken breast"
+          ],
+          "amount": 200,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-11",
+          "nutrition": {
+            "calories": 302.0,
+            "protein": 61.0,
+            "carbs": 0.0,
+            "fat": 6.3,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171534: Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled; values for 200 g."
+        }
+      ]
+    },
+    {
+      "id": "on-monday",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "On Monday I had 150 g of cooked lentils. Can you add that?",
+      "expected": [
+        {
+          "names": [
+            "lentil"
+          ],
+          "amount": 150,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-09",
+          "nutrition": {
+            "calories": 174.0,
+            "protein": 13.5,
+            "carbs": 30.1,
+            "fat": 0.6,
+            "fiber": 11.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 172421: Lentils, mature seeds, cooked, boiled, without salt; values for 150 g."
+        }
+      ]
+    },
+    {
+      "id": "two-days-ago",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Two days ago I had 250 g of baked potato.",
+      "expected": [
+        {
+          "names": [
+            "potato"
+          ],
+          "amount": 250,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-10",
+          "nutrition": {
+            "calories": 232.5,
+            "protein": 6.2,
+            "carbs": 53.0,
+            "fat": 0.3,
+            "fiber": 5.5
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170093: Potatoes, baked, flesh and skin, without salt; values for 250 g."
+        }
+      ]
+    },
+    {
+      "id": "this-morning",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "This morning I drank 1 cup of orange juice.",
+      "expected": [
+        {
+          "names": [
+            "orange juice"
+          ],
+          "amount": 1,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 111.6,
+            "protein": 1.7,
+            "carbs": 25.8,
+            "fat": 0.5,
+            "fiber": 0.5
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 169098: Orange juice, raw (Includes foods for USDA's Food Distribution Program); values for 248 g (1 cup = 248 g)."
+        }
+      ]
+    },
+    {
+      "id": "explicit-date",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "On November 3rd I ate 150 g of avocado. Please record it.",
+      "expected": [
+        {
+          "names": [
+            "avocado"
+          ],
+          "amount": 150,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-03",
+          "nutrition": {
+            "calories": 240.0,
+            "protein": 3.0,
+            "carbs": 12.8,
+            "fat": 22.1,
+            "fiber": 10.1
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171705: Avocados, raw, all commercial varieties; values for 150 g."
+        }
+      ]
+    }
+  ]
+}

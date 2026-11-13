@@ -25,10 +25,13 @@ from tyler_agent.transcript import (
     ToolDefinition,
     ToolResult,
     TranscriptEntry,
+    Usage,
     UserTurn,
     checked_calls,
     checked_text,
+    nested,
     provider_errors,
+    reported_usage,
     suppress_sdk_logs,
 )
 
@@ -109,7 +112,16 @@ def parse_completion(value: Message) -> AssistantTurn:
             }
             for call in calls
         ]
-    return AssistantTurn(checked_calls(calls), text, (native,))
+    return AssistantTurn(checked_calls(calls), text, (native,), chat_usage(value))
+
+
+def chat_usage(value: Message) -> Usage | None:
+    """DeepSeek's prompt total includes cache hits, which it reports in its own field."""
+    return reported_usage(
+        nested(value, "usage", "prompt_tokens"),
+        nested(value, "usage", "completion_tokens"),
+        nested(value, "usage", "prompt_cache_hit_tokens"),
+    )
 
 
 class DeepSeekProvider:

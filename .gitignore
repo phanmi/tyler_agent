@@ -84,6 +84,8 @@ agent-python/.ruff_cache/
 agent-python/build/
 agent-python/build-desktop-test/
 agent-python/dist/
+# Eval harness results: model output from paid runs, kept local.
+agent-python/evals/results/
 **/__pycache__/
 *.pyc
 # Temporary: out2 contains Phase 8 packaging output locked by Cyrene; remove it and this rule after restarting.
