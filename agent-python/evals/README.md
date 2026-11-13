@@ -44,7 +44,9 @@ Or run every model Tyler suggests in Settings in one run:
 uv run --locked python -m evals --all-models
 ```
 
-`--all-models` runs the models in [models.json](models.json) for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
+`--all-models` runs every model Settings suggests, for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
+
+The suggested models come from the backend's [llm-models.properties](../../src/main/resources/llm-models.properties), the same file Settings reads, so the harness always runs the models the app offers. To change them, edit that file.
 
 To check a prompt or tool change at low cost, run one cheap model of each provider instead:
 
@@ -52,9 +54,9 @@ To check a prompt or tool change at low cost, run one cheap model of each provid
 uv run --locked python -m evals --cheap-models
 ```
 
-`--cheap-models` runs the models in [cheap-models.json](cheap-models.json): `gpt-6-luna`, `claude-haiku-5-5` and `deepseek-flash`. It skips a provider without a key, as `--all-models` does. Their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'. In the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md), a full run cost about $0.25 for `claude-haiku-5-5` and at most $0.16 for `deepseek-flash`, against $19.81 for all eight models then suggested.
+`--cheap-models` runs each provider's `cheap` model in `llm-models.properties`: `gpt-6-luna`, `claude-haiku-5-5` and `deepseek-flash`. It skips a provider without a key, as `--all-models` does. Their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'. In the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md), a full run cost about $0.25 for `claude-haiku-5-5` and at most $0.16 for `deepseek-flash`, against $19.81 for all eight models then suggested.
 
-To change the cheap models, edit `cheap-models.json`. Each must be a model in `models.json` with a price in `prices.json`; a test checks both, so a cheap run always reports its cost.
+To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. The backend refuses to start if a cheap model is not one of the provider's suggestions, and a test checks that each has a price in `prices.json`, so a cheap run always reports its cost.
 
 | Option | Meaning |
 |---|---|
@@ -173,7 +175,7 @@ Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) an
 
 [prices.json](prices.json) holds each model's prices per million tokens, the pricing page they came from, and the date they were checked. When prices change, edit the values and the `checked` date. A model that is not in the table still gets its tokens reported, with no cost. List only standard prices: a promotional price would be wrong once it ends.
 
-Before a run starts, `prices.json` is checked against [prices.schema.json](prices.schema.json), and [models.json](models.json) against [models.schema.json](models.schema.json). A file that does not match, for example after a typo, stops the run with the file's name and the problem, before any call or report.
+Before a run starts, `prices.json` is checked against [prices.schema.json](prices.schema.json), and the model entries the run needs are read from `llm-models.properties`. A price file that does not match, for example after a typo, or a missing model entry stops the run with the file's name and the problem, before any call or report.
 
 ## Limits
 

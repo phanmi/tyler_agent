@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.tyler.config.TestLlmModels;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.exceptionHandler.exception.WorkspacePathException;
@@ -38,7 +39,7 @@ class LlmSettingsServiceTest {
 
     private LlmSettingsService newService() throws IOException {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        return new LlmSettingsService(sandbox, sandbox, "llm-settings.json");
+        return new LlmSettingsService(sandbox, sandbox, TestLlmModels.CATALOG, "llm-settings.json");
     }
 
     private static LlmSettings custom() {
@@ -50,7 +51,7 @@ class LlmSettingsServiceTest {
 
     @Test
     void missingFileReturnsDefaults() throws IOException {
-        assertEquals(LlmSettings.defaults(), newService().get());
+        assertEquals(TestLlmModels.CATALOG.defaultSettings(), newService().get());
     }
 
     @Test
@@ -73,7 +74,7 @@ class LlmSettingsServiceTest {
 
         // Fresh sandbox and service instances read only what was written to disk.
         FileSandbox after = new FileSandbox(tempDir.toString());
-        assertEquals(custom(), new LlmSettingsService(after, after, "llm-settings.json").get());
+        assertEquals(custom(), new LlmSettingsService(after, after, TestLlmModels.CATALOG, "llm-settings.json").get());
         var keys = new LlmKeyService(after, after, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt",
                 "llm-settings.json");
         assertTrue(keys.isConfigured(LlmProvider.ANTHROPIC));
@@ -89,7 +90,7 @@ class LlmSettingsServiceTest {
 
         assertEquals(LlmProvider.DEEPSEEK, settings.activeProvider());
         assertEquals("deepseek-v4-pro", settings.model(LlmProvider.DEEPSEEK));
-        assertEquals("gpt-6-sol", settings.model(LlmProvider.OPENAI));
+        assertEquals(TestLlmModels.CATALOG.defaultModel(LlmProvider.OPENAI), settings.model(LlmProvider.OPENAI));
     }
 
     @ParameterizedTest
@@ -129,7 +130,7 @@ class LlmSettingsServiceTest {
         var rejected = new WorkspacePathException("Workspace links and special files are not allowed");
         when(reader.exists("llm-settings.json")).thenThrow(rejected);
         doThrow(rejected).when(writer).write(eq("llm-settings.json"), anyString());
-        LlmSettingsService service = new LlmSettingsService(reader, writer, "llm-settings.json");
+        LlmSettingsService service = new LlmSettingsService(reader, writer, TestLlmModels.CATALOG, "llm-settings.json");
 
         assertSame(rejected, assertThrowsExactly(FileReadException.class, service::get).getCause());
         assertSame(rejected, assertThrowsExactly(FileWriteException.class, () -> service.save(custom())).getCause());

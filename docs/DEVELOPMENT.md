@@ -275,6 +275,17 @@ Logging is configured in [logback-spring.xml](../src/main/resources/logback-spri
 
 `deepseek-flash` is DeepSeek V4.1 Flash. DeepSeek can move the name to a newer version, so its pricing page says which version the name currently serves. A saved model that is no longer suggested, such as `gpt-5.6` or `deepseek-v4-pro`, stays saved and runs as a custom model ID; nothing is migrated.
 
+Each provider's models are listed in [llm-models.properties](../src/main/resources/llm-models.properties). It is the one place to change them:
+
+- **What each entry means:**
+  - `llm.models.<provider>.default` is the default model.
+  - `.suggested` lists the Settings suggestions, comma-separated, with the default first.
+  - `.cheap` is the low-cost suggestion that the eval harness's `--cheap-models` runs.
+- **Who reads it:** the backend loads the file into `LlmModelCatalog`, and Settings gets its suggestions from there. The eval harness reads the same file for `--all-models` and `--cheap-models`.
+- **Checks:** the backend refuses to start if a provider has no suggestions, if its default is not the first suggestion, if its cheap model is not one of its suggestions, or if a model ID is invalid. The error names the property.
+- **Format:** the harness reads the file with a simple reader, so keep to plain `key=value` lines and `#` comments.
+- **Adding a provider:** besides its `LlmProvider` constant, it needs these three entries.
+
 `llm-settings.json` holds only the active provider and each provider's model, for example `{"activeProvider":"openai","models":{"openai":"gpt-6-sol",...}}`. A missing file means OpenAI with the defaults above; a provider missing from the file uses its default model. An invalid file is a read failure (HTTP 500), never a silent fallback to another provider; saving settings in the app replaces it. Model IDs are 1–100 characters from letters, digits, and `. _ : / -`. The backend refuses to start if two key files, or a key file and the settings file, resolve to the same file.
 
 Each key is stored as a plain-text file, written atomically and owner-only on POSIX. Keys are trimmed; a blank key clears it, and anything other than visible ASCII up to 512 characters is rejected. The settings API returns only whether each key is configured. Only Java reads key files; it sends the active provider's key to the worker for one run over the private pipe. Conversation requests go to the active provider and can include recent history, profile details, and tool results. Workspace storage is local; it does not make chat processing local. Only API keys are supported, not ChatGPT, Claude, or DeepSeek subscription sign-ins.

@@ -2,8 +2,7 @@
 
 import io
 import json
-import re
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,6 +10,7 @@ import pytest
 from support.eval_fakes import KEY, RuleProvider
 
 from evals.cases import load_cases
+from evals.catalog import cheap_targets, suggested_targets
 from evals.cli import (
     DEFAULT_REPEATS,
     EXIT_COULD_NOT_START,
@@ -19,10 +19,8 @@ from evals.cli import (
     EXIT_MODEL_STOPPED,
     MAX_FAILED_CHATS_PER_MODEL,
     RUN_LOCK_NAME,
-    cheap_targets,
     main,
     plan,
-    suggested_targets,
 )
 from evals.files import replace_file
 from evals.keys import KEYS_FILE_NAME, save_key
@@ -148,62 +146,29 @@ def test_the_keys_option_reads_keys_from_another_directory(tmp_path: Path) -> No
     assert code == EXIT_FINISHED and provider.keys == [KEY, KEY]
 
 
-def test_all_models_runs_every_suggested_model_of_the_providers_with_a_key(
-    keys_directory: Path, tmp_path: Path
+@pytest.mark.parametrize(
+    "option,listed", [("--all-models", suggested_targets), ("--cheap-models", cheap_targets)]
+)
+def test_a_model_list_runs_its_models_of_the_providers_with_a_key(
+    keys_directory: Path, tmp_path: Path, option: str, listed: Callable[[], list[Target]]
 ) -> None:
     save_key(keys_directory, "deepseek", "deepseek-key")
     provider = RuleProvider()
-    arguments = ["--all-models", "--case", "grams-chicken", "--repeats", "1"]
+    arguments = [option, "--case", "grams-chicken", "--repeats", "1"]
 
     code, output, progress = run(
         [*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, provider
     )
 
+    ran = [target for target in listed() if target.provider != "anthropic"]
     assert code == EXIT_FINISHED
     assert progress.splitlines()[0] == "Skipping anthropic: no API key is saved or set for it."
     assert [line for line in output.splitlines() if line.startswith("## ")] == [
-        "## openai / gpt-6-sol",
-        "## openai / gpt-6.1-sol",
-        "## openai / gpt-6-luna",
-        "## deepseek / deepseek-flash",
+        f"## {target.provider} / {target.model}" for target in ran
     ]
-    # One chat in each mode for each of the four models, each with its own provider's key.
-    assert provider.keys == [KEY] * 6 + ["deepseek-key"] * 2
-
-
-def test_cheap_models_runs_the_cheap_model_of_each_provider_with_a_key(
-    keys_directory: Path, tmp_path: Path
-) -> None:
-    save_key(keys_directory, "deepseek", "deepseek-key")
-    provider = RuleProvider()
-    arguments = ["--cheap-models", "--case", "grams-chicken", "--repeats", "1"]
-
-    code, output, progress = run(
-        [*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, provider
-    )
-
-    assert code == EXIT_FINISHED
-    assert progress.splitlines()[0] == "Skipping anthropic: no API key is saved or set for it."
-    assert [line for line in output.splitlines() if line.startswith("## ")] == [
-        "## openai / gpt-6-luna",
-        "## deepseek / deepseek-flash",
-    ]
-    assert provider.keys == [KEY] * 2 + ["deepseek-key"] * 2
-
-
-def test_the_cheap_models_are_suggested_and_priced() -> None:
-    """A model dropped from the suggestions or the price table must leave the cheap list too,
-    so a cheap run always measures models Settings offers and always reports its cost."""
-    cheap = cheap_targets()
-    priced = load_prices().models
-
-    assert cheap == [
-        Target("openai", "gpt-6-luna"),
-        Target("anthropic", "claude-haiku-5-5"),
-        Target("deepseek", "deepseek-flash"),
-    ]
-    assert [target for target in cheap if target not in suggested_targets()] == []
-    assert [target.model for target in cheap if target.model not in priced] == []
+    # One chat in each mode for each model, each with its own provider's key.
+    keys = {"openai": KEY, "deepseek": "deepseek-key"}
+    assert provider.keys == [keys[target.provider] for target in ran for _ in ("off", "on")]
 
 
 @pytest.mark.parametrize("option", ["--all-models", "--cheap-models"])
@@ -215,21 +180,6 @@ def test_a_model_list_without_any_key_stops_the_run(option: str) -> None:
         "error: No API key is saved or set. Save one with "
         "`uv run --locked python -m evals --save-key PROVIDER`."
     )
-
-
-def test_the_suggested_models_are_the_ones_settings_offers() -> None:
-    """models.json repeats the list in LlmProvider.java, so the two must not drift apart."""
-    source = Path(__file__).parents[2] / "src/main/java/org/tyler/model/llm/LlmProvider.java"
-    constants = re.findall(
-        r'\w+\("(\w+)",\s*"[^"]+",\s*"[^"]+",\s*List\.of\(([^)]*)\)\)', source.read_text("utf-8")
-    )
-    offered = [
-        Target(provider, model)
-        for provider, models in constants
-        for model in re.findall(r'"([^"]+)"', models)
-    ]
-
-    assert len(constants) == 3 and suggested_targets() == offered
 
 
 def test_an_unknown_case_stops_the_run_and_is_named() -> None:
@@ -638,12 +588,17 @@ def test_failures_below_the_limit_are_counted_and_the_run_still_succeeds(
             '{"checked": "2026-11-11", "models": {"m": {"input": 1, "output": 2, "source": "x"}}}',
             "prices.json: $.models.m: 'cachedInput' is a required property",
         ),
-        ("models.json", "--all-models", '{"openai": "gpt-6-sol"}', "models.json: $.openai: "),
         (
-            "cheap-models.json",
+            "llm-models.properties",
+            "--all-models",
+            "llm.models.openai.suggested=gpt-6-sol\n",
+            "llm-models.properties: llm.models.anthropic.suggested is missing",
+        ),
+        (
+            "llm-models.properties",
             "--cheap-models",
-            '{"openai": []}',
-            "cheap-models.json: $.openai: ",
+            "llm.models.openai.suggested=gpt-6-sol\n",
+            "llm-models.properties: llm.models.openai.cheap is missing",
         ),
     ],
 )
@@ -658,8 +613,7 @@ def test_a_bad_price_or_model_file_stops_the_run_before_it_starts_a_report(
     bad = tmp_path / file_name
     bad.write_text(content, "utf-8")
     monkeypatch.setattr("evals.cli.load_prices", lambda: load_prices(bad))
-    monkeypatch.setattr("evals.cli.MODELS_PATH", bad)
-    monkeypatch.setattr("evals.cli.CHEAP_MODELS_PATH", bad)
+    monkeypatch.setattr("evals.catalog.MODELS_PATH", bad)
     target = ["openai:m"] if option == "--model" else []
     results = tmp_path / "results"
 

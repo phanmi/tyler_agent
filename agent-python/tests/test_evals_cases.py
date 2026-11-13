@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 
 from evals.cases import PACKAGE, InvalidCases, Tolerance, load_cases, select_cases
-from evals.cli import DEFAULT_REPEATS, suggested_targets
+from evals.catalog import suggested_targets
+from evals.cli import DEFAULT_REPEATS
 
 REQUIRED_CATEGORIES = {
     "amount-and-unit",

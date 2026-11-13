@@ -14,6 +14,7 @@ import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.IApplicationOwnedFiles;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
+import org.tyler.model.llm.LlmModelCatalog;
 import org.tyler.model.llm.LlmProvider;
 import org.tyler.model.llm.LlmSettings;
 
@@ -40,14 +41,17 @@ public class LlmSettingsService implements ILlmSettingsService, IApplicationOwne
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final IFileSandboxRead reader;
     private final IFileSandboxWrite writer;
+    private final LlmModelCatalog catalog;
     private final String relativePath;
 
     public LlmSettingsService(
             IFileSandboxRead reader,
             IFileSandboxWrite writer,
+            LlmModelCatalog catalog,
             @Value("${llm.settings-file-path:llm-settings.json}") String relativePath) {
         this.reader = reader;
         this.writer = writer;
+        this.catalog = catalog;
         // A relative path within the FileSandbox root.
         this.relativePath = relativePath;
     }
@@ -63,7 +67,7 @@ public class LlmSettingsService implements ILlmSettingsService, IApplicationOwne
         try {
             // Check existence before reading to avoid an error for a missing file.
             if (!reader.exists(relativePath)) {
-                return LlmSettings.defaults();
+                return catalog.defaultSettings();
             }
             json = reader.read(relativePath);
         } catch (WorkspacePathException e) {
@@ -109,7 +113,7 @@ public class LlmSettingsService implements ILlmSettingsService, IApplicationOwne
         }
         Map<LlmProvider, String> models = new EnumMap<>(LlmProvider.class);
         for (LlmProvider provider : LlmProvider.values()) {
-            models.put(provider, provider.defaultModel());
+            models.put(provider, catalog.defaultModel(provider));
         }
         JsonNode saved = root.get("models");
         if (saved != null) {

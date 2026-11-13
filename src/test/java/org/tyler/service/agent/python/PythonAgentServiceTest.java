@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.tyler.config.TestLlmModels;
 import org.tyler.controller.agent.AgentController;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.exceptionHandler.ApiKeyExceptionHandler;
@@ -215,11 +216,11 @@ class PythonAgentServiceTest {
     void aChatRunsOnASavedModelThatIsNoLongerSuggested(String id, String model, @TempDir Path tempDir)
             throws IOException {
         LlmProvider active = LlmProvider.fromId(id);
-        assertFalse(active.suggestedModels().contains(model));
+        assertFalse(TestLlmModels.CATALOG.suggestedModels(active).contains(model));
         Files.writeString(tempDir.resolve("llm-settings.json"),
                 "{\"activeProvider\":\"" + id + "\",\"models\":{\"" + id + "\":\"" + model + "\"}}");
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        var llm = new LlmSettingsService(sandbox, sandbox, "llm-settings.json");
+        var llm = new LlmSettingsService(sandbox, sandbox, TestLlmModels.CATALOG, "llm-settings.json");
         var keys = mock(ILlmKeyService.class); when(keys.get(active)).thenReturn("SYNTHETIC");
         var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
         var worker = mock(PythonWorker.class);
@@ -248,8 +249,8 @@ class PythonAgentServiceTest {
         var worker = mock(PythonWorker.class);
         var settings = settings("complete");
         try (var lane = new ConversationLane(settings)) {
-            var service = new PythonAgentService(worker, lane, selected(active, active.defaultModel()), keys,
-                    history, settings);
+            var service = new PythonAgentService(worker, lane,
+                    selected(active, TestLlmModels.CATALOG.defaultModel(active)), keys, history, settings);
             var error = assertThrows(ApiKeyMissingException.class, () -> service.ask("question"));
             assertEquals(name + " API key is empty; chat is unavailable", error.getMessage());
         }
@@ -261,8 +262,8 @@ class PythonAgentServiceTest {
         var keys = mock(ILlmKeyService.class);
         when(keys.get(any())).thenReturn("SYNTHETIC");
         var llm = mock(ILlmSettingsService.class);
-        when(llm.get()).thenReturn(LlmSettings.defaults(),
-                new LlmSettings(LlmProvider.ANTHROPIC, LlmSettings.defaults().models()));
+        when(llm.get()).thenReturn(TestLlmModels.CATALOG.defaultSettings(),
+                new LlmSettings(LlmProvider.ANTHROPIC, TestLlmModels.CATALOG.defaultSettings().models()));
         var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
         var worker = mock(PythonWorker.class);
         List<String> providers = new ArrayList<>();
@@ -297,12 +298,12 @@ class PythonAgentServiceTest {
 
     private static ILlmSettingsService defaults() {
         var llm = mock(ILlmSettingsService.class);
-        when(llm.get()).thenReturn(LlmSettings.defaults());
+        when(llm.get()).thenReturn(TestLlmModels.CATALOG.defaultSettings());
         return llm;
     }
 
     private static ILlmSettingsService selected(LlmProvider active, String model) {
-        var models = new java.util.EnumMap<>(LlmSettings.defaults().models());
+        var models = new java.util.EnumMap<>(TestLlmModels.CATALOG.defaultSettings().models());
         models.put(active, model);
         var llm = mock(ILlmSettingsService.class);
         when(llm.get()).thenReturn(new LlmSettings(active, models));

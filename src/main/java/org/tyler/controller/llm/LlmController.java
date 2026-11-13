@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.tyler.model.llm.LlmModelCatalog;
 import org.tyler.model.llm.LlmProvider;
 import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.llm.ILlmKeyService;
@@ -30,10 +31,12 @@ public class LlmController implements ILlmController {
 
     private final ILlmSettingsService settingsService;
     private final ILlmKeyService keyService;
+    private final LlmModelCatalog catalog;
 
-    public LlmController(ILlmSettingsService settingsService, ILlmKeyService keyService) {
+    public LlmController(ILlmSettingsService settingsService, ILlmKeyService keyService, LlmModelCatalog catalog) {
         this.settingsService = settingsService;
         this.keyService = keyService;
+        this.catalog = catalog;
     }
 
     @Override
@@ -51,7 +54,7 @@ public class LlmController implements ILlmController {
     @Override
     @DeleteMapping("/settings")
     public SettingsResponse resetSettings() {
-        return response(settingsService.save(LlmSettings.defaults()));
+        return response(settingsService.save(catalog.defaultSettings()));
     }
 
     @Override
@@ -80,7 +83,8 @@ public class LlmController implements ILlmController {
     private SettingsResponse response(LlmSettings settings) {
         List<ProviderSettings> providers = Arrays.stream(LlmProvider.values())
                 .map(provider -> new ProviderSettings(provider.id(), provider.displayName(), settings.model(provider),
-                        provider.defaultModel(), provider.suggestedModels(), keyService.isConfigured(provider)))
+                        catalog.defaultModel(provider), catalog.suggestedModels(provider),
+                        keyService.isConfigured(provider)))
                 .toList();
         return new SettingsResponse(settings.activeProvider().id(), providers);
     }
