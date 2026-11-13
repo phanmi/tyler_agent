@@ -1,11 +1,13 @@
 package org.tyler.service.agent.python;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.tyler.config.TestLlmModels;
 import org.tyler.controller.agent.AgentController;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.exceptionHandler.ApiKeyExceptionHandler;
@@ -16,11 +18,16 @@ import org.tyler.model.llm.LlmProvider;
 import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.llm.ILlmKeyService;
 import org.tyler.service.llm.ILlmSettingsService;
+import org.tyler.service.llm.LlmSettingsService;
 import org.tyler.service.chatHistory.IChatHistoryService;
 import org.tyler.service.chatHistory.ChatHistoryService;
+import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -205,6 +212,31 @@ class PythonAgentServiceTest {
     }
 
     @ParameterizedTest
+    @CsvSource({"openai, gpt-5.6", "deepseek, deepseek-v4-pro"})
+    void aChatRunsOnASavedModelThatIsNoLongerSuggested(String id, String model, @TempDir Path tempDir)
+            throws IOException {
+        LlmProvider active = LlmProvider.fromId(id);
+        assertFalse(TestLlmModels.CATALOG.suggestedModels(active).contains(model));
+        Files.writeString(tempDir.resolve("llm-settings.json"),
+                "{\"activeProvider\":\"" + id + "\",\"models\":{\"" + id + "\":\"" + model + "\"}}");
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        var llm = new LlmSettingsService(sandbox, sandbox, TestLlmModels.CATALOG, "llm-settings.json");
+        var keys = mock(ILlmKeyService.class); when(keys.get(active)).thenReturn("SYNTHETIC");
+        var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
+        var worker = mock(PythonWorker.class);
+        when(worker.execute(any())).thenReturn("reply");
+        var settings = settings("complete");
+        try (var lane = new ConversationLane(settings)) {
+            var service = new PythonAgentService(worker, lane, llm, keys, history, settings);
+            assertEquals("reply", service.ask("question"));
+        }
+        var run = org.mockito.ArgumentCaptor.forClass(com.fasterxml.jackson.databind.node.ObjectNode.class);
+        verify(worker).execute(run.capture());
+        assertEquals(id, run.getValue().path("provider").asText());
+        assertEquals(model, run.getValue().path("model").asText());
+    }
+
+    @ParameterizedTest
     @CsvSource({"openai, OpenAI", "anthropic, Claude", "deepseek, DeepSeek"})
     void aMissingActiveKeyNamesTheProviderBeforeTheWorkerOrHistory(String id, String name) {
         LlmProvider active = LlmProvider.fromId(id);
@@ -217,8 +249,8 @@ class PythonAgentServiceTest {
         var worker = mock(PythonWorker.class);
         var settings = settings("complete");
         try (var lane = new ConversationLane(settings)) {
-            var service = new PythonAgentService(worker, lane, selected(active, active.defaultModel()), keys,
-                    history, settings);
+            var service = new PythonAgentService(worker, lane,
+                    selected(active, TestLlmModels.CATALOG.defaultModel(active)), keys, history, settings);
             var error = assertThrows(ApiKeyMissingException.class, () -> service.ask("question"));
             assertEquals(name + " API key is empty; chat is unavailable", error.getMessage());
         }
@@ -230,8 +262,8 @@ class PythonAgentServiceTest {
         var keys = mock(ILlmKeyService.class);
         when(keys.get(any())).thenReturn("SYNTHETIC");
         var llm = mock(ILlmSettingsService.class);
-        when(llm.get()).thenReturn(LlmSettings.defaults(),
-                new LlmSettings(LlmProvider.ANTHROPIC, LlmSettings.defaults().models()));
+        when(llm.get()).thenReturn(TestLlmModels.CATALOG.defaultSettings(),
+                new LlmSettings(LlmProvider.ANTHROPIC, TestLlmModels.CATALOG.defaultSettings().models()));
         var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
         var worker = mock(PythonWorker.class);
         List<String> providers = new ArrayList<>();
@@ -266,12 +298,12 @@ class PythonAgentServiceTest {
 
     private static ILlmSettingsService defaults() {
         var llm = mock(ILlmSettingsService.class);
-        when(llm.get()).thenReturn(LlmSettings.defaults());
+        when(llm.get()).thenReturn(TestLlmModels.CATALOG.defaultSettings());
         return llm;
     }
 
     private static ILlmSettingsService selected(LlmProvider active, String model) {
-        var models = new java.util.EnumMap<>(LlmSettings.defaults().models());
+        var models = new java.util.EnumMap<>(TestLlmModels.CATALOG.defaultSettings().models());
         models.put(active, model);
         var llm = mock(ILlmSettingsService.class);
         when(llm.get()).thenReturn(new LlmSettings(active, models));

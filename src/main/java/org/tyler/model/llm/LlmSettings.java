@@ -40,15 +40,6 @@ public record LlmSettings(LlmProvider activeProvider, Map<LlmProvider, String> m
         models = Collections.unmodifiableMap(copy);
     }
 
-    /** OpenAI active, and each provider on its default model. */
-    public static LlmSettings defaults() {
-        EnumMap<LlmProvider, String> models = new EnumMap<>(LlmProvider.class);
-        for (LlmProvider provider : LlmProvider.values()) {
-            models.put(provider, provider.defaultModel());
-        }
-        return new LlmSettings(LlmProvider.OPENAI, models);
-    }
-
     public String model(LlmProvider provider) {
         return models.get(provider);
     }

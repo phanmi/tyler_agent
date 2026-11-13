@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** Tests provider names, defaults, and the model-ID rule enforced at construction. */
+/** Tests provider names and the model-ID rule enforced at construction. Defaults: LlmModelCatalogTest. */
 class LlmSettingsTest {
 
     static Map<LlmProvider, String> models(String openai, String anthropic, String deepseek) {
@@ -22,24 +22,6 @@ class LlmSettingsTest {
         models.put(LlmProvider.ANTHROPIC, anthropic);
         models.put(LlmProvider.DEEPSEEK, deepseek);
         return models;
-    }
-
-    @Test
-    void defaultsAreOpenAiAndEachProvidersDefaultModel() {
-        LlmSettings settings = LlmSettings.defaults();
-
-        assertEquals(LlmProvider.OPENAI, settings.activeProvider());
-        assertEquals("gpt-6-sol", settings.model(LlmProvider.OPENAI));
-        assertEquals("claude-sonnet-5-5", settings.model(LlmProvider.ANTHROPIC));
-        assertEquals("deepseek-flash", settings.model(LlmProvider.DEEPSEEK));
-    }
-
-    @Test
-    void everySuggestionStartsWithTheDefaultAndPassesTheRule() {
-        for (LlmProvider provider : LlmProvider.values()) {
-            assertEquals(provider.defaultModel(), provider.suggestedModels().getFirst());
-            provider.suggestedModels().forEach(model -> assertDoesNotThrow(() -> LlmSettings.requireModelId(model)));
-        }
     }
 
     @Test

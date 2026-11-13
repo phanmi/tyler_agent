@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.tyler.config.TestLlmModels;
 import org.tyler.exceptionHandler.exception.WorkspacePathException;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IApplicationOwnedFiles;
@@ -71,7 +72,7 @@ class ProtectedWorkspaceFilesTest {
         var keys = new LlmKeyService(mock(IFileSandboxRead.class), mock(IFileSandboxWrite.class),
                 "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json");
         var settings = new LlmSettingsService(mock(IFileSandboxRead.class),
-                mock(IFileSandboxWrite.class), "llm-settings.json");
+                mock(IFileSandboxWrite.class), TestLlmModels.CATALOG, "llm-settings.json");
 
         assertEquals(List.of("apikey.txt", "anthropic-key.txt", "deepseek-key.txt"), keys.ownedPaths());
         assertEquals(List.of("llm-settings.json"), settings.ownedPaths());

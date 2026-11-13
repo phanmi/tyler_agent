@@ -269,9 +269,22 @@ Logging is configured in [logback-spring.xml](../src/main/resources/logback-spri
 
 | Provider id | Name in the app | Key file | Default model | Other suggestions | Endpoint and SDK |
 |---|---|---|---|---|---|
-| `openai` | OpenAI | `apikey.txt` | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-5.6` | `https://api.openai.com/v1`, Responses API, `openai` SDK |
+| `openai` | OpenAI | `apikey.txt` | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-6-luna` | `https://api.openai.com/v1`, Responses API, `openai` SDK |
 | `anthropic` | Claude | `anthropic-key.txt` | `claude-sonnet-5-5` | `claude-opus-5-5`, `claude-haiku-5-5` | `https://api.anthropic.com`, Messages API, `anthropic` SDK |
-| `deepseek` | DeepSeek | `deepseek-key.txt` | `deepseek-flash` | `deepseek-v4-pro` | `https://api.deepseek.com`, Chat Completions, `openai` SDK |
+| `deepseek` | DeepSeek | `deepseek-key.txt` | `deepseek-flash` | None | `https://api.deepseek.com`, Chat Completions, `openai` SDK |
+
+`deepseek-flash` is DeepSeek V4.1 Flash. DeepSeek can move the name to a newer version, so its pricing page says which version the name currently serves. A saved model that is no longer suggested, such as `gpt-5.6` or `deepseek-v4-pro`, stays saved and runs as a custom model ID; nothing is migrated.
+
+Each provider's models are listed in [llm-models.properties](../src/main/resources/llm-models.properties). It is the one place to change them:
+
+- **What each entry means:**
+  - `llm.models.<provider>.default` is the default model.
+  - `.suggested` lists the Settings suggestions, comma-separated, with the default first.
+  - `.cheap` is the low-cost suggestion that the eval harness's `--cheap-models` runs.
+- **Who reads it:** the backend loads the file into `LlmModelCatalog`, and Settings gets its suggestions from there. The eval harness reads the same file for `--all-models` and `--cheap-models`.
+- **Checks:** the backend refuses to start if a provider has no suggestions, if its default is not the first suggestion, if its cheap model is not one of its suggestions, or if a model ID is invalid. The error names the property.
+- **Format:** the harness reads the file with a simple reader, so keep to plain `key=value` lines and `#` comments.
+- **Adding a provider:** besides its `LlmProvider` constant, it needs these three entries.
 
 `llm-settings.json` holds only the active provider and each provider's model, for example `{"activeProvider":"openai","models":{"openai":"gpt-6-sol",...}}`. A missing file means OpenAI with the defaults above; a provider missing from the file uses its default model. An invalid file is a read failure (HTTP 500), never a silent fallback to another provider; saving settings in the app replaces it. Model IDs are 1–100 characters from letters, digits, and `. _ : / -`. The backend refuses to start if two key files, or a key file and the settings file, resolve to the same file.
 

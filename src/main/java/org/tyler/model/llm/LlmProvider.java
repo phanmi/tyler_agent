@@ -1,29 +1,23 @@
 package org.tyler.model.llm;
 
-import java.util.List;
-
 /**
- * A model provider the Python worker can run, with its default and suggested models.
+ * A model provider the Python worker can run.
  *
- * <p>{@link #id()} is the name used in REST paths, the settings file, and the worker
- * protocol's {@code run.provider} field.
+ * <p>{@link #id()} is the name used in REST paths, the settings file, the worker protocol's
+ * {@code run.provider} field, and {@code llm-models.properties}, which lists each provider's
+ * models (see {@link LlmModelCatalog}).
  */
 public enum LlmProvider {
-    OPENAI("openai", "OpenAI", "gpt-6-sol", List.of("gpt-6-sol", "gpt-6.1-sol", "gpt-5.6")),
-    ANTHROPIC("anthropic", "Claude", "claude-sonnet-5-5",
-            List.of("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5")),
-    DEEPSEEK("deepseek", "DeepSeek", "deepseek-flash", List.of("deepseek-flash", "deepseek-v4-pro"));
+    OPENAI("openai", "OpenAI"),
+    ANTHROPIC("anthropic", "Claude"),
+    DEEPSEEK("deepseek", "DeepSeek");
 
     private final String id;
     private final String displayName;
-    private final String defaultModel;
-    private final List<String> suggestedModels;
 
-    LlmProvider(String id, String displayName, String defaultModel, List<String> suggestedModels) {
+    LlmProvider(String id, String displayName) {
         this.id = id;
         this.displayName = displayName;
-        this.defaultModel = defaultModel;
-        this.suggestedModels = suggestedModels;
     }
 
     public String id() {
@@ -33,15 +27,6 @@ public enum LlmProvider {
     /** The name shown to users, e.g. in error messages. */
     public String displayName() {
         return displayName;
-    }
-
-    public String defaultModel() {
-        return defaultModel;
-    }
-
-    /** Suggestions for the Settings picker, default first; any valid model ID is also accepted. */
-    public List<String> suggestedModels() {
-        return suggestedModels;
     }
 
     /**

@@ -18,9 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.TylerAgentApplication;
 import org.tyler.config.CorsConfig;
+import org.tyler.config.TestLlmModels;
 import org.tyler.controller.llm.LlmController;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
-import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.llm.ILlmKeyService;
 import org.tyler.service.llm.ILlmSettingsService;
 
@@ -54,8 +54,8 @@ class ApiAccessTokenFilterTest {
     private final ILlmKeyService keys = mock(ILlmKeyService.class);
 
     private MockMvc mvc(String token) {
-        when(settings.get()).thenReturn(LlmSettings.defaults());
-        return MockMvcBuilders.standaloneSetup(new LlmController(settings, keys))
+        when(settings.get()).thenReturn(TestLlmModels.CATALOG.defaultSettings());
+        return MockMvcBuilders.standaloneSetup(new LlmController(settings, keys, TestLlmModels.CATALOG))
                 .setControllerAdvice(new GenericExceptionHandler())
                 .addFilters(new ApiAccessTokenFilter(token, LOOPBACK))
                 .build();
