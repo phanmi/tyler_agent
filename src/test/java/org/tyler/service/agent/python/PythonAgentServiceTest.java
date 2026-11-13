@@ -1,6 +1,7 @@
 package org.tyler.service.agent.python;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -16,11 +17,16 @@ import org.tyler.model.llm.LlmProvider;
 import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.llm.ILlmKeyService;
 import org.tyler.service.llm.ILlmSettingsService;
+import org.tyler.service.llm.LlmSettingsService;
 import org.tyler.service.chatHistory.IChatHistoryService;
 import org.tyler.service.chatHistory.ChatHistoryService;
+import org.tyler.filesandbox.FileSandbox;
 import org.tyler.filesandbox.IFileSandboxRead;
 import org.tyler.filesandbox.IFileSandboxWrite;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -202,6 +208,31 @@ class PythonAgentServiceTest {
             assertEquals("reply", service.ask("question"));
         }
         verify(keys, never()).get(argThat(provider -> provider != active));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"openai, gpt-5.6", "deepseek, deepseek-v4-pro"})
+    void aChatRunsOnASavedModelThatIsNoLongerSuggested(String id, String model, @TempDir Path tempDir)
+            throws IOException {
+        LlmProvider active = LlmProvider.fromId(id);
+        assertFalse(active.suggestedModels().contains(model));
+        Files.writeString(tempDir.resolve("llm-settings.json"),
+                "{\"activeProvider\":\"" + id + "\",\"models\":{\"" + id + "\":\"" + model + "\"}}");
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        var llm = new LlmSettingsService(sandbox, sandbox, "llm-settings.json");
+        var keys = mock(ILlmKeyService.class); when(keys.get(active)).thenReturn("SYNTHETIC");
+        var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
+        var worker = mock(PythonWorker.class);
+        when(worker.execute(any())).thenReturn("reply");
+        var settings = settings("complete");
+        try (var lane = new ConversationLane(settings)) {
+            var service = new PythonAgentService(worker, lane, llm, keys, history, settings);
+            assertEquals("reply", service.ask("question"));
+        }
+        var run = org.mockito.ArgumentCaptor.forClass(com.fasterxml.jackson.databind.node.ObjectNode.class);
+        verify(worker).execute(run.capture());
+        assertEquals(id, run.getValue().path("provider").asText());
+        assertEquals(model, run.getValue().path("model").asText());
     }
 
     @ParameterizedTest

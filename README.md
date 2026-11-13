@@ -69,11 +69,11 @@ Under **Model providers** you can:
 
 | Provider | Default model | Other suggestions |
 |---|---|---|
-| OpenAI | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-5.6` |
+| OpenAI | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-6-luna` |
 | Claude | `claude-sonnet-5-5` | `claude-opus-5-5`, `claude-haiku-5-5` |
-| DeepSeek | `deepseek-flash` | `deepseek-v4-pro` |
+| DeepSeek | `deepseek-flash` (DeepSeek V4.1 Flash) | None |
 
-The defaults are lower-cost models that suit Tyler's everyday tasks. If the provider used for chat has no key, chat tells you which key is missing, for example "Claude API key is empty; chat is unavailable".
+The defaults are lower-cost models that suit Tyler's everyday tasks. A model you saved that is no longer suggested, such as `gpt-5.6` or `deepseek-v4-pro`, stays saved and keeps working as a custom model ID. If the provider used for chat has no key, chat tells you which key is missing, for example "Claude API key is empty; chat is unavailable".
 
 ## Your data
 

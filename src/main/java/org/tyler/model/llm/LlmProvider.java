@@ -9,10 +9,10 @@ import java.util.List;
  * protocol's {@code run.provider} field.
  */
 public enum LlmProvider {
-    OPENAI("openai", "OpenAI", "gpt-6-sol", List.of("gpt-6-sol", "gpt-6.1-sol", "gpt-5.6")),
+    OPENAI("openai", "OpenAI", "gpt-6-sol", List.of("gpt-6-sol", "gpt-6.1-sol", "gpt-6-luna")),
     ANTHROPIC("anthropic", "Claude", "claude-sonnet-5-5",
             List.of("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5")),
-    DEEPSEEK("deepseek", "DeepSeek", "deepseek-flash", List.of("deepseek-flash", "deepseek-v4-pro"));
+    DEEPSEEK("deepseek", "DeepSeek", "deepseek-flash", List.of("deepseek-flash"));
 
     private final String id;
     private final String displayName;

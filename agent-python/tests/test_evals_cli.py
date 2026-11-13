@@ -19,6 +19,7 @@ from evals.cli import (
     EXIT_MODEL_STOPPED,
     MAX_FAILED_CHATS_PER_MODEL,
     RUN_LOCK_NAME,
+    cheap_targets,
     main,
     plan,
     suggested_targets,
@@ -163,16 +164,51 @@ def test_all_models_runs_every_suggested_model_of_the_providers_with_a_key(
     assert [line for line in output.splitlines() if line.startswith("## ")] == [
         "## openai / gpt-6-sol",
         "## openai / gpt-6.1-sol",
-        "## openai / gpt-5.6",
+        "## openai / gpt-6-luna",
         "## deepseek / deepseek-flash",
-        "## deepseek / deepseek-v4-pro",
     ]
-    # One chat in each mode for each of the five models, each with its own provider's key.
-    assert provider.keys == [KEY] * 6 + ["deepseek-key"] * 4
+    # One chat in each mode for each of the four models, each with its own provider's key.
+    assert provider.keys == [KEY] * 6 + ["deepseek-key"] * 2
 
 
-def test_all_models_without_any_key_stops_the_run() -> None:
-    code, output, progress = run(["--all-models"], {})
+def test_cheap_models_runs_the_cheap_model_of_each_provider_with_a_key(
+    keys_directory: Path, tmp_path: Path
+) -> None:
+    save_key(keys_directory, "deepseek", "deepseek-key")
+    provider = RuleProvider()
+    arguments = ["--cheap-models", "--case", "grams-chicken", "--repeats", "1"]
+
+    code, output, progress = run(
+        [*arguments, "--results", str(tmp_path)], {"OPENAI_API_KEY": KEY}, provider
+    )
+
+    assert code == EXIT_FINISHED
+    assert progress.splitlines()[0] == "Skipping anthropic: no API key is saved or set for it."
+    assert [line for line in output.splitlines() if line.startswith("## ")] == [
+        "## openai / gpt-6-luna",
+        "## deepseek / deepseek-flash",
+    ]
+    assert provider.keys == [KEY] * 2 + ["deepseek-key"] * 2
+
+
+def test_the_cheap_models_are_suggested_and_priced() -> None:
+    """A model dropped from the suggestions or the price table must leave the cheap list too,
+    so a cheap run always measures models Settings offers and always reports its cost."""
+    cheap = cheap_targets()
+    priced = load_prices().models
+
+    assert cheap == [
+        Target("openai", "gpt-6-luna"),
+        Target("anthropic", "claude-haiku-5-5"),
+        Target("deepseek", "deepseek-flash"),
+    ]
+    assert [target for target in cheap if target not in suggested_targets()] == []
+    assert [target.model for target in cheap if target.model not in priced] == []
+
+
+@pytest.mark.parametrize("option", ["--all-models", "--cheap-models"])
+def test_a_model_list_without_any_key_stops_the_run(option: str) -> None:
+    code, output, progress = run([option], {})
 
     assert code == EXIT_COULD_NOT_START and output == ""
     assert progress.splitlines()[-1] == (
@@ -603,6 +639,12 @@ def test_failures_below_the_limit_are_counted_and_the_run_still_succeeds(
             "prices.json: $.models.m: 'cachedInput' is a required property",
         ),
         ("models.json", "--all-models", '{"openai": "gpt-6-sol"}', "models.json: $.openai: "),
+        (
+            "cheap-models.json",
+            "--cheap-models",
+            '{"openai": []}',
+            "cheap-models.json: $.openai: ",
+        ),
     ],
 )
 def test_a_bad_price_or_model_file_stops_the_run_before_it_starts_a_report(
@@ -617,6 +659,7 @@ def test_a_bad_price_or_model_file_stops_the_run_before_it_starts_a_report(
     bad.write_text(content, "utf-8")
     monkeypatch.setattr("evals.cli.load_prices", lambda: load_prices(bad))
     monkeypatch.setattr("evals.cli.MODELS_PATH", bad)
+    monkeypatch.setattr("evals.cli.CHEAP_MODELS_PATH", bad)
     target = ["openai:m"] if option == "--model" else []
     results = tmp_path / "results"
 

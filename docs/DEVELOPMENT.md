@@ -269,9 +269,11 @@ Logging is configured in [logback-spring.xml](../src/main/resources/logback-spri
 
 | Provider id | Name in the app | Key file | Default model | Other suggestions | Endpoint and SDK |
 |---|---|---|---|---|---|
-| `openai` | OpenAI | `apikey.txt` | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-5.6` | `https://api.openai.com/v1`, Responses API, `openai` SDK |
+| `openai` | OpenAI | `apikey.txt` | `gpt-6-sol` | `gpt-6.1-sol`, `gpt-6-luna` | `https://api.openai.com/v1`, Responses API, `openai` SDK |
 | `anthropic` | Claude | `anthropic-key.txt` | `claude-sonnet-5-5` | `claude-opus-5-5`, `claude-haiku-5-5` | `https://api.anthropic.com`, Messages API, `anthropic` SDK |
-| `deepseek` | DeepSeek | `deepseek-key.txt` | `deepseek-flash` | `deepseek-v4-pro` | `https://api.deepseek.com`, Chat Completions, `openai` SDK |
+| `deepseek` | DeepSeek | `deepseek-key.txt` | `deepseek-flash` | None | `https://api.deepseek.com`, Chat Completions, `openai` SDK |
+
+`deepseek-flash` is DeepSeek V4.1 Flash. DeepSeek can move the name to a newer version, so its pricing page says which version the name currently serves. A saved model that is no longer suggested, such as `gpt-5.6` or `deepseek-v4-pro`, stays saved and runs as a custom model ID; nothing is migrated.
 
 `llm-settings.json` holds only the active provider and each provider's model, for example `{"activeProvider":"openai","models":{"openai":"gpt-6-sol",...}}`. A missing file means OpenAI with the defaults above; a provider missing from the file uses its default model. An invalid file is a read failure (HTTP 500), never a silent fallback to another provider; saving settings in the app replaces it. Model IDs are 1–100 characters from letters, digits, and `. _ : / -`. The backend refuses to start if two key files, or a key file and the settings file, resolve to the same file.
 

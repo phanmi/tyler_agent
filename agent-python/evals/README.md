@@ -46,10 +46,21 @@ uv run --locked python -m evals --all-models
 
 `--all-models` runs the models in [models.json](models.json) for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
 
+To check a prompt or tool change at low cost, run one cheap model of each provider instead:
+
+```powershell
+uv run --locked python -m evals --cheap-models
+```
+
+`--cheap-models` runs the models in [cheap-models.json](cheap-models.json): `gpt-6-luna`, `claude-haiku-5-5` and `deepseek-flash`. It skips a provider without a key, as `--all-models` does. Their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'. In the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md), a full run cost about $0.25 for `claude-haiku-5-5` and at most $0.16 for `deepseek-flash`, against $19.81 for all eight models then suggested.
+
+To change the cheap models, edit `cheap-models.json`. Each must be a model in `models.json` with a price in `prices.json`; a test checks both, so a cheap run always reports its cost.
+
 | Option | Meaning |
 |---|---|
 | `--model PROVIDER:MODEL` | A model to evaluate. Repeat it for several. |
-| `--all-models` | Evaluate every suggested model of every provider that has a key. Use this or `--model`. |
+| `--all-models` | Evaluate every suggested model of every provider that has a key. |
+| `--cheap-models` | Evaluate one low-cost suggested model of every provider that has a key. Use one of `--model`, `--all-models` and `--cheap-models`. |
 | `--save-key PROVIDER` | Ask for that provider's key, save it, and stop. |
 | `--repeats N` | How many times each case runs in each mode. The default is 3, because model output varies. |
 | `--case ID` | Run only this case. Repeat it for several. |
@@ -57,7 +68,7 @@ uv run --locked python -m evals --all-models
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. `--all-models` with all three keys is eight models, so 1,872 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 1,638 chats, and `--cheap-models` is three, so 702 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 

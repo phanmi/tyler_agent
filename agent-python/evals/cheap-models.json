@@ -1,0 +1,5 @@
+{
+  "openai": ["gpt-6-luna"],
+  "anthropic": ["claude-haiku-5-5"],
+  "deepseek": ["deepseek-flash"]
+}

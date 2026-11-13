@@ -28,7 +28,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -88,14 +90,34 @@ class LlmControllerTest {
                 .andExpect(jsonPath("$.providers.length()").value(3))
                 .andExpect(jsonPath("$.providers[0].id").value("openai"))
                 .andExpect(jsonPath("$.providers[0].model").value("gpt-6-sol"))
+                .andExpect(jsonPath("$.providers[0].suggestedModels", contains("gpt-6-sol", "gpt-6.1-sol", "gpt-6-luna")))
                 .andExpect(jsonPath("$.providers[0].configured").value(false))
                 .andExpect(jsonPath("$.providers[1].id").value("anthropic"))
                 .andExpect(jsonPath("$.providers[1].name").value("Claude"))
                 .andExpect(jsonPath("$.providers[1].defaultModel").value("claude-sonnet-5-5"))
-                .andExpect(jsonPath("$.providers[1].suggestedModels[1]").value("claude-opus-5-5"))
+                .andExpect(jsonPath("$.providers[1].suggestedModels",
+                        contains("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5")))
                 .andExpect(jsonPath("$.providers[1].configured").value(true))
-                .andExpect(jsonPath("$.providers[2].model").value("deepseek-flash"));
+                .andExpect(jsonPath("$.providers[2].model").value("deepseek-flash"))
+                .andExpect(jsonPath("$.providers[2].suggestedModels", contains("deepseek-flash")));
         verify(keys, never()).get(any());
+    }
+
+    @Test
+    void aSavedModelThatIsNoLongerSuggestedIsStillTheSavedModel(@TempDir Path tempDir) throws Exception {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, "llm-settings.json"), keys);
+        // Written before gpt-5.6 and deepseek-v4-pro were removed from the suggestions.
+        Files.writeString(tempDir.resolve("llm-settings.json"), """
+                {"activeProvider":"deepseek","models":{"openai":"gpt-5.6","deepseek":"deepseek-v4-pro"}}""");
+
+        real.perform(get("/api/llm/settings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeProvider").value("deepseek"))
+                .andExpect(jsonPath("$.providers[0].model").value("gpt-5.6"))
+                .andExpect(jsonPath("$.providers[0].suggestedModels", not(hasItem("gpt-5.6"))))
+                .andExpect(jsonPath("$.providers[2].model").value("deepseek-v4-pro"))
+                .andExpect(jsonPath("$.providers[2].suggestedModels", not(hasItem("deepseek-v4-pro"))));
     }
 
     @Test
