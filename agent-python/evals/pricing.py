@@ -1,14 +1,15 @@
 """Turn token usage into cost with the price table in prices.json."""
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
+from evals.files import read_checked, schema_validator
 from tyler_agent.transcript import Usage
 
 PRICES_PATH = Path(__file__).parent / "prices.json"
+PRICES_SCHEMA_PATH = Path(__file__).parent / "prices.schema.json"
 TOKENS_PER_PRICE_UNIT = Decimal(1_000_000)
 
 
@@ -33,7 +34,9 @@ class PriceTable:
 
 
 def load_prices(path: Path = PRICES_PATH) -> PriceTable:
-    table = json.loads(path.read_text("utf-8"), parse_float=Decimal, parse_int=Decimal)
+    """The price table, checked against its schema. A file that cannot be used raises
+    InvalidDataFile naming the file and the problem."""
+    table = read_checked(path, schema_validator(PRICES_SCHEMA_PATH))
     return PriceTable(
         table["checked"],
         {

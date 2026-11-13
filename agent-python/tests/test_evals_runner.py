@@ -18,6 +18,7 @@ from support.eval_fakes import (
     verdict,
 )
 
+from evals.java import FakeJava
 from evals.runner import ChatResult, FoodCheck, ModelCall, run_chat, run_payload
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.validation import MessageValidator
@@ -139,6 +140,39 @@ def test_the_provider_gets_the_key_and_the_result_never_holds_it() -> None:
 
     assert provider.snapshots[0]["apiKey"] == KEY and provider.closed == 1
     assert KEY not in repr(result)
+
+
+def test_a_chat_that_reads_the_profile_gets_it_through_the_real_tool() -> None:
+    provider = FakeProvider([turn(call("GetUserInfo")), turn(text="Hello, Sam.")])
+
+    result = run(provider, verify=False)
+
+    assert result.error is None and result.saved == ()
+    profile = provider.requests[1]["transcript"][-1]
+    assert profile == ToolResult(
+        "call-1",
+        "UserInfo[user=User[name=Sam, gender=Unspecified, age=30, jobType=Office], "
+        "other=Other[info=null, expectationFromLLM=Keep my food diary accurate.]]",
+    )
+
+
+def test_the_stand_in_profile_is_one_java_could_send() -> None:
+    answer = asyncio.run(FakeJava(NOW).operation("user_info.read", {}))
+
+    MessageValidator().validate_shape(
+        {
+            "protocolVersion": 2,
+            "type": "operation_result",
+            "sessionId": "0123456789abcdef0123456789abcdef",
+            "requestId": "req-1",
+            "payload": {
+                "operationId": "op-1",
+                "operation": "user_info.read",
+                "outcome": "success",
+                "result": answer,
+            },
+        }
+    )
 
 
 def test_an_operation_without_a_stand_in_ends_the_chat_as_a_named_error() -> None:

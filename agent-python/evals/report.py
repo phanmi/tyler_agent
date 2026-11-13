@@ -3,23 +3,33 @@
 Every measurement covers one target (a provider and model) in one mode (verification off or
 on). A chat is measured only when it finished and the chat for the same case and repeat in
 the other mode finished too, so both modes are measured over the same chats and their totals
-can be compared. A failed chat adds to the error count and to nothing else. Each measurement
-is one entry in METRICS, so adding one changes no other code.
+can be compared. A failed chat adds to the error count and to no measurement; the list of
+problems still shows what it saved. Each measurement is one entry in METRICS, so adding one
+changes no other code.
 """
 
 import math
 import statistics
+import string
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 
 from evals.pricing import Price, PriceTable, cost
 from evals.runner import ChatResult, FoodCheck, ModelCall, Target
 from evals.scoring import ItemScore, expected_value, fully_correct, saved_value
+from tyler_agent.protocol.protocol import Message
 from tyler_agent.transcript import Usage
 
 LATENCY_PERCENTILE = 95
 MISSING = "-"
+# CommonMark lets any ASCII punctuation character be escaped with a backslash, and the escaped
+# character then shows as itself. Escaping all of them leaves no link, image, HTML tag,
+# emphasis or table delimiter in text the harness did not write. The backslash is escaped
+# too, so the one before a pipe always counts, whatever the text had before it.
+_MARKDOWN_ESCAPES = str.maketrans({character: f"\\{character}" for character in string.punctuation})
 
 
 @dataclass(frozen=True)
@@ -192,6 +202,11 @@ class Summary:
     rows: tuple[Row, ...]
 
 
+def failures(scored: Sequence[Scored]) -> Counter[Target]:
+    """How many chats failed for each target, in both modes together."""
+    return Counter(chat.result.chat.target for chat in scored if chat.result.error is not None)
+
+
 def summarize(scored: Sequence[Scored], prices: PriceTable) -> tuple[Summary, ...]:
     """One summary per target, in the order the targets first ran."""
     targets = list(dict.fromkeys(chat.result.chat.target for chat in scored))
@@ -231,28 +246,49 @@ def _shown(value: float | None, digits: int, signed: bool = False) -> str:
     return f"{value:+.{digits}f}" if signed else f"{value:.{digits}f}"
 
 
+class RunState(Enum):
+    """Where the run was when the report was written."""
+
+    RUNNING = "running"
+    FINISHED = "finished"
+    INTERRUPTED = "interrupted"
+
+
 @dataclass(frozen=True)
 class RunInfo:
     """What a report says about the run itself. `planned` is the number of chats the run set
-    out to make, so a report written part-way through can say how far it got."""
+    out to make, so a report written part-way through can say how far it got. A target whose
+    failed chats reach `failure_limit` was stopped, and its remaining chats did not run."""
 
     started: datetime
     version: str
     cases: int
     repeats: int
     planned: int
-    interrupted: bool
+    state: RunState
+    failure_limit: int
+
+    @property
+    def chats_per_target(self) -> int:
+        """Each case runs once per repeat with verification off and once with it on."""
+        return self.cases * self.repeats * 2
 
 
-def _cell(text: str) -> str:
-    """Model output can hold anything; keep it inside one table cell."""
-    return " ".join(text.replace("|", "\\|").split())
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
+
+
+def markdown_text(text: str) -> str:
+    """Text the harness did not write, such as a saved food name, shown exactly as written:
+    on one line, with nothing in it read as Markdown or HTML."""
+    return _one_line(text.translate(_MARKDOWN_ESCAPES))
 
 
 def markdown_table(headers: Sequence[str], rows: Sequence[Sequence[str]], numbers_from: int) -> str:
     """A Markdown table, padded so it also reads as plain text in a terminal. Columns from
-    `numbers_from` on are right-aligned."""
-    lines = [list(headers), *([_cell(value) for value in row] for row in rows)]
+    `numbers_from` on are right-aligned. Cells are Markdown and are put on one line; pass
+    text the harness did not write through markdown_text first."""
+    lines = [list(headers), *([_one_line(value) for value in row] for row in rows)]
     widths = [max(len(line[column]) for line in lines) for column in range(len(headers))]
 
     def padded(line: Sequence[str]) -> str:
@@ -282,39 +318,56 @@ def _summary_table(summary: Summary) -> str:
     return markdown_table(["Metric", "Off", "On", "Change"], rows, numbers_from=1)
 
 
+def _saved(record: Message, field: str) -> str:
+    """A saved value, which the model wrote, encoded for the report."""
+    return markdown_text(saved_value(record, field))
+
+
 def _problem(chat: Scored, item: ItemScore) -> str:
     """One record that was not right, with the saved and expected values that differ."""
     case, saved = chat.result.chat.case, chat.result.saved
     if item.expected is None:
-        return f'Saved "{saved_value(saved[item.saved or 0], "foodName")}", which nothing expected'
+        return f'Saved "{_saved(saved[item.saved or 0], "foodName")}", which nothing expected'
     expected = case.expected[item.expected]
     if item.saved is None:
         return f"Missed {expected.names[0]}"
     record = saved[item.saved]
     differences = ", ".join(
-        f"{field} {saved_value(record, field)} (expected {expected_value(expected, field)})"
+        f"{field} {_saved(record, field)} (expected {expected_value(expected, field)})"
         for field in item.wrong
     )
     return f"{expected.names[0]}: {differences}"
 
 
 def _problems(chats: Sequence[Scored]) -> list[list[str]]:
-    """A row for every chat that failed or was not fully correct, in run order."""
+    """A row for every chat that failed or was not fully correct, in run order. A failed chat
+    names its failure first, then every record it got wrong before failing."""
     rows: list[list[str]] = []
     for chat in chats:
         result = chat.result
-        if result.error is not None:
-            problem = f"Failed: {result.error}"
-        elif fully_correct(chat.scores):
+        failure = [] if result.error is None else [f"Failed: {result.error}"]
+        problems = failure + [_problem(chat, item) for item in chat.scores if not item.correct]
+        if not problems:
             continue
-        else:
-            problem = "; ".join(_problem(chat, item) for item in chat.scores if not item.correct)
         mode = "on" if result.chat.verify else "off"
-        rows.append([result.chat.case.id, mode, str(result.chat.repeat), problem])
+        rows.append([result.chat.case.id, mode, str(result.chat.repeat), "; ".join(problems)])
     return rows
 
 
-def _target_section(summary: Summary, chats: Sequence[Scored], prices: PriceTable) -> str:
+def _stopped(chats: Sequence[Scored], run: RunInfo) -> list[str]:
+    """A sentence for a target stopped at the failure limit; none for any other target.
+    `chats` are all one target's."""
+    if sum(chat.result.error is not None for chat in chats) < run.failure_limit:
+        return []
+    return [
+        f"Stopped after {run.failure_limit} failed chats: {len(chats)} of "
+        f"{run.chats_per_target} chats ran."
+    ]
+
+
+def _target_section(
+    summary: Summary, chats: Sequence[Scored], prices: PriceTable, run: RunInfo
+) -> str:
     price = (
         f"Prices checked {prices.checked}."
         if summary.priced
@@ -329,6 +382,7 @@ def _target_section(summary: Summary, chats: Sequence[Scored], prices: PriceTabl
     return "\n\n".join(
         [
             f"## {summary.target.provider} / {summary.target.model}",
+            *_stopped(chats, run),
             price,
             _summary_table(summary),
             "### Chats that failed or were not fully correct",
@@ -342,10 +396,15 @@ def _times(count: int) -> str:
 
 
 def _progress(run: RunInfo, ran: int) -> str:
-    if run.interrupted:
+    if run.state is RunState.INTERRUPTED:
         return f"Interrupted: {ran} of {run.planned} chats ran."
-    if ran < run.planned:
+    if run.state is RunState.RUNNING:
         return f"In progress: {ran} of {run.planned} chats ran so far."
+    if ran < run.planned:
+        return (
+            f"Finished: {ran} of {run.planned} chats ran. A model with {run.failure_limit} "
+            "failed chats was stopped, and its remaining chats did not run."
+        )
     return f"All {run.planned} chats ran."
 
 
@@ -371,6 +430,7 @@ def report(scored: Sequence[Scored], prices: PriceTable, run: RunInfo) -> str:
             summary,
             [chat for chat in scored if chat.result.chat.target == summary.target],
             prices,
+            run,
         )
         for summary in summarize(scored, prices)
     ]

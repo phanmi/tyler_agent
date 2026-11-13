@@ -18,7 +18,7 @@ The command asks for the key and hides what you type. The key is never passed as
 
 Keys are saved in `Documents\.tylerTest\keys.json` under your user folder, for example `C:\Users\<you>\Documents\.tylerTest\keys.json`. That is outside the repository, so git cannot pick them up.
 
-- **The file is plain text.** Anyone who can read your user folder can read the keys. If your `Documents` folder is synced to a cloud service, the file is synced too; use `--keys DIRECTORY` to keep it somewhere else.
+- **The file is plain text.** Anyone who can read your user folder can read the keys. If your `Documents` folder is synced to a cloud service, the file is synced too; use `--keys DIRECTORY` to keep it somewhere else. On Linux and macOS the file is readable by you only from the moment it is created. Saving a key writes a new file and swaps it in, so a save that fails leaves the old keys as they were.
 - **To replace a key**, save it again. **To remove the keys**, delete the file.
 - **An environment variable wins over a saved key**, so you can use another key for one run: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `DEEPSEEK_API_KEY`.
 
@@ -59,13 +59,34 @@ uv run --locked python -m evals --all-models
 
 A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. `--all-models` with all three keys is eight models, so 1,872 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
-The report file is created before the first call and rewritten after every chat. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
+The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
+
+### Failed chats
+
+A chat that fails, for example on a rate limit, is counted and the run goes on. A model with 10 failed chats is stopped: its remaining chats are skipped, the run goes on with the next model, and the report says which model was stopped. A revoked key or a mistyped model ID would otherwise fail every chat of that model.
+
+A run ends with a line that counts the failed chats of each model. It exits with:
+
+| Code | Meaning |
+|---|---|
+| 0 | Every model ran to the end. Some chats may have failed; the last line counts them. |
+| 1 | A model reached 10 failed chats and was stopped. The other models ran. |
+| 2 | The run could not start, and made no provider call. The message says why. |
+| 130 | The run was stopped with Ctrl-C. |
+
+### One run per results directory
+
+While a run writes its report, its results directory holds a `run.lock` file. Another run with the same `--results` directory stops before any call. To run models side by side, give each run its own `--results` directory.
+
+A run removes the lock when it ends, also after Ctrl-C. A run that is killed outright, for example by closing its window, leaves it behind; delete it when no run is going on.
 
 ## Read the report
 
-A run writes one Markdown file, named after the time it started, and prints the same text when it ends. It is the only file a run writes.
+A run writes one Markdown file, named after the time it started, and prints the same text when it ends. It is the only file a run leaves; the lock and a temporary copy of the report exist only while it runs.
 
-The report starts with the Tyler version, the start time, the number of cases and repeats, and how far the run got. Each model then has a table, followed by a list of the chats that failed or were not fully correct, with the saved and expected values that differ.
+The report starts with the Tyler version, the start time, the number of cases and repeats, and how far the run got. Each model then has a table, followed by a list of the chats that failed or were not fully correct, with the saved and expected values that differ. A failed chat is listed with its failure and with any record it got wrong before it failed.
+
+Saved values come from the model, so the report escapes every punctuation mark in them: they show as written, and nothing in them can act as a link, an image, HTML or a table border. In the Markdown source and the terminal they appear with backslashes, such as `2026\-11\-11`.
 
 Each table row shows the value with verification off, with it on, and the change.
 
@@ -73,7 +94,7 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 
 | Row | Meaning |
 |---|---|
-| Chats run, Chats that failed | A chat that fails, for example on a rate limit, is counted here and left out of every row below. The providers do not retry. |
+| Chats run, Chats that failed | A chat that fails, for example on a rate limit, is counted here and left out of every row below. The providers do not retry. See [Failed chats](#failed-chats). |
 | Chats compared | Chats that finished in both modes. Every row below is measured over these. |
 | Fully correct chats (%) | Chats where every expected record was saved correctly and nothing else was saved. |
 | Wrong saves | Saved records with a field outside tolerance, plus records that should not have been saved. |
@@ -140,6 +161,8 @@ Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) an
 ## Update the prices
 
 [prices.json](prices.json) holds each model's prices per million tokens, the pricing page they came from, and the date they were checked. When prices change, edit the values and the `checked` date. A model that is not in the table still gets its tokens reported, with no cost. List only standard prices: a promotional price would be wrong once it ends.
+
+Before a run starts, `prices.json` is checked against [prices.schema.json](prices.schema.json), and [models.json](models.json) against [models.schema.json](models.schema.json). A file that does not match, for example after a typo, stops the run with the file's name and the problem, before any call or report.
 
 ## Limits
 

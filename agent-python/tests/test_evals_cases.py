@@ -158,7 +158,7 @@ def test_a_file_that_is_not_json_or_cannot_be_opened_says_why(tmp_path: Path) ->
 
     tmp_path.joinpath("two.json").unlink()
     tmp_path.joinpath("folder.json").mkdir()
-    with pytest.raises(InvalidCases, match="Cannot open case file folder.json: ") as caught:
+    with pytest.raises(InvalidCases, match="Cannot open folder.json: ") as caught:
         load_cases(tmp_path)
     assert isinstance(caught.value.__cause__, OSError)
 

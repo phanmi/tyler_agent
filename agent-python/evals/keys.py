@@ -1,16 +1,15 @@
 """Provider API keys for harness runs: read from the environment or from a file on this computer.
 
-PY-09 exception, made at the maintainer's request: the harness may save provider keys in a
-plain-text file outside the repository, so a run does not need them typed each time. The
-scope is this module. The worker never reads the file, a key is typed at a hidden prompt and
-never passed as a command-line argument, and no key is written to output, progress lines or
-results.
+This module is the PY-09 exception recorded in docs/PYTHON_AGENT_STANDARDS.md: the harness
+may save provider keys in a plain-text file outside the repository, so a run does not need
+them typed each time.
 """
 
 import json
-import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
+from evals.files import replace_file
 
 # The environment variable that holds each provider's API key.
 KEY_VARIABLES = {
@@ -20,9 +19,10 @@ KEY_VARIABLES = {
 }
 KEYS_DIRECTORY = Path.home() / "Documents" / ".tylerTest"
 KEYS_FILE_NAME = "keys.json"
-# Owner read and write only, where the file system has such permissions.
+# Owner read and write only, given when the file is created, where the file system has such
+# permissions. Windows keeps only the read-only flag, which this mode leaves off.
 KEYS_FILE_MODE = 0o600
-SAVE_KEY_HINT = "python -m evals --save-key PROVIDER"
+SAVE_KEY_HINT = "uv run --locked python -m evals --save-key PROVIDER"
 
 
 class KeyProblem(Exception):
@@ -51,14 +51,14 @@ def _unusable(path: Path) -> str:
 
 
 def save_key(directory: Path, provider: str, key: str) -> Path:
-    """Add or replace one provider's key, keeping the others, and return the file."""
+    """Add or replace one provider's key, keeping the others, and return the file. The new
+    file is owner-only from the moment it exists and replaces the old one in one step, so a
+    failed save leaves the old keys as they were."""
     keys = saved_keys(directory) | {provider: key}
     path = directory / KEYS_FILE_NAME
     try:
         directory.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(keys, indent=2), "utf-8")
-        if sys.platform != "win32":
-            path.chmod(KEYS_FILE_MODE)
+        replace_file(path, json.dumps(keys, indent=2), KEYS_FILE_MODE)
     except OSError as error:
         raise KeyProblem(f"Cannot save keys in {directory}: {error.strerror}") from error
     return path

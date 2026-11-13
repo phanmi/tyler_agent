@@ -1,6 +1,5 @@
 """Labelled food-recording cases, read from the JSON files in cases/ and checked on load."""
 
-import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from evals.files import read_checked, schema_validator
 from tyler_agent.protocol.protocol import Message
 
 PACKAGE = Path(__file__).parent
@@ -72,7 +72,7 @@ class Case:
 
 def load_cases(directory: Path = CASES_DIRECTORY) -> tuple[Case, ...]:
     """Read every case file in name order, so a run always uses the same case order."""
-    validator = Draft202012Validator(json.loads(SCHEMA_PATH.read_text("utf-8")))
+    validator = schema_validator(SCHEMA_PATH)
     cases = [case for path in sorted(directory.glob("*.json")) for case in _file(path, validator)]
     if not cases:
         raise InvalidCases(f"No case files in {directory}")
@@ -98,16 +98,8 @@ def select_cases(
 
 
 def _file(path: Path, validator: Draft202012Validator) -> list[Case]:
-    try:
-        # Numbers are read as exact decimals, which the scorer compares saved values with.
-        document = json.loads(path.read_text("utf-8"), parse_float=Decimal, parse_int=Decimal)
-    except OSError as error:
-        raise InvalidCases(f"Cannot open case file {path.name}: {error.strerror}") from error
-    except ValueError as error:
-        raise InvalidCases(f"{path.name} is not valid JSON: {error}") from error
-    problem = next(iter(validator.iter_errors(document)), None)
-    if problem is not None:
-        raise InvalidCases(f"{path.name}: {problem.json_path}: {problem.message}")
+    # Numbers are read as exact decimals, which the scorer compares saved values with.
+    document = read_checked(path, validator, InvalidCases)
     return [_case(item, document["category"], path.name) for item in document["cases"]]
 
 

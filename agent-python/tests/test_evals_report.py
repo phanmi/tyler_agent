@@ -2,6 +2,7 @@
 
 import json
 import re
+import string
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -10,8 +11,18 @@ from pathlib import Path
 import pytest
 from support.eval_fakes import KEY, TARGET, USAGE, case, chat, expected, record
 
+from evals.files import InvalidDataFile
 from evals.pricing import Price, PriceTable, cost, load_prices
-from evals.report import RunInfo, Scored, Summary, markdown_table, report, summarize
+from evals.report import (
+    RunInfo,
+    RunState,
+    Scored,
+    Summary,
+    markdown_table,
+    markdown_text,
+    report,
+    summarize,
+)
 from evals.runner import Chat, ChatResult, FoodCheck, ModelCall, Target
 from evals.scoring import score
 from tyler_agent.protocol.protocol import Message
@@ -19,7 +30,7 @@ from tyler_agent.transcript import Usage
 
 PRICE = Price(Decimal(2), Decimal("0.2"), Decimal("2.5"), Decimal(10))
 PRICES = PriceTable("2026-11-11", {TARGET.model: PRICE})
-RUN = RunInfo(datetime(2026, 11, 11, 20, 15, tzinfo=UTC), "0.2.1", 1, 2, 4, False)
+RUN = RunInfo(datetime(2026, 11, 11, 20, 15, tzinfo=UTC), "0.2.1", 1, 2, 4, RunState.RUNNING, 10)
 # The models Settings suggests that had a standard price on the checked date.
 PRICED_MODELS = {
     "gpt-6-sol",
@@ -70,10 +81,37 @@ def test_the_shipped_price_table_lists_the_models_with_a_standard_price() -> Non
 
 def test_a_model_without_a_cache_write_rate_pays_the_input_rate(tmp_path: Path) -> None:
     path = tmp_path / "prices.json"
-    entry = {"input": 0.30, "cachedInput": 0.006, "output": 1.20}
+    entry = {"input": 0.30, "cachedInput": 0.006, "output": 1.20, "source": "test"}
     path.write_text(json.dumps({"checked": "2026-01-01", "models": {"m": entry}}), "utf-8")
 
     assert load_prices(path).models["m"].cache_write == Decimal("0.30")
+
+
+@pytest.mark.parametrize(
+    "content,problem",
+    [
+        ('{"checked": "2026-01-01", "models": {},}', "prices.json is not valid JSON: "),
+        (
+            '{"checked": "2026-01-01", "models": {"m": {"input": 1, "output": 2, "source": "x"}}}',
+            "prices.json: $.models.m: 'cachedInput' is a required property",
+        ),
+        (
+            '{"checked": "2026-01-01", "models": '
+            '{"m": {"input": -1, "cachedInput": 0, "output": 2, "source": "x"}}}',
+            "prices.json: $.models.m.input: ",
+        ),
+    ],
+)
+def test_a_price_table_that_cannot_be_used_names_the_file_and_the_problem(
+    tmp_path: Path, content: str, problem: str
+) -> None:
+    path = tmp_path / "prices.json"
+    path.write_text(content, "utf-8")
+
+    with pytest.raises(InvalidDataFile) as caught:
+        load_prices(path)
+
+    assert str(caught.value).startswith(problem)
 
 
 def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
@@ -226,7 +264,9 @@ def table_after(text: str, heading: str) -> list[list[str]]:
 
 def test_a_markdown_table_is_padded_aligned_and_keeps_text_in_its_cell() -> None:
     text = markdown_table(
-        ["Metric", "Off"], [["Chats run", "2"], ["A | B\nC", "10.5"]], numbers_from=1
+        ["Metric", "Off"],
+        [["Chats run", "2"], [markdown_text("A | B\nC"), "10.5"], ["Two\nlines", "1"]],
+        numbers_from=1,
     )
 
     assert text.splitlines() == [
@@ -234,13 +274,43 @@ def test_a_markdown_table_is_padded_aligned_and_keeps_text_in_its_cell() -> None
         "|-----------|-----:|",
         "| Chats run |    2 |",
         "| A \\| B C  | 10.5 |",
+        "| Two lines |    1 |",
     ]
+
+
+# Characters CommonMark lets a backslash escape, and every other visible character, as
+# regular expression classes.
+PUNCTUATION = "[" + re.escape(string.punctuation) + "]"
+OTHER = "[^" + re.escape(string.punctuation) + r"\s]"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "A\\|B",
+        "A\\\\|B",
+        "[a link](https://example.test/x)",
+        "![an image](https://example.test/pixel.png)",
+        '<img src="x" onerror="alert(1)">',
+        "</td><b>bold</b> **strong** _em_ `code` ~~gone~~ $x$ &amp;",
+    ],
+)
+def test_text_from_a_model_is_shown_as_written_and_nothing_in_it_is_markup(text: str) -> None:
+    encoded = markdown_text(text)
+
+    # Every punctuation character is escaped, the input's backslashes included, so each one
+    # shows as itself: no link, image, tag or emphasis forms, and an escaped pipe always
+    # follows an odd number of backslashes, so it cannot end a table cell.
+    assert re.fullmatch(rf"(?:\\{PUNCTUATION}|{OTHER}| )*", encoded), encoded
+    assert re.sub(rf"\\({PUNCTUATION})", r"\1", encoded) == text
+    for pipe in re.finditer(r"(\\*)\|", encoded):
+        assert len(pipe.group(1)) % 2 == 1, encoded
 
 
 def test_the_report_is_markdown_with_the_run_and_a_table_for_each_model() -> None:
     chats = [scored(False, (record(),), calls=2), scored(True, (record(),), calls=3)]
 
-    text = report(chats, PRICES, replace(RUN, planned=2))
+    text = report(chats, PRICES, replace(RUN, planned=2, state=RunState.FINISHED))
     lines = text.splitlines()
 
     assert lines[:6] == [
@@ -281,13 +351,58 @@ def test_the_report_lists_each_chat_that_failed_or_was_not_fully_correct() -> No
             "chicken",
             "off",
             "1",
-            "chicken breast: date 2026-11-11 (expected 2026-11-12), calories 900 (expected 300)",
+            # The saved date came from the model, so its punctuation is escaped.
+            "chicken breast: date 2026\\-11\\-11 (expected 2026-11-12), calories 900 "
+            "(expected 300)",
         ],
         ["chicken", "on", "1", "Missed chicken breast"],
         ["chicken", "off", "2", 'Saved "Fried \\| rice pudding", which nothing expected'],
         ["chicken", "on", "2", "Failed: provider/PROVIDER_FAILURE"],
         ["chicken", "on", "3", "chicken breast: unit nothing (expected g or gram or grams)"],
     ]
+
+
+def test_a_failed_chat_also_lists_what_it_saved_wrong_or_missed() -> None:
+    chats = [
+        # It saved a wrong record, then a later model call failed.
+        scored(False, (record(calories="900"),), error="provider/PROVIDER_FAILURE"),
+        # It failed before saving anything.
+        scored(True, (), error="timeout"),
+    ]
+
+    text = report(chats, PRICES, replace(RUN, planned=2))
+
+    assert table_after(text, "Case") == [
+        [
+            "chicken",
+            "off",
+            "1",
+            "Failed: provider/PROVIDER_FAILURE; chicken breast: calories 900 (expected 300)",
+        ],
+        ["chicken", "on", "1", "Failed: timeout; Missed chicken breast"],
+    ]
+
+
+def test_a_model_stopped_at_the_failure_limit_is_named_and_the_run_says_it_finished() -> None:
+    other = Target("deepseek", "deepseek-flash")
+    finished = Scored(
+        ChatResult(Chat(case(expected()), other, False, 1), None, (), (), (), 1.0), ()
+    )
+    chats = [
+        scored(False, (), error="timeout"),
+        scored(True, (), error="timeout"),
+        finished,
+    ]
+    run = replace(RUN, planned=8, state=RunState.FINISHED, failure_limit=2)
+
+    lines = report(chats, PRICES, run).splitlines()
+
+    assert (
+        "- **Status:** Finished: 3 of 8 chats ran. A model with 2 failed chats was stopped, "
+        "and its remaining chats did not run."
+    ) in lines
+    assert "Stopped after 2 failed chats: 2 of 4 chats ran." in lines
+    assert sum(line.startswith("Stopped after") for line in lines) == 1
 
 
 def test_a_stated_value_that_was_changed_is_reported_as_stated() -> None:
@@ -321,7 +436,7 @@ def test_the_report_says_how_far_an_unfinished_run_got() -> None:
     one = [scored(False, (record(),))]
 
     running = report(one, PRICES, RUN)
-    stopped = report(one, PRICES, replace(RUN, interrupted=True))
+    stopped = report(one, PRICES, replace(RUN, state=RunState.INTERRUPTED))
 
     assert "- **Status:** In progress: 1 of 4 chats ran so far." in running.splitlines()
     assert "- **Status:** Interrupted: 1 of 4 chats ran." in stopped.splitlines()

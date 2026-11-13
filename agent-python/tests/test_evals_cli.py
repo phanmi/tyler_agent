@@ -16,12 +16,18 @@ from evals.cli import (
     EXIT_COULD_NOT_START,
     EXIT_FINISHED,
     EXIT_INTERRUPTED,
+    EXIT_MODEL_STOPPED,
+    MAX_FAILED_CHATS_PER_MODEL,
+    RUN_LOCK_NAME,
     main,
     plan,
     suggested_targets,
 )
+from evals.files import replace_file
 from evals.keys import KEYS_FILE_NAME, save_key
+from evals.pricing import load_prices
 from evals.runner import Target
+from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.resources import release_version
 from tyler_agent.transcript import (
@@ -78,7 +84,8 @@ def test_a_missing_key_stops_the_run_before_any_provider_call() -> None:
     assert code == EXIT_COULD_NOT_START and output == ""
     assert progress == (
         "error: No API key for openai and deepseek. Save one with "
-        "`python -m evals --save-key PROVIDER`, or set OPENAI_API_KEY and DEEPSEEK_API_KEY.\n"
+        "`uv run --locked python -m evals --save-key PROVIDER`, or set OPENAI_API_KEY and "
+        "DEEPSEEK_API_KEY.\n"
     )
 
 
@@ -169,7 +176,8 @@ def test_all_models_without_any_key_stops_the_run() -> None:
 
     assert code == EXIT_COULD_NOT_START and output == ""
     assert progress.splitlines()[-1] == (
-        "error: No API key is saved or set. Save one with `python -m evals --save-key PROVIDER`."
+        "error: No API key is saved or set. Save one with "
+        "`uv run --locked python -m evals --save-key PROVIDER`."
     )
 
 
@@ -228,9 +236,10 @@ def test_an_interrupted_run_keeps_and_reports_the_chats_that_finished(tmp_path: 
     code, output, progress = run(arguments, {"OPENAI_API_KEY": KEY}, Interrupted())
 
     assert code == EXIT_INTERRUPTED
-    assert progress.splitlines()[-1] == "Interrupted after 2 of 6 chats."
+    assert progress.splitlines()[-2:] == ["Interrupted after 2 of 6 chats.", "Failed chats: 0."]
     assert row(output, "Chats run") == ["1", "1", "+0"]
-    (report,) = tmp_path.glob("*.md")
+    # Ctrl-C still releases the results directory.
+    (report,) = tmp_path.iterdir()
     saved = report.read_text("utf-8")
     assert "- **Status:** Interrupted: 2 of 6 chats ran." in saved.splitlines()
     assert row(saved, "Chats run") == ["1", "1", "+0"]
@@ -299,11 +308,14 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
 
     assert code == EXIT_FINISHED and provider.opened == 4
     assert progress.splitlines() == [
-        f"[{number}/4] openai/configured-model grams-chicken verification={mode} "
-        f"repeat={repeat}: finished"
-        for number, (repeat, mode) in enumerate(
-            [(1, "off"), (1, "on"), (2, "off"), (2, "on")], start=1
-        )
+        *(
+            f"[{number}/4] openai/configured-model grams-chicken verification={mode} "
+            f"repeat={repeat}: finished"
+            for number, (repeat, mode) in enumerate(
+                [(1, "off"), (1, "on"), (2, "off"), (2, "on")], start=1
+            )
+        ),
+        "Failed chats: 0.",
     ]
     lines = output.splitlines()
     assert lines[0] == "# Food recording eval report"
@@ -322,7 +334,7 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
         assert row(output, label) == shown, label
     assert "Every chat finished and was fully correct." in lines
 
-    # The Markdown report is the only file a run writes, and the terminal shows the same text.
+    # The Markdown report is the only file a run leaves, and the terminal shows the same text.
     (report,) = (tmp_path / "results").iterdir()
     assert report.suffix == ".md" and lines[-1] == f"Report: {report}"
     text = report.read_text("utf-8")
@@ -371,7 +383,198 @@ def test_the_report_file_exists_before_the_first_call_and_grows_with_each_chat(
     )
 
     assert code == EXIT_FINISHED
-    assert [line.rsplit(": ", 1)[1] for line in progress.splitlines()] == ["finished"] * 2
+    assert [line.rsplit(": ", 1)[1] for line in progress.splitlines()[:-1]] == ["finished"] * 2
     # Empty before the first call; after the first chat it already holds that chat, so a
     # run that is killed outright still leaves a report of what it paid for.
     assert on_disk == [[], ["- **Status:** In progress: 1 of 2 chats ran so far."]]
+
+
+ONE_CHAT_EACH_WAY = ["--case", "grams-chicken", "--repeats", "1"]
+
+
+def test_a_second_run_in_the_same_results_directory_stops_before_any_call(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / RUN_LOCK_NAME
+    lock.touch()
+
+    code, output, progress = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+    )
+
+    assert code == EXIT_COULD_NOT_START and output == ""
+    assert progress == (
+        f"error: Another run is writing reports in {tmp_path}: {lock} exists. Wait for that "
+        "run to end, or delete the file if no run is going on.\n"
+    )
+    # The other run's lock stays, and no report was started.
+    assert [entry.name for entry in tmp_path.iterdir()] == [RUN_LOCK_NAME]
+
+
+def test_the_results_directory_is_locked_while_a_run_writes_there(tmp_path: Path) -> None:
+    locked: list[bool] = []
+
+    class Checking(RuleProvider):
+        @asynccontextmanager
+        async def open(self, value: Message) -> AsyncIterator[Provider]:
+            locked.append((tmp_path / RUN_LOCK_NAME).exists())
+            async with super().open(value) as provider:
+                yield provider
+
+    code, _, _ = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        Checking(),
+    )
+
+    assert code == EXIT_FINISHED and locked == [True, True]
+    assert not (tmp_path / RUN_LOCK_NAME).exists()
+
+
+def test_a_report_that_cannot_be_updated_is_reported_and_the_run_goes_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writes: list[str] = []
+
+    def held_open_once(path: Path, text: str) -> None:
+        writes.append(text)
+        if len(writes) == 1:
+            raise PermissionError(13, "Permission denied")
+        replace_file(path, text)
+
+    monkeypatch.setattr("evals.cli.replace_file", held_open_once)
+    provider = RuleProvider()
+
+    code, output, progress = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        provider,
+    )
+
+    (report,) = tmp_path.glob("*.md")
+    assert code == EXIT_FINISHED and provider.opened == 2
+    assert progress.splitlines()[:2] == [
+        f"Could not update {report}: Permission denied",
+        "[1/2] openai/m grams-chicken verification=off repeat=1: finished",
+    ]
+    assert len(writes) == 3
+    assert output == f"{report.read_text('utf-8')}\nReport: {report}\n"
+
+
+def test_a_report_that_cannot_be_written_at_the_end_is_still_printed_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def held_open(path: Path, text: str) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("evals.cli.replace_file", held_open)
+
+    code, output, _ = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        RuleProvider(),
+    )
+
+    (report,) = tmp_path.glob("*.md")
+    assert code == EXIT_FINISHED and "- **Status:** All 2 chats ran." in output.splitlines()
+    assert output.splitlines()[-1] == (
+        f"{report} was not updated at the end, so the text above is the full report."
+    )
+
+
+class FailingModel(RuleProvider):
+    """Fails every request for the model named `failing`, and the first `first` requests
+    of any model."""
+
+    def __init__(self, failing: str = "", first: int = 0) -> None:
+        super().__init__()
+        self._failing = failing
+        self._first = first
+
+    async def respond(
+        self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        if model == self._failing or self.opened <= self._first:
+            raise AgentFailure("provider", "PROVIDER_FAILURE")
+        return await super().respond(model, transcript, tools)
+
+
+def test_a_model_that_reaches_the_failure_limit_is_stopped_and_the_next_model_runs(
+    tmp_path: Path,
+) -> None:
+    provider = FailingModel(failing="bad")
+    arguments = ["--model", "openai:bad", "--model", "openai:good", "--case", "grams-chicken"]
+
+    code, output, progress = run(
+        [*arguments, "--repeats", "6", "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        provider,
+    )
+
+    assert MAX_FAILED_CHATS_PER_MODEL == 10
+    assert code == EXIT_MODEL_STOPPED
+    # Ten of the twelve chats for the failing model, then all twelve for the next one.
+    assert provider.opened == 22
+    lines = progress.splitlines()
+    assert lines[10] == "Stopping openai/bad: 10 chats failed. Its remaining chats are skipped."
+    assert lines[11].startswith("[13/24] openai/good ")
+    assert lines[-1] == "Failed chats: 10 (openai/bad 10, stopped)."
+    report = output.splitlines()
+    assert "Stopped after 10 failed chats: 10 of 12 chats ran." in report
+    assert (
+        "- **Status:** Finished: 22 of 24 chats ran. A model with 10 failed chats was "
+        "stopped, and its remaining chats did not run."
+    ) in report
+
+
+def test_failures_below_the_limit_are_counted_and_the_run_still_succeeds(
+    tmp_path: Path,
+) -> None:
+    code, output, progress = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        FailingModel(first=1),
+    )
+
+    assert code == EXIT_FINISHED
+    assert progress.splitlines()[0].endswith(": provider/PROVIDER_FAILURE")
+    assert progress.splitlines()[-1] == "Failed chats: 1 (openai/m 1)."
+    assert row(output, "Chats that failed") == ["1", "0", "-1"]
+
+
+@pytest.mark.parametrize(
+    "file_name,option,content,problem",
+    [
+        ("prices.json", "--model", '{"checked": "2026-11-11",}', "prices.json is not valid JSON"),
+        (
+            "prices.json",
+            "--model",
+            '{"checked": "2026-11-11", "models": {"m": {"input": 1, "output": 2, "source": "x"}}}',
+            "prices.json: $.models.m: 'cachedInput' is a required property",
+        ),
+        ("models.json", "--all-models", '{"openai": "gpt-6-sol"}', "models.json: $.openai: "),
+    ],
+)
+def test_a_bad_price_or_model_file_stops_the_run_before_it_starts_a_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    file_name: str,
+    option: str,
+    content: str,
+    problem: str,
+) -> None:
+    bad = tmp_path / file_name
+    bad.write_text(content, "utf-8")
+    monkeypatch.setattr("evals.cli.load_prices", lambda: load_prices(bad))
+    monkeypatch.setattr("evals.cli.MODELS_PATH", bad)
+    target = ["openai:m"] if option == "--model" else []
+    results = tmp_path / "results"
+
+    code, output, progress = run(
+        [option, *target, "--results", str(results)], {"OPENAI_API_KEY": KEY}
+    )
+
+    assert code == EXIT_COULD_NOT_START and output == ""
+    assert progress.splitlines()[-1].startswith(f"error: {problem}")
+    assert not results.exists()

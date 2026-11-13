@@ -1,6 +1,7 @@
 """Saved API keys for the eval harness: where they live and how a run finds them (#97)."""
 
 import json
+import os
 import stat
 import sys
 from pathlib import Path
@@ -42,10 +43,47 @@ def test_a_saved_key_is_read_back_and_other_providers_are_kept(tmp_path: Path) -
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows has no owner-only file mode")
-def test_the_key_file_is_readable_by_its_owner_only(tmp_path: Path) -> None:
+def test_the_key_file_is_owner_only_from_the_moment_it_holds_a_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A key file left readable by others by an earlier version is replaced, not reused.
+    tmp_path.joinpath(KEYS_FILE_NAME).write_text("{}", "utf-8")
+    tmp_path.joinpath(KEYS_FILE_NAME).chmod(0o644)
+    modes_before_move: list[int] = []
+    move = os.replace
+
+    def checked_move(source: str | os.PathLike[str], target: str | os.PathLike[str]) -> None:
+        modes_before_move.append(stat.S_IMODE(os.stat(source).st_mode))
+        move(source, target)
+
+    monkeypatch.setattr("evals.files.os.replace", checked_move)
+
     path = save_key(tmp_path, "openai", SECRET)
 
+    # The new file already had the key in it, and was owner-only, before taking the name.
+    assert modes_before_move == [0o600]
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_a_save_that_fails_keeps_the_saved_keys_as_they_were(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = save_key(tmp_path, "openai", "first")
+    before = (path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
+
+    def full_disk(source: object, target: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("evals.files.os.replace", full_disk)
+
+    with pytest.raises(KeyProblem) as caught:
+        save_key(tmp_path, "deepseek", SECRET)
+
+    assert str(caught.value) == f"Cannot save keys in {tmp_path}: No space left on device"
+    assert (path.read_bytes(), stat.S_IMODE(path.stat().st_mode)) == before
+    assert saved_keys(tmp_path) == {"openai": "first"}
+    # The new copy, which held the key, is not left beside the file.
+    assert [entry.name for entry in tmp_path.iterdir()] == [KEYS_FILE_NAME]
 
 
 @pytest.mark.parametrize("content", ["{not json", "[]", '"text"', '{"openai": 5}'])
@@ -113,6 +151,7 @@ def test_only_the_requested_providers_without_a_key_are_named() -> None:
 
     assert str(caught.value) == (
         "No API key for openai and deepseek. Save one with "
-        "`python -m evals --save-key PROVIDER`, or set OPENAI_API_KEY and DEEPSEEK_API_KEY."
+        "`uv run --locked python -m evals --save-key PROVIDER`, or set OPENAI_API_KEY and "
+        "DEEPSEEK_API_KEY."
     )
     assert SECRET not in str(caught.value)

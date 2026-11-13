@@ -5,10 +5,11 @@ from copy import deepcopy
 
 from tyler_agent.protocol.protocol import Message
 
-# The saved profile getUserInfo returns. It says nothing about food, so it cannot steer a case.
+# The saved profile GetUserInfo returns, with Java's field names and types: Age is a decimal
+# string. It says nothing about food, so it cannot steer a case.
 PROFILE: Message = {
-    "User": {"name": "Sam", "gender": "not given", "age": 30, "jobType": "office work"},
-    "Other": {"info": "", "expectationFromLLM": "Keep my food diary accurate."},
+    "User": {"Name": "Sam", "Gender": "Unspecified", "Age": "30", "JobType": "Office"},
+    "Other": {"Info": None, "expectationFromLLM": "Keep my food diary accurate."},
 }
 
 
