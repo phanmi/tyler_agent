@@ -18,6 +18,7 @@ from evals.keys import (
     save_key,
     saved_keys,
 )
+from tyler_agent.provider import OPENERS
 
 SECRET = "SYNTHETIC_FIXTURE_KEY"
 
@@ -140,6 +141,12 @@ def test_every_provider_has_a_variable() -> None:
         "anthropic": "ANTHROPIC_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY",
     }
+
+
+def test_the_harness_knows_a_key_variable_for_every_provider_the_worker_opens() -> None:
+    """--all-models leaves out a provider that has no key, so a provider added to the worker
+    but not here would never be evaluated, without any message saying so."""
+    assert KEY_VARIABLES.keys() == OPENERS.keys()
 
 
 def test_only_the_requested_providers_without_a_key_are_named() -> None:

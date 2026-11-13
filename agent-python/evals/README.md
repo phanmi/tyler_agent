@@ -63,14 +63,14 @@ The report file is created before the first call and replaced after every chat, 
 
 ### Failed chats
 
-A chat that fails, for example on a rate limit, is counted and the run goes on. A model with 10 failed chats is stopped: its remaining chats are skipped, the run goes on with the next model, and the report says which model was stopped. A revoked key or a mistyped model ID would otherwise fail every chat of that model.
+A chat that fails, for example on a rate limit, is counted and the run goes on. A model that reaches 10 failed chats while it still has chats to run is stopped: its remaining chats are skipped, the run goes on with the next model, and the report says which model was stopped. A model whose 10th failure is its last chat ran in full and is not stopped. A revoked key or a mistyped model ID would otherwise fail every chat of that model.
 
 A run ends with a line that counts the failed chats of each model. It exits with:
 
 | Code | Meaning |
 |---|---|
 | 0 | Every model ran to the end. Some chats may have failed; the last line counts them. |
-| 1 | A model reached 10 failed chats and was stopped. The other models ran. |
+| 1 | A model reached 10 failed chats with chats still to run, and was stopped. The other models ran. |
 | 2 | The run could not start, and made no provider call. The message says why. |
 | 130 | The run was stopped with Ctrl-C. |
 

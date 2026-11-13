@@ -392,6 +392,35 @@ def test_the_report_file_exists_before_the_first_call_and_grows_with_each_chat(
 ONE_CHAT_EACH_WAY = ["--case", "grams-chicken", "--repeats", "1"]
 
 
+def test_the_tyler_version_is_read_once_before_any_provider_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[str] = []
+
+    def version() -> str:
+        events.append("version")
+        return "9.9.9"
+
+    class Recording(RuleProvider):
+        @asynccontextmanager
+        async def open(self, value: Message) -> AsyncIterator[Provider]:
+            events.append("provider")
+            async with super().open(value) as provider:
+                yield provider
+
+    monkeypatch.setattr("evals.cli.release_version", version)
+
+    code, output, _ = run(
+        ["--model", "openai:m", *ONE_CHAT_EACH_WAY, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        Recording(),
+    )
+
+    assert code == EXIT_FINISHED
+    assert events == ["version", "provider", "provider"]
+    assert "- **Tyler version:** 9.9.9" in output.splitlines()
+
+
 def test_a_second_run_in_the_same_results_directory_stops_before_any_call(
     tmp_path: Path,
 ) -> None:
@@ -526,6 +555,26 @@ def test_a_model_that_reaches_the_failure_limit_is_stopped_and_the_next_model_ru
         "- **Status:** Finished: 22 of 24 chats ran. A model with 10 failed chats was "
         "stopped, and its remaining chats did not run."
     ) in report
+
+
+def test_a_model_whose_last_chat_reaches_the_limit_ran_in_full_and_is_not_stopped(
+    tmp_path: Path,
+) -> None:
+    # One case five times in each mode is ten chats, so the tenth failure is the last chat.
+    arguments = ["--model", "openai:bad", "--case", "grams-chicken", "--repeats", "5"]
+
+    code, output, progress = run(
+        [*arguments, "--results", str(tmp_path)],
+        {"OPENAI_API_KEY": KEY},
+        FailingModel(failing="bad"),
+    )
+
+    assert code == EXIT_FINISHED
+    assert not any(line.startswith("Stopping") for line in progress.splitlines())
+    assert progress.splitlines()[-1] == "Failed chats: 10 (openai/bad 10)."
+    report = output.splitlines()
+    assert "- **Status:** All 10 chats ran." in report
+    assert not any(line.startswith("Stopped after") for line in report)
 
 
 def test_failures_below_the_limit_are_counted_and_the_run_still_succeeds(

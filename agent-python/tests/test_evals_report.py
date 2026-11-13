@@ -405,6 +405,17 @@ def test_a_model_stopped_at_the_failure_limit_is_named_and_the_run_says_it_finis
     assert sum(line.startswith("Stopped after") for line in lines) == 1
 
 
+def test_a_model_that_reaches_the_limit_on_its_last_chat_is_not_reported_as_stopped() -> None:
+    chats = [scored(False, (), error="timeout"), scored(True, (), error="timeout")]
+    # One case once in each mode: the second failure is the model's last chat.
+    run = replace(RUN, repeats=1, planned=2, state=RunState.FINISHED, failure_limit=2)
+
+    lines = report(chats, PRICES, run).splitlines()
+
+    assert "- **Status:** All 2 chats ran." in lines
+    assert not any(line.startswith("Stopped after") for line in lines)
+
+
 def test_a_stated_value_that_was_changed_is_reported_as_stated() -> None:
     stated = expected(nutrition={"calories": Decimal(1900)}, stated=frozenset({"calories"}))
     subject = Chat(case(stated), TARGET, True, 1)

@@ -15,6 +15,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 from evals.pricing import Price, PriceTable, cost
@@ -84,18 +85,20 @@ def _percentile(values: Sequence[float], percent: int) -> float | None:
     return sorted(values)[math.ceil(len(values) * percent / 100) - 1]
 
 
+def _usage_per_chat(group: Group, value: Callable[[Usage], int | Decimal]) -> float | None:
+    """The mean over compared chats of `value` added up over a chat's requests, counting
+    only requests that reported usage."""
+    return _mean(
+        [
+            float(sum(value(call.usage) for call in chat.result.calls if call.usage))
+            for chat in group.compared
+        ]
+    )
+
+
 def _tokens(count: Callable[[Usage], int]) -> Callable[[Group], float | None]:
     """Mean tokens per finished chat, counting only requests that reported usage."""
-
-    def per_chat(group: Group) -> float | None:
-        return _mean(
-            [
-                float(sum(count(call.usage) for call in chat.result.calls if call.usage))
-                for chat in group.compared
-            ]
-        )
-
-    return per_chat
+    return lambda group: _usage_per_chat(group, count)
 
 
 def _fully_correct_percent(group: Group) -> float | None:
@@ -113,12 +116,7 @@ def _cost_per_chat(group: Group) -> float | None:
     price = group.price
     if price is None:
         return None
-    return _mean(
-        [
-            float(sum(cost(call.usage, price) for call in chat.result.calls if call.usage))
-            for chat in group.compared
-        ]
-    )
+    return _usage_per_chat(group, lambda usage: cost(usage, price))
 
 
 def _seconds(group: Group) -> list[float]:
@@ -258,7 +256,8 @@ class RunState(Enum):
 class RunInfo:
     """What a report says about the run itself. `planned` is the number of chats the run set
     out to make, so a report written part-way through can say how far it got. A target whose
-    failed chats reach `failure_limit` was stopped, and its remaining chats did not run."""
+    failed chats reach `failure_limit` while it has chats left is stopped; see
+    stopped_targets."""
 
     started: datetime
     version: str
@@ -272,6 +271,18 @@ class RunInfo:
     def chats_per_target(self) -> int:
         """Each case runs once per repeat with verification off and once with it on."""
         return self.cases * self.repeats * 2
+
+
+def stopped_targets(scored: Sequence[Scored], run: RunInfo) -> frozenset[Target]:
+    """The targets stopped at the failure limit: they reached it with chats still to run, and
+    those chats are skipped. A target whose last chat is the one that reaches the limit ran
+    in full and is not stopped."""
+    ran = Counter(chat.result.chat.target for chat in scored)
+    return frozenset(
+        target
+        for target, failed in failures(scored).items()
+        if failed >= run.failure_limit and ran[target] < run.chats_per_target
+    )
 
 
 def _one_line(text: str) -> str:
@@ -349,15 +360,16 @@ def _problems(chats: Sequence[Scored]) -> list[list[str]]:
         problems = failure + [_problem(chat, item) for item in chat.scores if not item.correct]
         if not problems:
             continue
-        mode = "on" if result.chat.verify else "off"
-        rows.append([result.chat.case.id, mode, str(result.chat.repeat), "; ".join(problems)])
+        rows.append(
+            [result.chat.case.id, result.chat.mode, str(result.chat.repeat), "; ".join(problems)]
+        )
     return rows
 
 
 def _stopped(chats: Sequence[Scored], run: RunInfo) -> list[str]:
     """A sentence for a target stopped at the failure limit; none for any other target.
     `chats` are all one target's."""
-    if sum(chat.result.error is not None for chat in chats) < run.failure_limit:
+    if not stopped_targets(chats, run):
         return []
     return [
         f"Stopped after {run.failure_limit} failed chats: {len(chats)} of "

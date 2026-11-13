@@ -7,7 +7,7 @@ import getpass
 import os
 import sys
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
@@ -25,7 +25,7 @@ from evals.keys import (
     saved_keys,
 )
 from evals.pricing import load_prices
-from evals.report import RunInfo, RunState, Scored, failures, report
+from evals.report import RunInfo, RunState, Scored, failures, report, stopped_targets
 from evals.runner import Chat, ChatResult, ProviderFactory, Session, Target, run_chat
 from evals.scoring import score
 from tyler_agent.provider import open_provider
@@ -33,7 +33,8 @@ from tyler_agent.resources import release_version
 
 DEFAULT_REPEATS = 3
 EXIT_FINISHED = 0
-# A model reached MAX_FAILED_CHATS_PER_MODEL and was stopped; the other models still ran.
+# A model reached MAX_FAILED_CHATS_PER_MODEL with chats still to run, and those were skipped;
+# the other models still ran.
 EXIT_MODEL_STOPPED = 1
 # The same code argparse uses for a command it cannot parse.
 EXIT_COULD_NOT_START = 2
@@ -235,9 +236,8 @@ def _name(target: Target) -> str:
 
 
 def _progress_line(number: int, total: int, chat: Chat, result: ChatResult) -> str:
-    mode = "on" if chat.verify else "off"
     return (
-        f"[{number}/{total}] {_name(chat.target)} {chat.case.id} verification={mode} "
+        f"[{number}/{total}] {_name(chat.target)} {chat.case.id} verification={chat.mode} "
         f"repeat={chat.repeat}: {result.error or 'finished'}"
     )
 
@@ -253,8 +253,8 @@ async def run_all(
     the report is saved at once, so stopping the run keeps every chat already paid for.
 
     `failed` counts each model's failed chats. When a model's count reaches
-    MAX_FAILED_CHATS_PER_MODEL, its remaining chats are skipped and the run goes on with the
-    next model."""
+    MAX_FAILED_CHATS_PER_MODEL, its remaining chats, if any, are skipped and the run goes on
+    with the next model."""
     failed: Counter[Target] = Counter()
     for number, chat in enumerate(chats, start=1):
         if failed[chat.target] >= MAX_FAILED_CHATS_PER_MODEL:
@@ -266,7 +266,8 @@ async def run_all(
         if result.error is None:
             continue
         failed[chat.target] += 1
-        if failed[chat.target] == MAX_FAILED_CHATS_PER_MODEL:
+        left = any(later.target == chat.target for later in chats[number:])
+        if failed[chat.target] == MAX_FAILED_CHATS_PER_MODEL and left:
             print(
                 f"Stopping {_name(chat.target)}: {MAX_FAILED_CHATS_PER_MODEL} chats failed. "
                 "Its remaining chats are skipped.",
@@ -290,23 +291,34 @@ def run_until_done(
     return RunState.FINISHED
 
 
-def failure_summary(failed: Mapping[Target, int]) -> str:
+def failure_summary(failed: Mapping[Target, int], stopped: Collection[Target]) -> str:
     """One line with the number of failed chats, and each failing model's share."""
     if not failed:
         return "Failed chats: 0."
     shares = "; ".join(
-        f"{_name(target)} {count}" + (", stopped" if count >= MAX_FAILED_CHATS_PER_MODEL else "")
+        f"{_name(target)} {count}" + (", stopped" if target in stopped else "")
         for target, count in failed.items()
     )
     return f"Failed chats: {sum(failed.values())} ({shares})."
 
 
-def exit_code(state: RunState, failed: Mapping[Target, int]) -> int:
+def exit_code(state: RunState, stopped: Collection[Target]) -> int:
     if state is RunState.INTERRUPTED:
         return EXIT_INTERRUPTED
-    if any(count >= MAX_FAILED_CHATS_PER_MODEL for count in failed.values()):
+    if stopped:
         return EXIT_MODEL_STOPPED
     return EXIT_FINISHED
+
+
+def show_report(text: str, path: Path, saved: bool, output: TextIO) -> None:
+    print(text, file=output)
+    if saved:
+        print(f"Report: {path}", file=output)
+    else:
+        print(
+            f"{path} was not updated at the end, so the text above is the full report.",
+            file=output,
+        )
 
 
 def save_key_command(options: argparse.Namespace, ask: Ask, output: TextIO) -> int:
@@ -329,45 +341,43 @@ def run_command(
 ) -> int:
     """Run the chosen chats and report them. Every input is checked before the results
     directory is locked, so a run that cannot start leaves nothing behind. Failed chats are
-    counted in the report and the summary line; a model that reaches the failure limit is
-    stopped. A run stopped with Ctrl-C reports the chats that had finished."""
+    counted in the report and the summary line; a model that reaches the failure limit with
+    chats still to run is stopped. A run stopped with Ctrl-C reports the chats that had
+    finished."""
     cases = select_cases(load_cases(), options.cases, options.categories)
     keys = available_keys(environment, saved_keys(options.keys))
     targets = chosen_targets(options, keys, progress)
     prices = load_prices()
+    # Read once: the version file is in the working tree, which can change during a long run.
+    version = release_version()
     chats = plan(cases, targets, options.repeats)
     with run_lock(options.results):
         started = datetime.now(UTC)
         path = report_file(options.results, started)
         scored: list[Scored] = []
 
-        def save(state: RunState) -> tuple[str, bool]:
-            run = RunInfo(
+        def run_info(state: RunState) -> RunInfo:
+            return RunInfo(
                 started,
-                release_version(),
+                version,
                 len(cases),
                 options.repeats,
                 len(chats),
                 state,
                 MAX_FAILED_CHATS_PER_MODEL,
             )
-            text = report(scored, prices, run)
-            return text, write_report(path, text, progress)
 
-        session = Session(keys, opener)
-        state = run_until_done(chats, session, progress, scored, lambda: save(RunState.RUNNING))
-        text, saved = save(state)
-    print(text, file=output)
-    if saved:
-        print(f"Report: {path}", file=output)
-    else:
-        print(
-            f"{path} was not updated at the end, so the text above is the full report.",
-            file=output,
-        )
-    failed = failures(scored)
-    print(failure_summary(failed), file=progress)
-    return exit_code(state, failed)
+        def save() -> bool:
+            return write_report(path, report(scored, prices, run_info(RunState.RUNNING)), progress)
+
+        state = run_until_done(chats, Session(keys, opener), progress, scored, save)
+        final = run_info(state)
+        text = report(scored, prices, final)
+        saved = write_report(path, text, progress)
+    show_report(text, path, saved, output)
+    stopped = stopped_targets(scored, final)
+    print(failure_summary(failures(scored), stopped), file=progress)
+    return exit_code(state, stopped)
 
 
 def main(

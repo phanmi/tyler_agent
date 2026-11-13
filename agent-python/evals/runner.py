@@ -54,6 +54,11 @@ class Chat:
     verify: bool
     repeat: int
 
+    @property
+    def mode(self) -> str:
+        """Food verification as progress lines and the report name it."""
+        return "on" if self.verify else "off"
+
 
 @dataclass(frozen=True)
 class ModelCall:
