@@ -60,7 +60,7 @@ What they cost:
 
 - **`gpt-6-luna` and `claude-haiku-5-5`:** their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'.
 - **DeepSeek V4.1 Flash:** it is DeepSeek's only suggestion. It costs $0.15 input and $0.60 output per million tokens, and twice that in DeepSeek's peak hours (see [Limits](#limits)).
-- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08.
+- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases. The eval now has 64, and the added cases record more foods in each chat, so a run costs more.
 
 To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. A cheap model must be one of its provider's suggestions: the backend refuses to start otherwise, and a `--cheap-models` run stops before any call. A test checks that each cheap model has a price in `prices.json`, so a cheap run always reports its cost.
 
@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 1,638 chats, and `--cheap-models` is three, so 702 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 384 chats with the 64 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,688 chats, and `--cheap-models` is three, so 1,152 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -176,6 +176,16 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 | `tolerance` | Optional `relative` and `absolute` values that replace the defaults for this record. |
 
 Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID, or from the brand's own published values. Do not estimate them.
+
+Two categories have rules of their own:
+
+- **`many-items`** is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
+  - Give the foods in a case different names, so each saved record pairs with its own expected record.
+  - Keep a case of every size from 3 to 8.
+- **`dish`** is one cooked dish the user names with an amount, such as 300 g of egg fried rice.
+  - The expected result is one record under the dish's name. A record for each ingredient counts as wrong saves.
+  - Take the reference values from a FoodData Central entry for the dish itself. Its survey data (FNDDS) lists many cooked dishes.
+  - Set `tolerance` to a `relative` of 0.35 and an `absolute` of 5. Recipes differ more than single foods: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
 
 ## Update the prices
 

@@ -1,0 +1,155 @@
+{
+  "category": "dish",
+  "cases": [
+    {
+      "id": "egg-fried-rice",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had 300 g of egg fried rice for dinner.",
+      "expected": [
+        {
+          "names": [
+            "egg fried rice",
+            "fried rice"
+          ],
+          "amount": 300,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 522.0,
+            "protein": 12.2,
+            "carbs": 98.4,
+            "fat": 8.9,
+            "fiber": 3.3
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 167668: Restaurant, Chinese, fried rice, without meat; values for 300 g.",
+          "tolerance": {
+            "relative": 0.35,
+            "absolute": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "spaghetti-with-meat-sauce",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Lunch was 400 g of spaghetti with meat sauce.",
+      "expected": [
+        {
+          "names": [
+            "spaghetti with meat sauce",
+            "spaghetti bolognese",
+            "spaghetti"
+          ],
+          "amount": 400,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 484.0,
+            "protein": 23.2,
+            "carbs": 65.6,
+            "fat": 14.4,
+            "fiber": 6.4
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 167680: Restaurant, Italian, spaghetti with meat sauce; values for 400 g.",
+          "tolerance": {
+            "relative": 0.35,
+            "absolute": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "chicken-curry",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate 2 cups of chicken curry tonight.",
+      "expected": [
+        {
+          "names": [
+            "chicken curry",
+            "curry"
+          ],
+          "amount": 2,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 513.6,
+            "protein": 31.1,
+            "carbs": 31.4,
+            "fat": 31.1,
+            "fiber": 6.7
+          },
+          "source": "USDA FoodData Central, Survey (FNDDS), FDC ID 2706437: Chicken curry; values for 480 g (1 cup = 240 g).",
+          "tolerance": {
+            "relative": 0.35,
+            "absolute": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "chicken-pad-thai",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Please log 350 g of chicken pad thai.",
+      "expected": [
+        {
+          "names": [
+            "pad thai"
+          ],
+          "amount": 350,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 539.0,
+            "protein": 28.5,
+            "carbs": 50.3,
+            "fat": 26.3,
+            "fiber": 4.2
+          },
+          "source": "USDA FoodData Central, Survey (FNDDS), FDC ID 2708806: Pad Thai with chicken; values for 350 g.",
+          "tolerance": {
+            "relative": 0.35,
+            "absolute": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "chili-with-beans",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Dinner was 1.5 cups of chili with meat and beans.",
+      "expected": [
+        {
+          "names": [
+            "chili",
+            "chilli"
+          ],
+          "amount": 1.5,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 451.4,
+            "protein": 37.5,
+            "carbs": 39.2,
+            "fat": 16.6,
+            "fiber": 11.5
+          },
+          "source": "USDA FoodData Central, Survey (FNDDS), FDC ID 2706375: Chili with meat and beans; values for 382.5 g (1 cup = 255 g).",
+          "tolerance": {
+            "relative": 0.35,
+            "absolute": 5
+          }
+        }
+      ]
+    }
+  ]
+}

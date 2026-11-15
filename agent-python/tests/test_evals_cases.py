@@ -1,4 +1,4 @@
-"""The labelled eval cases load, are complete, and bad case files are refused (#97)."""
+"""The labelled eval cases load, are complete, and bad case files are refused (#97, #111)."""
 
 import json
 from decimal import Decimal
@@ -21,8 +21,12 @@ REQUIRED_CATEGORIES = {
     "branded",
     "stated-nutrition",
     "record-nothing",
+    "many-items",
+    "dish",
 }
 MINIMUM_CASES = 30
+# The numbers of foods a many-items message lists. The category has a case of every size.
+MANY_ITEMS_SIZES = set(range(3, 9))
 
 
 def expected(**changes: Any) -> dict[str, Any]:
@@ -76,6 +80,12 @@ def test_shipped_cases_have_the_shape_their_category_promises() -> None:
     assert all(case.history for case in by_category["correction"])
     assert all(item.amount is None for case in by_category["no-amount"] for item in case.expected)
     assert all(item.stated for case in by_category["stated-nutrition"] for item in case.expected)
+    assert {len(case.expected) for case in by_category["many-items"]} == MANY_ITEMS_SIZES
+    assert all(
+        item.amount is not None for case in by_category["many-items"] for item in case.expected
+    )
+    # A dish is one record under its own name, not a record for each ingredient.
+    assert all(len(case.expected) == 1 for case in by_category["dish"])
     assert any(
         item.date != case.now[:10]
         for case in by_category["relative-date"]
