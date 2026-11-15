@@ -16,6 +16,8 @@ import org.tyler.exceptionHandler.FileExceptionHandler;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.filesandbox.FileSandbox;
+import org.tyler.model.llm.LlmModelCatalog;
+import org.tyler.model.llm.LlmModelCatalog.ProviderModels;
 import org.tyler.model.llm.LlmProvider;
 import org.tyler.model.llm.LlmSettings;
 import org.tyler.service.apiKey.ApiKeyService;
@@ -24,11 +26,16 @@ import org.tyler.service.llm.ILlmSettingsService;
 import org.tyler.service.llm.LlmKeyService;
 import org.tyler.service.llm.LlmSettingsService;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -45,6 +52,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.tyler.config.TestLlmModels.CATALOG;
 
 /**
  * HTTP tests for {@link LlmController}: response shape, validation before any save, and
@@ -71,15 +79,24 @@ class LlmControllerTest {
     }
 
     private static MockMvc mvc(ILlmSettingsService settings, ILlmKeyService keys) {
-        return MockMvcBuilders.standaloneSetup(new LlmController(settings, keys),
+        return mvc(settings, keys, CATALOG);
+    }
+
+    private static MockMvc mvc(ILlmSettingsService settings, ILlmKeyService keys, LlmModelCatalog catalog) {
+        return MockMvcBuilders.standaloneSetup(new LlmController(settings, keys, catalog),
                         new ApiKeyController(new ApiKeyService(keys)))
                 .setControllerAdvice(new FileExceptionHandler(), new GenericExceptionHandler())
                 .build();
     }
 
+    private static LlmSettingsService realSettings(Path tempDir) throws IOException {
+        FileSandbox sandbox = new FileSandbox(tempDir.toString());
+        return new LlmSettingsService(sandbox, sandbox, CATALOG, "llm-settings.json");
+    }
+
     @Test
     void settingsReportModelsSuggestionsAndKeyStatusPerProvider() throws Exception {
-        when(settings.get()).thenReturn(LlmSettings.defaults());
+        when(settings.get()).thenReturn(CATALOG.defaultSettings());
         when(keys.isConfigured(LlmProvider.ANTHROPIC)).thenReturn(true);
 
         mockMvc.perform(get("/api/llm/settings"))
@@ -87,15 +104,52 @@ class LlmControllerTest {
                 .andExpect(jsonPath("$.activeProvider").value("openai"))
                 .andExpect(jsonPath("$.providers.length()").value(3))
                 .andExpect(jsonPath("$.providers[0].id").value("openai"))
-                .andExpect(jsonPath("$.providers[0].model").value("gpt-6-sol"))
+                .andExpect(jsonPath("$.providers[0].model").value(CATALOG.defaultModel(LlmProvider.OPENAI)))
+                .andExpect(jsonPath("$.providers[0].suggestedModels",
+                        equalTo(CATALOG.suggestedModels(LlmProvider.OPENAI))))
                 .andExpect(jsonPath("$.providers[0].configured").value(false))
                 .andExpect(jsonPath("$.providers[1].id").value("anthropic"))
                 .andExpect(jsonPath("$.providers[1].name").value("Claude"))
-                .andExpect(jsonPath("$.providers[1].defaultModel").value("claude-sonnet-5-5"))
-                .andExpect(jsonPath("$.providers[1].suggestedModels[1]").value("claude-opus-5-5"))
+                .andExpect(jsonPath("$.providers[1].defaultModel").value(CATALOG.defaultModel(LlmProvider.ANTHROPIC)))
+                .andExpect(jsonPath("$.providers[1].suggestedModels",
+                        equalTo(CATALOG.suggestedModels(LlmProvider.ANTHROPIC))))
                 .andExpect(jsonPath("$.providers[1].configured").value(true))
-                .andExpect(jsonPath("$.providers[2].model").value("deepseek-flash"));
+                .andExpect(jsonPath("$.providers[2].model").value(CATALOG.defaultModel(LlmProvider.DEEPSEEK)))
+                .andExpect(jsonPath("$.providers[2].suggestedModels",
+                        equalTo(CATALOG.suggestedModels(LlmProvider.DEEPSEEK))));
         verify(keys, never()).get(any());
+    }
+
+    @Test
+    void settingsReportTheLabelOfEachSuggestedModelThatHasOne() throws Exception {
+        Map<LlmProvider, ProviderModels> providers = new EnumMap<>(CATALOG.providers());
+        providers.put(LlmProvider.OPENAI,
+                new ProviderModels("o-1", List.of("o-1", "o-2"), "o-1", Map.of("o-2", "O Two")));
+        providers.put(LlmProvider.ANTHROPIC, new ProviderModels("a-1", List.of("a-1"), "a-1", Map.of()));
+        LlmModelCatalog labelled = new LlmModelCatalog(providers);
+        when(settings.get()).thenReturn(labelled.defaultSettings());
+
+        mvc(settings, keys, labelled).perform(get("/api/llm/settings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providers[0].suggestedModels", equalTo(List.of("o-1", "o-2"))))
+                .andExpect(jsonPath("$.providers[0].modelLabels", equalTo(Map.of("o-2", "O Two"))))
+                .andExpect(jsonPath("$.providers[1].modelLabels", equalTo(Map.of())));
+    }
+
+    @Test
+    void aSavedModelThatIsNoLongerSuggestedIsStillTheSavedModel(@TempDir Path tempDir) throws Exception {
+        MockMvc real = mvc(realSettings(tempDir), keys);
+        // Written before gpt-5.6 and deepseek-v4-pro were removed from the suggestions.
+        Files.writeString(tempDir.resolve("llm-settings.json"), """
+                {"activeProvider":"deepseek","models":{"openai":"gpt-5.6","deepseek":"deepseek-v4-pro"}}""");
+
+        real.perform(get("/api/llm/settings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeProvider").value("deepseek"))
+                .andExpect(jsonPath("$.providers[0].model").value("gpt-5.6"))
+                .andExpect(jsonPath("$.providers[0].suggestedModels", not(hasItem("gpt-5.6"))))
+                .andExpect(jsonPath("$.providers[2].model").value("deepseek-v4-pro"))
+                .andExpect(jsonPath("$.providers[2].suggestedModels", not(hasItem("deepseek-v4-pro"))));
     }
 
     @Test
@@ -166,7 +220,7 @@ class LlmControllerTest {
     @Test
     void resettingRepairsAnInvalidSettingsFileAndKeepsKeys(@TempDir Path tempDir) throws Exception {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, "llm-settings.json"),
+        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, CATALOG, "llm-settings.json"),
                 new LlmKeyService(sandbox, sandbox, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json"));
         Files.writeString(tempDir.resolve("anthropic-key.txt"), KEY);
         Files.writeString(tempDir.resolve("llm-settings.json"), "{\"activeProvider\":\"mistral\"}");
@@ -175,7 +229,7 @@ class LlmControllerTest {
         real.perform(delete("/api/llm/settings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeProvider").value("openai"))
-                .andExpect(jsonPath("$.providers[1].model").value("claude-sonnet-5-5"))
+                .andExpect(jsonPath("$.providers[1].model").value(CATALOG.defaultModel(LlmProvider.ANTHROPIC)))
                 .andExpect(jsonPath("$.providers[1].configured").value(true));
 
         real.perform(get("/api/llm/settings")).andExpect(status().isOk());
@@ -186,7 +240,7 @@ class LlmControllerTest {
     void realServicesNeverReturnKeysAndRejectBadKeysOnEveryEndpoint(@TempDir Path tempDir, CapturedOutput output)
             throws Exception {
         FileSandbox sandbox = new FileSandbox(tempDir.toString());
-        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, "llm-settings.json"),
+        MockMvc real = mvc(new LlmSettingsService(sandbox, sandbox, CATALOG, "llm-settings.json"),
                 new LlmKeyService(sandbox, sandbox, "apikey.txt", "anthropic-key.txt", "deepseek-key.txt", "llm-settings.json"));
 
         real.perform(put("/api/llm/keys/anthropic").contentType(MediaType.APPLICATION_JSON)

@@ -10,7 +10,8 @@ import org.tyler.model.llm.LlmSettings;
 public interface ILlmSettingsService {
 
     /**
-     * Returns the saved settings, or {@link LlmSettings#defaults()} if none are saved.
+     * Returns the saved settings, or {@link org.tyler.model.llm.LlmModelCatalog#defaultSettings()}
+     * if none are saved.
      * A provider missing from the saved file uses its default model.
      *
      * @throws org.tyler.exceptionHandler.exception.FileReadException if the saved file cannot be

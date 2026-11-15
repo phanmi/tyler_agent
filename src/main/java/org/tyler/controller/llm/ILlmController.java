@@ -10,7 +10,10 @@ import java.util.Map;
  */
 public interface ILlmController {
 
-    /** Returns the active provider and, per provider, its model, suggestions, and key status. */
+    /**
+     * Returns the active provider and, per provider, its model, suggestions, their labels,
+     * and key status.
+     */
     SettingsResponse settings();
 
     /** Replaces the active provider and every provider's model, then returns the new settings. */
@@ -31,9 +34,14 @@ public interface ILlmController {
 
     record SettingsResponse(String activeProvider, List<ProviderSettings> providers) {}
 
-    /** {@code name} is the display name, e.g. "Claude" for {@code anthropic}. */
+    /**
+     * {@code name} is the display name, e.g. "Claude" for {@code anthropic}. {@code modelLabels}
+     * holds the name to show for a suggested model instead of its ID, by model ID; a model
+     * without an entry is shown by its ID. {@code model} and {@code suggestedModels} are IDs.
+     */
     record ProviderSettings(String id, String name, String model, String defaultModel,
-                            List<String> suggestedModels, boolean configured) {}
+                            List<String> suggestedModels, Map<String, String> modelLabels,
+                            boolean configured) {}
 
     record KeyRequest(String apiKey) {
         /** Spring's DEBUG request logging prints bound bodies; never include the key. */

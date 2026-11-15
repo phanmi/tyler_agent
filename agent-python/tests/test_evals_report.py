@@ -35,11 +35,11 @@ RUN = RunInfo(datetime(2026, 11, 11, 20, 15, tzinfo=UTC), "0.2.1", 1, 2, 4, RunS
 PRICED_MODELS = {
     "gpt-6-sol",
     "gpt-6.1-sol",
+    "gpt-6-luna",
     "claude-sonnet-5-5",
     "claude-opus-5-5",
     "claude-haiku-5-5",
     "deepseek-flash",
-    "deepseek-v4-pro",
 }
 
 
@@ -72,11 +72,12 @@ def test_cost_prices_each_kind_of_token_at_its_own_rate() -> None:
 def test_the_shipped_price_table_lists_the_models_with_a_standard_price() -> None:
     prices = load_prices()
 
-    assert prices.checked == "2026-11-11"
-    # gpt-5.6 had only a promotional price, so it is reported without a cost.
+    assert prices.checked == "2026-11-13"
     assert prices.models.keys() == PRICED_MODELS
     sonnet = prices.models["claude-sonnet-5-5"]
     assert sonnet == Price(Decimal("2.00"), Decimal("0.10"), Decimal("2.50"), Decimal("10.00"))
+    luna = prices.models["gpt-6-luna"]
+    assert luna == Price(Decimal("0.10"), Decimal("0.01"), Decimal("0.125"), Decimal("0.50"))
 
 
 def test_a_model_without_a_cache_write_rate_pays_the_input_rate(tmp_path: Path) -> None:

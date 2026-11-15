@@ -20,6 +20,7 @@ const provider = (id: string, name: string, model: string) => ({
   model,
   defaultModel: model,
   suggestedModels: [model],
+  modelLabels: {},
   configured: false,
 })
 const SETTINGS = {
@@ -77,12 +78,31 @@ describe('provider settings calls', () => {
     expect(settings.providers.map((item) => item.name)).toEqual(['OpenAI', 'Claude', 'DeepSeek'])
   })
 
+  it('reads the label of each suggested model that has one, by model ID', async () => {
+    const api = await freshApi()
+    const deepseek = { ...SETTINGS.providers[2], modelLabels: { 'deepseek-flash': 'DeepSeek V4.1 Flash' } }
+    stubFetch({ ...SETTINGS, providers: [...SETTINGS.providers.slice(0, 2), deepseek] })
+
+    const settings = await api.loadLlmSettings()
+
+    expect(settings.providers[2].modelLabels).toEqual(new Map([['deepseek-flash', 'DeepSeek V4.1 Flash']]))
+    expect(settings.providers[0].modelLabels.size).toBe(0)
+    // A model ID that is also the name of an inherited object property has no label.
+    expect(settings.providers[0].modelLabels.get('constructor')).toBeUndefined()
+  })
+
   it.each([
     { ...SETTINGS, activeProvider: 'mistral' },
     { ...SETTINGS, providers: SETTINGS.providers.slice(0, 2) },
     { ...SETTINGS, providers: [...SETTINGS.providers.slice(0, 2), SETTINGS.providers[0]] },
     { ...SETTINGS, providers: [{ ...SETTINGS.providers[0], configured: 'yes' }, ...SETTINGS.providers.slice(1)] },
     { ...SETTINGS, providers: [{ ...SETTINGS.providers[0], suggestedModels: [1] }, ...SETTINGS.providers.slice(1)] },
+    { ...SETTINGS, providers: [{ ...SETTINGS.providers[0], modelLabels: ['GPT'] }, ...SETTINGS.providers.slice(1)] },
+    {
+      ...SETTINGS,
+      providers: [{ ...SETTINGS.providers[0], modelLabels: { 'gpt-6-sol': 1 } }, ...SETTINGS.providers.slice(1)],
+    },
+    { ...SETTINGS, providers: [{ ...SETTINGS.providers[0], modelLabels: undefined }, ...SETTINGS.providers.slice(1)] },
     null,
   ])('rejects malformed settings %#', async (body) => {
     const api = await freshApi()
@@ -93,7 +113,7 @@ describe('provider settings calls', () => {
   it('sends every model with the active provider when saving', async () => {
     const api = await freshApi()
     const fetchMock = stubFetch(SETTINGS)
-    const models = { openai: 'gpt-5.6', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' }
+    const models = { openai: 'gpt-6-luna', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' }
 
     await api.saveLlmSettings({ activeProvider: 'anthropic', models })
 

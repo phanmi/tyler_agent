@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import TextIO
 
 from evals.cases import Case, InvalidCases, load_cases, select_cases
-from evals.files import InvalidDataFile, read_checked, replace_file, schema_validator
+from evals.catalog import cheap_targets, suggested_targets
+from evals.files import InvalidDataFile, replace_file
 from evals.keys import (
     KEY_VARIABLES,
     KEYS_DIRECTORY,
@@ -46,9 +47,6 @@ MAX_FAILED_CHATS_PER_MODEL = 10
 RESULTS_DIRECTORY = Path(__file__).parent / "results"
 # Present in a results directory while a run writes its report there.
 RUN_LOCK_NAME = "run.lock"
-# The models Settings suggests for each provider, which --all-models runs.
-MODELS_PATH = Path(__file__).parent / "models.json"
-MODELS_SCHEMA_PATH = Path(__file__).parent / "models.schema.json"
 
 type Ask = Callable[[str], str]
 
@@ -92,10 +90,21 @@ def parser() -> argparse.ArgumentParser:
         metavar="PROVIDER:MODEL",
         help="a model to evaluate, such as openai:gpt-6-sol; repeat for several",
     )
+    # Each model-list option stores the function that reads its list, so another list needs
+    # only another option here.
     action.add_argument(
         "--all-models",
-        action="store_true",
+        dest="model_list",
+        action="store_const",
+        const=suggested_targets,
         help="evaluate every suggested model of every provider that has an API key",
+    )
+    action.add_argument(
+        "--cheap-models",
+        dest="model_list",
+        action="store_const",
+        const=cheap_targets,
+        help="evaluate one low-cost suggested model of every provider that has an API key",
     )
     action.add_argument(
         "--save-key",
@@ -138,25 +147,21 @@ def parser() -> argparse.ArgumentParser:
     return command
 
 
-def suggested_targets() -> list[Target]:
-    """Every provider's suggested models, in the order Settings lists them."""
-    models: dict[str, list[str]] = read_checked(MODELS_PATH, schema_validator(MODELS_SCHEMA_PATH))
-    return [Target(provider, model) for provider, names in models.items() for model in names]
-
-
 def chosen_targets(
     options: argparse.Namespace, available: Mapping[str, str], progress: TextIO
 ) -> list[Target]:
-    """The models to run. Named models must all have a key. With --all-models a provider
-    without a key is left out and named, so the rest can still run."""
-    if not options.all_models:
+    """The models to run. Named models must all have a key. With a model list, --all-models
+    or --cheap-models, a provider without a key is left out and named, so the rest can still
+    run."""
+    if options.model_list is None:
         targets: list[Target] = options.targets
         require_keys([target.provider for target in targets], available)
         return targets
+    listed: list[Target] = options.model_list()
     for provider in KEY_VARIABLES:
         if provider not in available:
             print(f"Skipping {provider}: no API key is saved or set for it.", file=progress)
-    targets = [target for target in suggested_targets() if target.provider in available]
+    targets = [target for target in listed if target.provider in available]
     if not targets:
         raise UsageError(f"No API key is saved or set. Save one with `{SAVE_KEY_HINT}`.")
     return targets

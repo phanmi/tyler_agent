@@ -44,12 +44,31 @@ Or run every model Tyler suggests in Settings in one run:
 uv run --locked python -m evals --all-models
 ```
 
-`--all-models` runs the models in [models.json](models.json) for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
+`--all-models` runs every model Settings suggests, for every provider that has a key. A provider without a key is skipped, and the run says so. A named `--model` whose provider has no key stops the run before any call.
+
+The suggested models come from the backend's [llm-models.properties](../../src/main/resources/llm-models.properties), the same file Settings reads, so the harness always runs the models the app offers. To change them, edit that file.
+
+To check a prompt or tool change at low cost, run one cheap model of each provider instead:
+
+```powershell
+uv run --locked python -m evals --cheap-models
+```
+
+`--cheap-models` runs each provider's `cheap` model in `llm-models.properties`: `gpt-6-luna`, `claude-haiku-5-5` and DeepSeek V4.1 Flash, whose model ID is `deepseek-flash`. It skips a provider without a key, as `--all-models` does.
+
+What they cost:
+
+- **`gpt-6-luna` and `claude-haiku-5-5`:** their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'.
+- **DeepSeek V4.1 Flash:** it is DeepSeek's only suggestion. It costs $0.15 input and $0.60 output per million tokens, and twice that in DeepSeek's peak hours (see [Limits](#limits)).
+- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08.
+
+To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. A cheap model must be one of its provider's suggestions: the backend refuses to start otherwise, and a `--cheap-models` run stops before any call. A test checks that each cheap model has a price in `prices.json`, so a cheap run always reports its cost.
 
 | Option | Meaning |
 |---|---|
 | `--model PROVIDER:MODEL` | A model to evaluate. Repeat it for several. |
-| `--all-models` | Evaluate every suggested model of every provider that has a key. Use this or `--model`. |
+| `--all-models` | Evaluate every suggested model of every provider that has a key. |
+| `--cheap-models` | Evaluate one low-cost suggested model of every provider that has a key. Use one of `--model`, `--all-models` and `--cheap-models`. |
 | `--save-key PROVIDER` | Ask for that provider's key, save it, and stop. |
 | `--repeats N` | How many times each case runs in each mode. The default is 3, because model output varies. |
 | `--case ID` | Run only this case. Repeat it for several. |
@@ -57,7 +76,7 @@ uv run --locked python -m evals --all-models
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. `--all-models` with all three keys is eight models, so 1,872 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 234 chats with the 39 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 1,638 chats, and `--cheap-models` is three, so 702 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -162,7 +181,7 @@ Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) an
 
 [prices.json](prices.json) holds each model's prices per million tokens, the pricing page they came from, and the date they were checked. When prices change, edit the values and the `checked` date. A model that is not in the table still gets its tokens reported, with no cost. List only standard prices: a promotional price would be wrong once it ends.
 
-Before a run starts, `prices.json` is checked against [prices.schema.json](prices.schema.json), and [models.json](models.json) against [models.schema.json](models.schema.json). A file that does not match, for example after a typo, stops the run with the file's name and the problem, before any call or report.
+Before a run starts, `prices.json` is checked against [prices.schema.json](prices.schema.json), and the model entries the run needs are read from `llm-models.properties`. A price file that does not match, for example after a typo, stops the run with the file's name and the problem, before any call or report. So does a missing model entry, or a `cheap` entry that is not one of its provider's suggestions.
 
 ## Limits
 
@@ -171,4 +190,5 @@ Before a run starts, `prices.json` is checked against [prices.schema.json](price
 - **Verification outcomes are inferred.** The harness counts the model calls inside each `recordFood` call. One call means the item was accepted straight away, and more than one means it was rejected at least once. This holds while verification checks one item per call.
 - **Chats run one at a time**, including across providers, so a full run of several models takes a long time.
 - **A fallback model is priced as the requested one.** Claude can serve a declined request with another model. Food messages should not trigger it.
-- **Prices are the standard tier.** Long-prompt and off-peak rates are noted in `prices.json` and not applied.
+- **Prices are the standard tier.** Long-prompt rates are noted in `prices.json` and not applied.
+- **DeepSeek is priced at its off-peak rate.** DeepSeek charges twice as much from 01:00 to 04:00 and from 06:00 to 10:00 UTC, Monday to Friday. A run in those hours costs up to twice what the report says.

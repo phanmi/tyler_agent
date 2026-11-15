@@ -26,7 +26,8 @@ function modelOf(draft: ModelDraft): string {
   return draft.choice === CUSTOM ? draft.custom.trim() : draft.choice
 }
 
-// One provider's model: a dropdown of suggestions plus a custom model ID.
+// One provider's model: a dropdown of suggestions plus a custom model ID. A suggestion with
+// a label is shown by that name; the option's value, and what is saved, is still its model ID.
 export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
   // null follows the saved model; an edit becomes a draft until it is saved.
   const [draft, setDraft] = useState<ModelDraft | null>(null)
@@ -42,6 +43,7 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
   const model = modelOf(shown)
   const invalid = shown.choice === CUSTOM && !MODEL_ID_PATTERN.test(model)
   const unchanged = model === provider.model
+  const nameOf = (id: string) => provider.modelLabels.get(id) ?? id
 
   const edit = (next: ModelDraft) => {
     setDraft(next)
@@ -78,7 +80,7 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
         <select id={selectId} value={shown.choice} onChange={(event) => edit({ ...shown, choice: event.target.value })}>
           {provider.suggestedModels.map((suggestion) => (
             <option key={suggestion} value={suggestion}>
-              {suggestion}
+              {nameOf(suggestion)}
               {suggestion === provider.defaultModel ? ' (default)' : ''}
             </option>
           ))}
@@ -106,7 +108,7 @@ export default function ModelPicker({ provider, onSave }: ModelPickerProps) {
           </p>
         </>
       )}
-      <p className="llm-msg">Saved model: {provider.model}</p>
+      <p className="llm-msg">Saved model: {nameOf(provider.model)}</p>
       {saved && (
         <p className="llm-msg llm-msg--ok" role="status">
           {provider.name} model saved

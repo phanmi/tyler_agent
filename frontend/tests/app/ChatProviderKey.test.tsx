@@ -28,6 +28,7 @@ function settings(active: LlmSettings['activeProvider'], activeConfigured: boole
       ...item,
       defaultModel: item.model,
       suggestedModels: [item.model],
+      modelLabels: new Map(),
       // Every other provider has a key, so only the active provider decides.
       configured: item.id === active ? activeConfigured : true,
     })),

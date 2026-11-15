@@ -26,16 +26,24 @@ function provider(
   suggestions: string[],
   configured = false,
 ): ProviderSettings {
-  return { id, name, model: suggestions[0], defaultModel: suggestions[0], suggestedModels: suggestions, configured }
+  return {
+    id,
+    name,
+    model: suggestions[0],
+    defaultModel: suggestions[0],
+    suggestedModels: suggestions,
+    modelLabels: new Map(),
+    configured,
+  }
 }
 
 function settings(active: ProviderSettings['id'] = 'openai'): LlmSettings {
   return {
     activeProvider: active,
     providers: [
-      provider('openai', 'OpenAI', ['gpt-6-sol', 'gpt-6.1-sol', 'gpt-5.6'], true),
+      provider('openai', 'OpenAI', ['gpt-6-sol', 'gpt-6.1-sol', 'gpt-6-luna'], true),
       provider('anthropic', 'Claude', ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']),
-      provider('deepseek', 'DeepSeek', ['deepseek-flash', 'deepseek-v4-pro']),
+      provider('deepseek', 'DeepSeek', ['deepseek-flash']),
     ],
   }
 }
@@ -178,10 +186,8 @@ describe('models', () => {
   it('saves only this provider model, ignoring unsaved drafts elsewhere', async () => {
     await renderReady()
     vi.mocked(api.saveLlmSettings).mockImplementation(async (update) => savedFrom(update))
-    // An unsaved DeepSeek draft must not be sent with the Claude save.
-    fireEvent.change(within(card('DeepSeek')).getByLabelText('DeepSeek model'), {
-      target: { value: 'deepseek-v4-pro' },
-    })
+    // An unsaved OpenAI draft must not be sent with the Claude save.
+    fireEvent.change(within(card('OpenAI')).getByLabelText('OpenAI model'), { target: { value: 'gpt-6-luna' } })
     const claude = within(card('Claude')).getByLabelText('Claude model')
     fireEvent.change(claude, { target: { value: 'claude-opus-5-5' } })
 
@@ -194,8 +200,36 @@ describe('models', () => {
       models: { openai: 'gpt-6-sol', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' },
     })
     expect(within(card('Claude')).getByText('Saved model: claude-opus-5-5')).toBeTruthy()
-    expect(within(card('DeepSeek')).getByLabelText<HTMLInputElement>('DeepSeek model').value).toBe('deepseek-v4-pro')
-    expect(within(card('DeepSeek')).getByText('Saved model: deepseek-flash')).toBeTruthy()
+    expect(within(card('OpenAI')).getByLabelText<HTMLInputElement>('OpenAI model').value).toBe('gpt-6-luna')
+    expect(within(card('OpenAI')).getByText('Saved model: gpt-6-sol')).toBeTruthy()
+  })
+
+  it('shows a labelled suggestion by its name and saves its model ID', async () => {
+    const initial = settings()
+    // A model saved while it was still suggested. It is now a custom ID, so the suggestion
+    // can be picked and saved.
+    initial.providers[2] = {
+      ...initial.providers[2],
+      model: 'deepseek-v4-pro',
+      modelLabels: new Map([['deepseek-flash', 'DeepSeek V4.1 Flash']]),
+    }
+    await renderReady(initial)
+    vi.mocked(api.saveLlmSettings).mockImplementation(async (update) => savedFrom(update, initial))
+    const picker = within(card('DeepSeek')).getByLabelText<HTMLSelectElement>('DeepSeek model')
+
+    expect(Array.from(picker.options, (option) => option.textContent)).toEqual([
+      'DeepSeek V4.1 Flash (default)',
+      'Custom model ID…',
+    ])
+    expect(within(card('DeepSeek')).getByText('Saved model: deepseek-v4-pro')).toBeTruthy()
+
+    fireEvent.change(picker, { target: { value: 'deepseek-flash' } })
+    await act(async () => {
+      fireEvent.submit(picker.closest('form')!)
+    })
+
+    expect(vi.mocked(api.saveLlmSettings).mock.calls[0][0].models.deepseek).toBe('deepseek-flash')
+    expect(within(card('DeepSeek')).getByText('Saved model: DeepSeek V4.1 Flash')).toBeTruthy()
   })
 
   it('accepts a valid custom model ID and rejects an invalid one before saving', async () => {
@@ -231,12 +265,12 @@ describe('models', () => {
       .mockImplementationOnce(() => first.promise)
       .mockImplementationOnce(async (update) => savedFrom(update))
     const claude = within(card('Claude')).getByLabelText('Claude model')
-    const deepseek = within(card('DeepSeek')).getByLabelText('DeepSeek model')
+    const openai = within(card('OpenAI')).getByLabelText('OpenAI model')
     await act(async () => {
       fireEvent.change(claude, { target: { value: 'claude-haiku-5-5' } })
       fireEvent.submit(claude.closest('form')!)
-      fireEvent.change(deepseek, { target: { value: 'deepseek-v4-pro' } })
-      fireEvent.submit(deepseek.closest('form')!)
+      fireEvent.change(openai, { target: { value: 'gpt-6-luna' } })
+      fireEvent.submit(openai.closest('form')!)
     })
     // The second save waits for the first instead of racing it.
     expect(api.saveLlmSettings).toHaveBeenCalledTimes(1)
@@ -247,12 +281,12 @@ describe('models', () => {
 
     expect(api.saveLlmSettings).toHaveBeenCalledTimes(2)
     expect(vi.mocked(api.saveLlmSettings).mock.calls[1][0].models).toEqual({
-      openai: 'gpt-6-sol',
+      openai: 'gpt-6-luna',
       anthropic: 'claude-haiku-5-5',
-      deepseek: 'deepseek-v4-pro',
+      deepseek: 'deepseek-flash',
     })
     expect(within(card('Claude')).getByText('Saved model: claude-haiku-5-5')).toBeTruthy()
-    expect(within(card('DeepSeek')).getByText('Saved model: deepseek-v4-pro')).toBeTruthy()
+    expect(within(card('OpenAI')).getByText('Saved model: gpt-6-luna')).toBeTruthy()
   })
 
   it('keeps the draft and shows the error when the save fails', async () => {
