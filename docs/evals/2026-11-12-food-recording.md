@@ -73,6 +73,8 @@ Where the price table has a model's actual rate, the report's token-based cost i
 
 Settings will stop suggesting `deepseek-v4-pro` and `gpt-5.6`, and will suggest `gpt-6-luna`. This is tracked in [#103](https://github.com/phanmi/tyler_agent/issues/103).
 
+**Update:** this change was made in [PR #110](https://github.com/phanmi/tyler_agent/pull/110), after this run. The rest of this section is left as it was written.
+
 ### Remove `deepseek-v4-pro`
 
 `deepseek-v4-pro` (DeepSeek-V4-Pro-0813) was worse than `deepseek-flash` on every measure in this run apart from two ties, and it cost three to four and a half times as much per chat. There is no task in this eval where it is the better DeepSeek choice.

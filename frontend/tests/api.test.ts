@@ -113,7 +113,7 @@ describe('provider settings calls', () => {
   it('sends every model with the active provider when saving', async () => {
     const api = await freshApi()
     const fetchMock = stubFetch(SETTINGS)
-    const models = { openai: 'gpt-5.6', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' }
+    const models = { openai: 'gpt-6-luna', anthropic: 'claude-opus-5-5', deepseek: 'deepseek-flash' }
 
     await api.saveLlmSettings({ activeProvider: 'anthropic', models })
 
