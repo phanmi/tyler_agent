@@ -109,7 +109,7 @@ Chat needs an API key from at least one model provider. You only need a key for 
 |---|---|---|
 | OpenAI | [OpenAI API keys](https://platform.openai.com/api-keys) | `gpt-6-sol` |
 | Claude (Anthropic) | [Claude Console](https://platform.claude.com/) (see [Get an API key](https://platform.claude.com/docs/en/get-api-key)) | `claude-sonnet-5-5` |
-| DeepSeek | [DeepSeek API keys](https://platform.deepseek.com/api_keys) | `deepseek-flash` |
+| DeepSeek | [DeepSeek API keys](https://platform.deepseek.com/api_keys) | DeepSeek V4.1 Flash (model ID `deepseek-flash`) |
 
 1. Sign in to the provider's developer platform, add billing or credit if it asks, and create a new API key.
 2. Copy the key right away; most platforms show it only when it is created.

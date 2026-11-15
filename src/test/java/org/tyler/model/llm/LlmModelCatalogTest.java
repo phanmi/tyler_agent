@@ -5,6 +5,7 @@ import org.tyler.model.llm.LlmModelCatalog.ProviderModels;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,10 +17,14 @@ class LlmModelCatalogTest {
 
     private static Map<LlmProvider, ProviderModels> valid() {
         Map<LlmProvider, ProviderModels> providers = new EnumMap<>(LlmProvider.class);
-        providers.put(LlmProvider.OPENAI, new ProviderModels("o-1", List.of("o-1", "o-2"), "o-2"));
-        providers.put(LlmProvider.ANTHROPIC, new ProviderModels("a-1", List.of("a-1"), "a-1"));
-        providers.put(LlmProvider.DEEPSEEK, new ProviderModels("d-1", List.of("d-1", "d-2"), "d-1"));
+        providers.put(LlmProvider.OPENAI, unlabelled("o-1", List.of("o-1", "o-2"), "o-2"));
+        providers.put(LlmProvider.ANTHROPIC, unlabelled("a-1", List.of("a-1"), "a-1"));
+        providers.put(LlmProvider.DEEPSEEK, unlabelled("d-1", List.of("d-1", "d-2"), "d-1"));
         return providers;
+    }
+
+    private static ProviderModels unlabelled(String defaultModel, List<String> suggested, String cheap) {
+        return new ProviderModels(defaultModel, suggested, cheap, Map.of());
     }
 
     private static String rejection(LlmProvider provider, ProviderModels models) {
@@ -42,7 +47,7 @@ class LlmModelCatalogTest {
     void suggestionsKeepTheirOrderAndCannotChange() {
         List<String> source = new ArrayList<>(List.of("o-1", "o-2"));
         Map<LlmProvider, ProviderModels> providers = valid();
-        providers.put(LlmProvider.OPENAI, new ProviderModels("o-1", source, "o-2"));
+        providers.put(LlmProvider.OPENAI, unlabelled("o-1", source, "o-2"));
         LlmModelCatalog catalog = new LlmModelCatalog(providers);
         source.add("o-3");
 
@@ -53,25 +58,40 @@ class LlmModelCatalogTest {
     }
 
     @Test
-    void aProviderWithoutEntriesIsNamed() {
+    void labelsAreKeptByModelIdAndCannotChange() {
+        Map<String, String> source = new HashMap<>(Map.of("o-2", "O Two"));
         Map<LlmProvider, ProviderModels> providers = valid();
-        providers.remove(LlmProvider.ANTHROPIC);
+        providers.put(LlmProvider.OPENAI, new ProviderModels("o-1", List.of("o-1", "o-2"), "o-2", source));
+        LlmModelCatalog catalog = new LlmModelCatalog(providers);
+        source.put("o-1", "O One");
 
-        var error = assertThrows(IllegalArgumentException.class, () -> new LlmModelCatalog(providers));
-        assertEquals("llm.models.anthropic.suggested is missing", error.getMessage());
+        assertEquals(Map.of("o-2", "O Two"), catalog.modelLabels(LlmProvider.OPENAI));
+        assertEquals(Map.of(), catalog.modelLabels(LlmProvider.ANTHROPIC));
+        assertThrows(UnsupportedOperationException.class,
+                () -> catalog.modelLabels(LlmProvider.OPENAI).put("o-1", "O One"));
     }
 
     @Test
     void eachBrokenRuleNamesItsProperty() {
         assertEquals("llm.models.openai.suggested must list at least one model",
-                rejection(LlmProvider.OPENAI, new ProviderModels("o-1", List.of(), "o-1")));
+                rejection(LlmProvider.OPENAI, unlabelled("o-1", List.of(), "o-1")));
         assertEquals("llm.models.openai.suggested has an invalid model ID 'bad model'",
-                rejection(LlmProvider.OPENAI, new ProviderModels("o-1", List.of("o-1", "bad model"), "o-1")));
+                rejection(LlmProvider.OPENAI, unlabelled("o-1", List.of("o-1", "bad model"), "o-1")));
         assertEquals("llm.models.deepseek.default must be the first of llm.models.deepseek.suggested",
-                rejection(LlmProvider.DEEPSEEK, new ProviderModels("d-2", List.of("d-1", "d-2"), "d-1")));
+                rejection(LlmProvider.DEEPSEEK, unlabelled("d-2", List.of("d-1", "d-2"), "d-1")));
         assertEquals("llm.models.anthropic.cheap must be one of llm.models.anthropic.suggested",
-                rejection(LlmProvider.ANTHROPIC, new ProviderModels("a-1", List.of("a-1"), "a-2")));
+                rejection(LlmProvider.ANTHROPIC, unlabelled("a-1", List.of("a-1"), "a-2")));
         assertEquals("llm.models.anthropic.cheap must be one of llm.models.anthropic.suggested",
-                rejection(LlmProvider.ANTHROPIC, new ProviderModels("a-1", List.of("a-1"), null)));
+                rejection(LlmProvider.ANTHROPIC, unlabelled("a-1", List.of("a-1"), null)));
+    }
+
+    @Test
+    void aLabelMustNameASuggestedModelAndHaveText() {
+        assertEquals("llm.models.openai.label[o-9] must name one of llm.models.openai.suggested",
+                rejection(LlmProvider.OPENAI,
+                        new ProviderModels("o-1", List.of("o-1", "o-2"), "o-2", Map.of("o-9", "O Nine"))));
+        assertEquals("llm.models.openai.label[o-2] must not be blank",
+                rejection(LlmProvider.OPENAI,
+                        new ProviderModels("o-1", List.of("o-1", "o-2"), "o-2", Map.of("o-2", " "))));
     }
 }

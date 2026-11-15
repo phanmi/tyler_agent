@@ -5,7 +5,7 @@
     "cacheWrite is the whole rate for input tokens written to the prompt cache, not a surcharge. A model without it is charged the input rate for those tokens.",
     "OpenAI: prompts over 272K input tokens cost more. cacheWrite is the default 30-minute rate.",
     "Claude: cacheWrite is the 5-minute rate (1.25 times input). claude-haiku-5-5 costs more for prompts over 100K tokens.",
-    "DeepSeek: these are peak prices. Off-peak prices are half."
+    "DeepSeek: these are off-peak prices. Peak prices are double. They apply from 01:00 to 04:00 and from 06:00 to 10:00 UTC, Monday to Friday, except on Chinese public holidays."
   ],
   "models": {
     "gpt-6-sol": {
@@ -51,9 +51,9 @@
       "source": "https://platform.claude.com/docs/en/about-claude/pricing"
     },
     "deepseek-flash": {
-      "input": 0.30,
-      "cachedInput": 0.006,
-      "output": 1.20,
+      "input": 0.15,
+      "cachedInput": 0.003,
+      "output": 0.60,
       "source": "https://api-docs.deepseek.com/quick_start/pricing"
     }
   }

@@ -25,22 +25,24 @@ public record LlmModelCatalog(Map<LlmProvider, ProviderModels> providers) {
      * @param defaultModel the model the provider uses until the user picks another
      * @param suggested the Settings picker's suggestions, default first
      * @param cheap the low-cost suggestion that the eval harness's {@code --cheap-models} runs
+     * @param labels the name Settings shows for a suggested model instead of its ID, by model ID;
+     *               a model without one is shown by its ID
      */
-    public record ProviderModels(String defaultModel, List<String> suggested, String cheap) {
+    public record ProviderModels(String defaultModel, List<String> suggested, String cheap,
+                                 Map<String, String> labels) {
 
         public ProviderModels {
-            suggested = suggested == null ? List.of() : List.copyOf(suggested);
+            suggested = List.copyOf(suggested);
+            labels = Map.copyOf(labels);
         }
     }
 
     public LlmModelCatalog {
         EnumMap<LlmProvider, ProviderModels> copy = new EnumMap<>(LlmProvider.class);
         for (LlmProvider provider : LlmProvider.values()) {
-            ProviderModels models = providers == null ? null : providers.get(provider);
-            if (models == null) {
-                throw problem(provider, "suggested", "is missing");
-            }
+            ProviderModels models = providers.get(provider);
             requireValid(provider, models);
+            requireValidLabels(provider, models);
             copy.put(provider, models);
         }
         providers = Collections.unmodifiableMap(copy);
@@ -53,6 +55,14 @@ public record LlmModelCatalog(Map<LlmProvider, ProviderModels> providers) {
     /** Suggestions for the Settings picker, default first; any valid model ID is also accepted. */
     public List<String> suggestedModels(LlmProvider provider) {
         return providers.get(provider).suggested();
+    }
+
+    /**
+     * The name Settings shows for a suggested model instead of its ID, by model ID. A model
+     * without an entry is shown by its ID. Chats and the settings file always use the ID.
+     */
+    public Map<String, String> modelLabels(LlmProvider provider) {
+        return providers.get(provider).labels();
     }
 
     /** OpenAI active, and each provider on its default model. */
@@ -82,6 +92,19 @@ public record LlmModelCatalog(Map<LlmProvider, ProviderModels> providers) {
         if (models.cheap() == null || !models.suggested().contains(models.cheap())) {
             throw problem(provider, "cheap", "must be one of " + property(provider, "suggested"));
         }
+    }
+
+    /** A label left behind for a model that is no longer suggested would otherwise go unnoticed. */
+    private static void requireValidLabels(LlmProvider provider, ProviderModels models) {
+        models.labels().forEach((model, label) -> {
+            String field = "label[" + model + "]";
+            if (!models.suggested().contains(model)) {
+                throw problem(provider, field, "must name one of " + property(provider, "suggested"));
+            }
+            if (label.isBlank()) {
+                throw problem(provider, field, "must not be blank");
+            }
+        });
     }
 
     private static IllegalArgumentException problem(LlmProvider provider, String field, String rule) {

@@ -1,10 +1,17 @@
 """Reading the models Settings offers from the backend's llm-models.properties (#103)."""
 
+import re
 from pathlib import Path
 
 import pytest
 
-from evals.catalog import cheap_targets, suggested_targets
+from evals.catalog import (
+    MODELS_PATH,
+    PROPERTY_PREFIX,
+    cheap_targets,
+    read_properties,
+    suggested_targets,
+)
 from evals.files import InvalidDataFile
 from evals.keys import KEY_VARIABLES
 from evals.pricing import load_prices
@@ -31,9 +38,51 @@ def models_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return path
 
 
-def test_the_shipped_file_lists_models_for_every_provider_the_harness_runs() -> None:
-    assert {target.provider for target in suggested_targets()} == set(KEY_VARIABLES)
-    assert [target.provider for target in cheap_targets()] == list(KEY_VARIABLES)
+def reads_differently_in_java(line: str) -> bool:
+    """Whether the backend's .properties reader would read this entry differently from
+    read_properties. Java continues a value after a trailing backslash, treats any other
+    backslash as an escape, and also ends a key at a colon or a space. A list with an empty
+    entry gives the harness an empty model ID, which the backend refuses."""
+    key, separator, value = line.partition("=")
+    return (
+        not separator
+        or re.search(r"[\s:]", key.strip()) is not None
+        or "\\" in line
+        or not all(entry.strip() for entry in value.split(","))
+    )
+
+
+def test_the_shipped_file_names_exactly_the_providers_the_harness_runs() -> None:
+    """Settings offers every provider in the file. One without a key variable here would be
+    left out of an --all-models run without a "Skipping" line."""
+    providers = {
+        key.removeprefix(PROPERTY_PREFIX).partition(".")[0] for key in read_properties(MODELS_PATH)
+    }
+
+    assert providers == set(KEY_VARIABLES)
+
+
+def test_the_shipped_file_keeps_to_the_syntax_the_harness_reads() -> None:
+    """Otherwise the harness would run other models than Settings offers, and every test that
+    reads the file through read_properties would still pass."""
+    lines = MODELS_PATH.read_text("utf-8").splitlines()
+    entries = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
+
+    assert [line for line in entries if reads_differently_in_java(line)] == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "llm.models.openai.suggested=o-1,\\",
+        "llm.models.openai.suggested=o-1,o-2,",
+        "llm.models.openai.suggested: o-1",
+        "llm.models.openai.suggested o-1",
+        "llm.models.openai.label[o-1]=O\\u00e9 One",
+    ],
+)
+def test_syntax_that_java_reads_differently_is_recognised(line: str) -> None:
+    assert reads_differently_in_java(line)
 
 
 def test_every_cheap_model_has_a_price() -> None:
@@ -64,6 +113,20 @@ def test_a_missing_entry_is_named(models_file: Path) -> None:
 
     with pytest.raises(
         InvalidDataFile, match=r"^llm-models\.properties: llm\.models\.deepseek\.cheap is missing$"
+    ):
+        cheap_targets()
+
+
+@pytest.mark.parametrize("cheap", ["o-9", "o-1,o-2"])
+def test_a_cheap_entry_that_is_not_one_suggested_model_is_refused(
+    models_file: Path, cheap: str
+) -> None:
+    models_file.write_text(MODELS.replace("cheap=o-2", f"cheap={cheap}"), "utf-8")
+
+    with pytest.raises(
+        InvalidDataFile,
+        match=r"^llm-models\.properties: llm\.models\.openai\.cheap must be one of "
+        r"llm\.models\.openai\.suggested$",
     ):
         cheap_targets()
 

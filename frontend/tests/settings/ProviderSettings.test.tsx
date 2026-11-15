@@ -26,7 +26,15 @@ function provider(
   suggestions: string[],
   configured = false,
 ): ProviderSettings {
-  return { id, name, model: suggestions[0], defaultModel: suggestions[0], suggestedModels: suggestions, configured }
+  return {
+    id,
+    name,
+    model: suggestions[0],
+    defaultModel: suggestions[0],
+    suggestedModels: suggestions,
+    modelLabels: new Map(),
+    configured,
+  }
 }
 
 function settings(active: ProviderSettings['id'] = 'openai'): LlmSettings {
@@ -196,6 +204,33 @@ describe('models', () => {
     expect(within(card('Claude')).getByText('Saved model: claude-opus-5-5')).toBeTruthy()
     expect(within(card('DeepSeek')).getByLabelText<HTMLInputElement>('DeepSeek model').value).toBe('deepseek-v4-pro')
     expect(within(card('DeepSeek')).getByText('Saved model: deepseek-flash')).toBeTruthy()
+  })
+
+  it('shows a labelled suggestion by its name and saves its model ID', async () => {
+    const initial = settings()
+    initial.providers[2] = {
+      ...initial.providers[2],
+      model: 'deepseek-v4-pro',
+      modelLabels: new Map([['deepseek-flash', 'DeepSeek V4.1 Flash']]),
+    }
+    await renderReady(initial)
+    vi.mocked(api.saveLlmSettings).mockImplementation(async (update) => savedFrom(update, initial))
+    const picker = within(card('DeepSeek')).getByLabelText<HTMLSelectElement>('DeepSeek model')
+
+    expect(Array.from(picker.options, (option) => option.textContent)).toEqual([
+      'DeepSeek V4.1 Flash (default)',
+      'deepseek-v4-pro',
+      'Custom model ID…',
+    ])
+    expect(within(card('DeepSeek')).getByText('Saved model: deepseek-v4-pro')).toBeTruthy()
+
+    fireEvent.change(picker, { target: { value: 'deepseek-flash' } })
+    await act(async () => {
+      fireEvent.submit(picker.closest('form')!)
+    })
+
+    expect(vi.mocked(api.saveLlmSettings).mock.calls[0][0].models.deepseek).toBe('deepseek-flash')
+    expect(within(card('DeepSeek')).getByText('Saved model: DeepSeek V4.1 Flash')).toBeTruthy()
   })
 
   it('accepts a valid custom model ID and rejects an invalid one before saving', async () => {

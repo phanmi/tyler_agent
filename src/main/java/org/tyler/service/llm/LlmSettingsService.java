@@ -111,10 +111,8 @@ public class LlmSettingsService implements ILlmSettingsService, IApplicationOwne
         if (active == null || !active.isTextual()) {
             throw new IllegalArgumentException(INVALID_FILE_MESSAGE);
         }
-        Map<LlmProvider, String> models = new EnumMap<>(LlmProvider.class);
-        for (LlmProvider provider : LlmProvider.values()) {
-            models.put(provider, catalog.defaultModel(provider));
-        }
+        // A provider the file does not mention keeps its default model.
+        Map<LlmProvider, String> models = new EnumMap<>(catalog.defaultSettings().models());
         JsonNode saved = root.get("models");
         if (saved != null) {
             if (!saved.isObject()) {

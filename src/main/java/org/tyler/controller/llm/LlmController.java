@@ -84,7 +84,7 @@ public class LlmController implements ILlmController {
         List<ProviderSettings> providers = Arrays.stream(LlmProvider.values())
                 .map(provider -> new ProviderSettings(provider.id(), provider.displayName(), settings.model(provider),
                         catalog.defaultModel(provider), catalog.suggestedModels(provider),
-                        keyService.isConfigured(provider)))
+                        catalog.modelLabels(provider), keyService.isConfigured(provider)))
                 .toList();
         return new SettingsResponse(settings.activeProvider().id(), providers);
     }

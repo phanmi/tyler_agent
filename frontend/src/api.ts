@@ -111,6 +111,10 @@ export interface ProviderSettings {
   model: string
   defaultModel: string
   suggestedModels: string[]
+  // The name to show for a suggested model instead of its ID, by model ID. A model without
+  // an entry is shown by its ID. `model`, `defaultModel` and `suggestedModels` are IDs, and
+  // saving always sends the ID.
+  modelLabels: ReadonlyMap<string, string>
   configured: boolean
 }
 
@@ -164,6 +168,16 @@ function isProviderId(value: unknown): value is LlmProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+// The backend sends the labels as a JSON object of model ID to name.
+function isLabelObject(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((label) => typeof label === 'string')
+  )
+}
+
 function parseProvider(value: unknown): ProviderSettings {
   const item = value as Partial<Record<keyof ProviderSettings, unknown>> | null
   if (
@@ -174,6 +188,7 @@ function parseProvider(value: unknown): ProviderSettings {
     typeof item.defaultModel !== 'string' ||
     !Array.isArray(item.suggestedModels) ||
     !item.suggestedModels.every((model) => typeof model === 'string') ||
+    !isLabelObject(item.modelLabels) ||
     typeof item.configured !== 'boolean'
   ) {
     throw new Error('Invalid provider settings from the backend')
@@ -184,6 +199,8 @@ function parseProvider(value: unknown): ProviderSettings {
     model: item.model,
     defaultModel: item.defaultModel,
     suggestedModels: [...item.suggestedModels],
+    // A Map, so a model ID such as "constructor" never finds an inherited object property.
+    modelLabels: new Map(Object.entries(item.modelLabels)),
     configured: item.configured,
   }
 }

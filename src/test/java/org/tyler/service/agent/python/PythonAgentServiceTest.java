@@ -6,6 +6,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.config.TestLlmModels;
 import org.tyler.controller.agent.AgentController;
@@ -230,7 +232,7 @@ class PythonAgentServiceTest {
             var service = new PythonAgentService(worker, lane, llm, keys, history, settings);
             assertEquals("reply", service.ask("question"));
         }
-        var run = org.mockito.ArgumentCaptor.forClass(com.fasterxml.jackson.databind.node.ObjectNode.class);
+        var run = ArgumentCaptor.forClass(ObjectNode.class);
         verify(worker).execute(run.capture());
         assertEquals(id, run.getValue().path("provider").asText());
         assertEquals(model, run.getValue().path("model").asText());

@@ -600,6 +600,13 @@ def test_failures_below_the_limit_are_counted_and_the_run_still_succeeds(
             "llm.models.openai.suggested=gpt-6-sol\n",
             "llm-models.properties: llm.models.openai.cheap is missing",
         ),
+        (
+            "llm-models.properties",
+            "--cheap-models",
+            "llm.models.openai.suggested=gpt-6-sol\nllm.models.openai.cheap=gpt-unlisted\n",
+            "llm-models.properties: llm.models.openai.cheap must be one of "
+            "llm.models.openai.suggested",
+        ),
     ],
 )
 def test_a_bad_price_or_model_file_stops_the_run_before_it_starts_a_report(

@@ -64,7 +64,7 @@ Each model is measured over the chats that finished in both modes, shown as **Co
 |---|--:|--:|---|
 | OpenAI | $6.63 | $3.22 | The estimate covers `gpt-6-sol` and `gpt-6.1-sol` only. Pricing `gpt-5.6`'s tokens at its listed $4 input and $20 output per million adds $3.40, for $6.62 in all. |
 | Anthropic | $12.81 | $12.64 | The estimate leaves out the 24 Sonnet and Opus chats that failed, which were still billed for the calls they made. |
-| DeepSeek | $0.37 | $0.70 | The price table uses DeepSeek's peak rate. The DeepSeek chats ran last, most likely in DeepSeek's off-peak hours, which are half price. |
+| DeepSeek | $0.37 | $0.70 | The price table used DeepSeek's peak rate for this run. The DeepSeek chats ran last, most likely in DeepSeek's off-peak hours, which are half price. |
 | **Total** | **$19.81** | | |
 
 Where the price table has a model's actual rate, the report's token-based cost is within 2% of the bill.
@@ -179,7 +179,7 @@ These are not yet planned. Each needs its own decision.
 - **Two cases are scored more strictly than the rules they test.** The Snickers message gives both "one bar" and "2 oz", but the case accepts only the bar, which accounts for 4 to 6 wrong saves for every model except `claude-sonnet-5-5`. The pizza reference is a 2018 USDA record, which may not match the chain's current recipe.
 - **Replies are not kept.** The report shows what was saved, not what the agent said.
 - **Only food recording is measured.** Workout plans and general conversation are not covered.
-- **DeepSeek is priced at its peak rate**, so the report overstates its cost when chats run off-peak.
+- **DeepSeek is priced at its peak rate**, so the report overstates its cost when chats run off-peak. After this run, PR #110 changed the price table to the off-peak rate.
 
 ## Appendix
 

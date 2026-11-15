@@ -90,14 +90,20 @@ def parser() -> argparse.ArgumentParser:
         metavar="PROVIDER:MODEL",
         help="a model to evaluate, such as openai:gpt-6-sol; repeat for several",
     )
+    # Each model-list option stores the function that reads its list, so another list needs
+    # only another option here.
     action.add_argument(
         "--all-models",
-        action="store_true",
+        dest="model_list",
+        action="store_const",
+        const=suggested_targets,
         help="evaluate every suggested model of every provider that has an API key",
     )
     action.add_argument(
         "--cheap-models",
-        action="store_true",
+        dest="model_list",
+        action="store_const",
+        const=cheap_targets,
         help="evaluate one low-cost suggested model of every provider that has an API key",
     )
     action.add_argument(
@@ -144,13 +150,14 @@ def parser() -> argparse.ArgumentParser:
 def chosen_targets(
     options: argparse.Namespace, available: Mapping[str, str], progress: TextIO
 ) -> list[Target]:
-    """The models to run. Named models must all have a key. With --all-models or
-    --cheap-models a provider without a key is left out and named, so the rest can still run."""
-    if not (options.all_models or options.cheap_models):
+    """The models to run. Named models must all have a key. With a model list, --all-models
+    or --cheap-models, a provider without a key is left out and named, so the rest can still
+    run."""
+    if options.model_list is None:
         targets: list[Target] = options.targets
         require_keys([target.provider for target in targets], available)
         return targets
-    listed = cheap_targets() if options.cheap_models else suggested_targets()
+    listed: list[Target] = options.model_list()
     for provider in KEY_VARIABLES:
         if provider not in available:
             print(f"Skipping {provider}: no API key is saved or set for it.", file=progress)
