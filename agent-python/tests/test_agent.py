@@ -55,6 +55,19 @@ def test_initial_context_model_and_fresh_tool_definitions() -> None:
     )
 
 
+def test_the_chat_model_is_told_where_estimated_nutrition_comes_from() -> None:
+    """recordFood's description, as the model receives it, names the sources for values the
+    user did not state and keeps stated values exactly as stated (#105)."""
+    provider = FakeProvider([AssistantTurn((), "answer")])
+    asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
+    (record_food,) = [tool for tool in provider.requests[0]["tools"] if tool.name == "recordFood"]
+    description = record_food.description
+    assert "Save every nutrition value the user states exactly as stated." in description
+    assert "restaurant food, base them on the brand's published nutrition" in description
+    assert "base them on USDA FoodData Central values for that food" in description
+    assert "or for the closest generic food in FoodData Central" in description
+
+
 def test_tool_context_lends_the_run_model_operations_and_text_conversation() -> None:
     data = payload()
     data["history"] = [

@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 354 chats with the 59 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,478 chats, and `--cheap-models` is three, so 1,062 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 372 chats with the 62 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,604 chats, and `--cheap-models` is three, so 1,116 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -177,7 +177,9 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 | `source` | Where the reference values come from. Required. |
 | `tolerance` | Optional `relative` and `absolute` values that replace the defaults for this record. |
 
-Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID, or from the brand's own published values. Do not estimate them.
+Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID. Do not estimate them.
+
+The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac`, `mcdonalds-fries` and `pizza-hut-slices` cases still use FoodData Central SR Legacy entries, because McDonald's and Pizza Hut refuse automated reads of their pages. SR Legacy's restaurant entries can be older than the product: its Pizza Hut slice weighs 113 g, against about 143 g in third-party listings of today's slice. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
 
 The `many-items` category has rules of its own. A case is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
 

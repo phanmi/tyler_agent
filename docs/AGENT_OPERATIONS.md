@@ -57,13 +57,22 @@ Discovery reads only the trusted bundled namespace, never a model-supplied modul
 
 No-argument tools send `{}` to Java after their adapter parsing. Public tool names are not accepted as private operation names. Protocol version 2 (like version 1) excludes scientific notation and decimal magnitudes above two billion; adapters must honor that documented transport restriction rather than round or silently truncate values. Expanded ISO years remain strings through Python and are interpreted by Java. The seven-day upper-date bound belongs to the shared plan service.
 
+### Estimated nutrition values
+
+`recordFood`'s [definition](../agent-python/src/tyler_agent/tools/builtin/food_record/definition.json) tells the chat model where nutrition values the user did not state come from:
+
+- **A packaged or restaurant food:** the brand's published nutrition for that product and amount.
+- **Any other food, or a brand whose values the model does not know:** USDA FoodData Central values for that food, or for the closest generic food in FoodData Central.
+
+Nutrition values the user states are saved exactly as stated, whatever these sources say. The agent does not look values up: it relies on what the model knows of these sources. [Verification](#food-verification) judges and re-estimates values against the same sources.
+
 ### Food verification
 
 [`verification.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/verification.py) checks every `recordFood` item with the run's provider and model before `food.insert` is requested, so the chat model cannot skip it:
 
 1. Read today's date once per item through `time.current`.
-2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the model's `recordFood` arguments. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and and the nutrition values. Nutrition values the user stated always win: the record must match them, and they are never rejected for looking unusual. Values the user did not state must be plausible for the food and amount and consistent with the other values.
-3. **Regenerate** a rejected item. Send the same facts, the rejected arguments and the reason, with `recordFood`'s own definition as the only tool. The answer goes through the same argument parser, then is verified again. That second check also sees the rejected arguments, and rejects a correction that is about a different food. The regenerator keeps every value the user stated, including nutrition values, and estimates only the values the user did not give.
+2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the model's `recordFood` arguments. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and and the nutrition values. Nutrition values the user stated always win: the record must match them, and they are never rejected for looking unusual. Values the user did not state must be plausible for the food and amount, judged against the [sources above](#estimated-nutrition-values), and consistent with the other values. A small difference from those sources is not a reason to reject.
+3. **Regenerate** a rejected item. Send the same facts, the rejected arguments and the reason, with `recordFood`'s own definition as the only tool. The answer goes through the same argument parser, then is verified again. That second check also sees the rejected arguments, and rejects a correction that is about a different food. The regenerator keeps every value the user stated, including nutrition values, and estimates only the values the user did not give, from the same sources.
 4. An item is refused at its second rejection (`MAX_REJECTIONS`). The tool result tells the chat model that nothing was saved and why, and that it should tell the user instead of retrying.
 
 Each of these counts as one rejection:

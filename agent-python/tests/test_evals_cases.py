@@ -1,6 +1,7 @@
 """The labelled eval cases load, are complete, and bad case files are refused (#97, #111)."""
 
 import json
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,9 @@ REQUIRED_CATEGORIES = {
 MINIMUM_CASES = 30
 # The numbers of foods a many-items message lists. The category has a case of every size.
 MANY_ITEMS_SIZES = set(range(3, 9))
+BRANDED = "branded"
+# How a branded case cites the brand's page: its address and the date its values were read.
+BRAND_SOURCE = re.compile(r"https://\S+, checked \d{4}-\d{2}-\d{2}")
 
 
 def expected(**changes: Any) -> dict[str, Any]:
@@ -74,8 +78,11 @@ def test_every_shipped_reference_value_names_its_source() -> None:
     for case in load_cases():
         for item in case.expected:
             assert item.source.strip(), case.id
-            # A reference is either the user's own stated value or a USDA record.
-            assert item.stated == item.nutrition.keys() or "FDC ID" in item.source, case.id
+            # A reference is the user's own stated value, a USDA record or, for a branded case,
+            # the brand's published value from a page checked on a given date (#105).
+            brand_page = case.category == BRANDED and BRAND_SOURCE.search(item.source)
+            stated = item.stated == item.nutrition.keys()
+            assert stated or "FDC ID" in item.source or brand_page, case.id
 
 
 def test_shipped_cases_have_the_shape_their_category_promises() -> None:

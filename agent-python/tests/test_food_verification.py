@@ -167,6 +167,17 @@ def test_stated_nutrition_is_respected_and_only_estimates_are_judged() -> None:
     assert "Keep every value the user stated, including nutrition values" in model.prompts[1]
 
 
+def test_estimates_are_judged_and_regenerated_against_the_named_sources() -> None:
+    """Values the user did not state are judged, and estimated again, against the sources
+    recordFood's definition names; the bar stays plausibility (#105)."""
+    _, _, model = record([verdict(False, "Fat is too high."), regenerated(), verdict(True)])
+    verify, regenerate = model.prompts[0], model.prompts[1]
+    for prompt in (verify, regenerate):
+        assert "the brand's published nutrition for a packaged or restaurant food" in prompt
+        assert "USDA FoodData Central values for any other food" in prompt
+    assert "Do not reject it for differing slightly." in verify
+
+
 def test_an_item_rejected_twice_is_not_saved() -> None:
     output, java, model = record(
         [verdict(False, "Wrong amount."), regenerated(amount=250), verdict(False, "It was 300 g.")]
