@@ -34,12 +34,13 @@ log = logging.getLogger(__name__)
 # A record is refused at this many rejections, so one item costs one to three model requests.
 MAX_REJECTIONS = 2
 
-# Where values the user did not state come from. recordFood's definition gives the chat model the
-# same sources in its own words, so the verifier judges, and the regenerator estimates, against
-# the source the record was meant to use.
+# Where values the user did not state come from, so the verifier judges a record against the
+# source it was meant to use. recordFood's definition gives the chat model, and the regenerator
+# that is offered recordFood, the same sources in its own words.
 NUTRITION_SOURCES = (
-    "the brand's published nutrition for a packaged or restaurant food, and USDA FoodData "
-    "Central values for any other food or when the brand's values are not known"
+    "the brand's published nutrition for a packaged or restaurant food, and, for any other food "
+    "or when the brand's values are not known, USDA FoodData Central values for that food or "
+    "for the closest generic food in FoodData Central"
 )
 
 VERDICT_TOOL = ToolDefinition(
@@ -111,7 +112,7 @@ The rejected record:
 
 Call {tool} exactly once with the corrected record. Keep every value the user stated, including \
 nutrition values, exactly as stated. Estimate nutrition values from the food and amount only \
-when the user did not give them, based on {sources}."""
+when the user did not give them."""
 
 NOT_RECORDED = (
     "Not recorded: this food item failed verification, so nothing was saved. Tell the user it "
@@ -232,7 +233,6 @@ class Review:
             today=self.today,
             conversation=self.conversation,
             record=rejected.raw,
-            sources=NUTRITION_SOURCES,
             tool=tool.name,
         )
         call = single_call(await self.context.respond((UserTurn(prompt),), (tool,)), tool)

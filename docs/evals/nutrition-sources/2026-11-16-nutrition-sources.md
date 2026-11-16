@@ -124,7 +124,7 @@ Chats with a nutrition value outside the tolerance, before → after:
 | Pizza Hut slices | 3 → 3 | 3 → 1 | 0 → 0 | 0 → 0 | 2 → 2 | 3 → 2 |
 
 - **The brand-page cases.** The misses were a Chick-fil-A sandwich at 11 g of fat against 16, in one `claude-haiku-5-5` chat in each run, and a Starbucks latte's fat or carbs on `deepseek-flash`.
-- **Pizza Hut slices.** They were saved with 32 to 34 g of protein or 36 to 42 g of fat, against the SR Legacy reference of 26.0 g and 29.6 g. That matches today's larger slice; see the [first eval report](../eval-harness/2026-11-12-food-recording.md#3-prefer-usda-fooddata-central-for-nutrition-values). Re-sourcing this case and the two McDonald's cases from the brands' pages is left for a follow-up.
+- **Pizza Hut slices.** They were saved with 32 to 34 g of protein or 36 to 42 g of fat, against the SR Legacy reference of 26.0 g and 29.6 g. That matches today's larger slice; see the [first eval report](../eval-harness/2026-11-12-food-recording.md#3-prefer-usda-fooddata-central-for-nutrition-values). Re-sourcing this case and the two McDonald's cases from the brands' pages is part of [#114](https://github.com/phanmi/tyler_agent/issues/114).
 - **Units cause most branded misses, in both runs.**
   - "a regular 2 oz Snickers bar" was saved as 2 oz.
   - A grande latte was saved as 16 fl oz.
@@ -163,7 +163,8 @@ DeepSeek charges twice its off-peak rate from 06:00 to 10:00 UTC on a weekday. T
 - **One run each.** Each model ran 186 chats in each mode, so one chat is worth about 0.5 points. A change of a few chats is within noise. The `many-items` comparison above is the only one with a second run of the old code to compare against.
 - **Rejection reasons are not kept.** The report shows what was saved and how many records were rejected, not why. So the cause of the verification changes is inferred, not shown.
 - **Only the low-cost models ran**, as decided for this issue. `gpt-6-sol`, `claude-sonnet-5-5` and `deepseek-flash` are the default models; only the last ran here.
-- **Three branded references are out of date.** The Big Mac, medium fries and Pizza Hut slices still use SR Legacy values, which are older than today's products.
+- **Three branded references are out of date.** The Big Mac, medium fries and Pizza Hut slices still use SR Legacy values, which are older than today's products. [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them.
+- **The prompts changed slightly after the run.** In review, the verify prompt gained the closest generic FoodData Central food as a source, as `recordFood`'s description already had, and the regenerate prompt stopped naming the sources: the regenerator reads them in `recordFood`'s definition, which it is offered. Neither change was run.
 - **The agent cannot look values up.** The instruction steers the model toward values it remembers. A lookup tool for FoodData Central or brand data is a separate decision.
 - **Replies are not kept.** The report shows what was saved, not what the agent told the user about a food it did not save.
 

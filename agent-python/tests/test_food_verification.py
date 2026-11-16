@@ -26,6 +26,7 @@ from tyler_agent.tools.builtin.food_record.verification import (
     NOT_RECORDED,
     VERDICT_TOOL,
     parse_verdict,
+    record_food_tool,
 )
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.tools.rendering import pretty
@@ -39,6 +40,15 @@ from tyler_agent.transcript import (
 )
 
 TODAY = "2026-11-10 12:30:00 EST"
+# The parts of the rule for values the user did not state that recordFood's description and the
+# verify prompt both give, so a change to one copy that leaves out a source fails a test (#105).
+SOURCE_PHRASES = (
+    "packaged or restaurant food",
+    "the brand's published nutrition",
+    "for any other food",
+    "USDA FoodData Central values for that food",
+    "the closest generic food in FoodData Central",
+)
 CONVERSATION = (
     UserTurn("I had oats for breakfast."),
     AssistantTurn((), "Noted."),
@@ -167,15 +177,15 @@ def test_stated_nutrition_is_respected_and_only_estimates_are_judged() -> None:
     assert "Keep every value the user stated, including nutrition values" in model.prompts[1]
 
 
-def test_estimates_are_judged_and_regenerated_against_the_named_sources() -> None:
-    """Values the user did not state are judged, and estimated again, against the sources
-    recordFood's definition names; the bar stays plausibility (#105)."""
-    _, _, model = record([verdict(False, "Fat is too high."), regenerated(), verdict(True)])
-    verify, regenerate = model.prompts[0], model.prompts[1]
-    for prompt in (verify, regenerate):
-        assert "the brand's published nutrition for a packaged or restaurant food" in prompt
-        assert "USDA FoodData Central values for any other food" in prompt
-    assert "Do not reject it for differing slightly." in verify
+def test_estimates_are_judged_against_the_sources_record_food_names() -> None:
+    """The verifier judges values the user did not state against the sources recordFood's
+    definition gives the chat model and the regenerator; the bar stays plausibility (#105)."""
+    _, _, model = record([verdict(True)])
+    description = record_food_tool().description
+    for phrase in SOURCE_PHRASES:
+        assert phrase in description, phrase
+        assert phrase in model.prompts[0], phrase
+    assert "Do not reject it for differing slightly." in model.prompts[0]
 
 
 def test_an_item_rejected_twice_is_not_saved() -> None:
