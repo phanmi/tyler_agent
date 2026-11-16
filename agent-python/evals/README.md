@@ -183,6 +183,8 @@ The `many-items` category has rules of its own. A case is one message that lists
 - Keep a case of every size from 3 to 8.
 - Use foods whose amount settles their nutrition. Leave out a food whose values depend on a recipe or on the size of a piece, such as mashed potatoes, stuffing, a slice of bacon or a dinner roll. FoodData Central has more than one entry or piece weight for each, so no single reference value is fair.
 
+The [many-foods baseline](../../docs/evals/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
+
 Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
 
 ## Update the prices
