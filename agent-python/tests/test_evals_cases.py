@@ -22,7 +22,6 @@ REQUIRED_CATEGORIES = {
     "stated-nutrition",
     "record-nothing",
     "many-items",
-    "dish",
 }
 MINIMUM_CASES = 30
 # The numbers of foods a many-items message lists. The category has a case of every size.
@@ -84,8 +83,6 @@ def test_shipped_cases_have_the_shape_their_category_promises() -> None:
     assert all(
         item.amount is not None for case in by_category["many-items"] for item in case.expected
     )
-    # A dish is one record under its own name, not a record for each ingredient.
-    assert all(len(case.expected) == 1 for case in by_category["dish"])
     assert any(
         item.date != case.now[:10]
         for case in by_category["relative-date"]

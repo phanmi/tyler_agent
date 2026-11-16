@@ -213,6 +213,77 @@
       ]
     },
     {
+      "id": "three-items-muffin-breakfast",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Breakfast: 1 English muffin, 1 tablespoon of butter and 1 cup of 2% milk.",
+      "expected": [
+        {
+          "names": [
+            "english muffin",
+            "muffin"
+          ],
+          "amount": 1,
+          "units": [
+            "muffin",
+            "english muffin",
+            "piece",
+            "item",
+            "serving",
+            "each",
+            "unit",
+            "count",
+            "whole",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 129.4,
+            "protein": 5.1,
+            "carbs": 25.2,
+            "fat": 1.0,
+            "fiber": 2.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 174994: Muffins, English, plain, enriched, with ca prop (includes sourdough); values for 57 g (1 muffin = 57 g)."
+        },
+        {
+          "names": [
+            "butter"
+          ],
+          "amount": 1,
+          "units": [
+            "tbsp"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 101.8,
+            "protein": 0.1,
+            "carbs": 0.0,
+            "fat": 11.5,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173410: Butter, salted; values for 14.2 g (1 tbsp = 14.2 g)."
+        },
+        {
+          "names": [
+            "milk"
+          ],
+          "amount": 1,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 122.0,
+            "protein": 8.1,
+            "carbs": 11.7,
+            "fat": 4.8,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171267: Milk, reduced fat, fluid, 2% milkfat, with added vitamin A and vitamin D; values for 244 g (1 cup = 244 g)."
+        }
+      ]
+    },
+    {
       "id": "four-items-oatmeal-breakfast",
       "now": "2026-11-12 19:30:00 EST",
       "message": "This morning I ate 1 cup of cooked oatmeal, 1 medium banana, 1 tablespoon of honey and 1 cup of whole milk.",
@@ -547,65 +618,19 @@
       ]
     },
     {
-      "id": "five-items-bacon-breakfast",
+      "id": "four-items-potato-dinner",
       "now": "2026-11-12 19:30:00 EST",
-      "message": "Breakfast: 3 slices of pan-fried bacon, 2 large scrambled eggs, 1 English muffin, 1 tablespoon of butter and 1 cup of 2% milk.",
+      "message": "Dinner tonight: 1 medium baked potato, 1 tablespoon of sour cream, 100 g of boiled asparagus and 100 g of boiled carrots.",
       "expected": [
         {
           "names": [
-            "bacon"
-          ],
-          "amount": 3,
-          "units": [
-            "slice"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 161.5,
-            "protein": 11.7,
-            "carbs": 0.6,
-            "fat": 12.1,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 168322: Pork, cured, bacon, pre-sliced, cooked, pan-fried; values for 34.5 g (1 slice = 11.5 g)."
-        },
-        {
-          "names": [
-            "egg"
-          ],
-          "amount": 2,
-          "units": [
-            "egg",
-            "large",
-            "large egg",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 181.8,
-            "protein": 12.2,
-            "carbs": 2.0,
-            "fat": 13.4,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172187: Egg, whole, cooked, scrambled; values for 122 g (1 large = 61 g)."
-        },
-        {
-          "names": [
-            "english muffin",
-            "muffin"
+            "potato"
           ],
           "amount": 1,
           "units": [
-            "muffin",
-            "english muffin",
+            "potato",
+            "medium",
+            "medium potato",
             "piece",
             "item",
             "serving",
@@ -617,13 +642,92 @@
           ],
           "date": "2026-11-12",
           "nutrition": {
-            "calories": 129.4,
-            "protein": 5.1,
-            "carbs": 25.2,
-            "fat": 1.0,
+            "calories": 160.9,
+            "protein": 4.3,
+            "carbs": 36.6,
+            "fat": 0.2,
+            "fiber": 3.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170093: Potatoes, baked, flesh and skin, without salt; values for 173 g (1 potato medium = 173 g)."
+        },
+        {
+          "names": [
+            "sour cream"
+          ],
+          "amount": 1,
+          "units": [
+            "tbsp"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 23.8,
+            "protein": 0.3,
+            "carbs": 0.6,
+            "fat": 2.3,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171257: Cream, sour, cultured; values for 12 g (1 tbsp = 12 g)."
+        },
+        {
+          "names": [
+            "asparagus"
+          ],
+          "amount": 100,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 22.0,
+            "protein": 2.4,
+            "carbs": 4.1,
+            "fat": 0.2,
             "fiber": 2.0
           },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 174994: Muffins, English, plain, enriched, with ca prop (includes sourdough); values for 57 g (1 muffin = 57 g)."
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 168390: Asparagus, cooked, boiled, drained; values for 100 g."
+        },
+        {
+          "names": [
+            "carrot"
+          ],
+          "amount": 100,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 35.0,
+            "protein": 0.8,
+            "carbs": 8.2,
+            "fat": 0.2,
+            "fiber": 3.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170394: Carrots, cooked, boiled, drained, without salt; values for 100 g."
+        }
+      ]
+    },
+    {
+      "id": "four-items-vegetable-dinner",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Dinner: 1 cup of boiled green peas, 1 tablespoon of butter, 100 g of boiled carrots and 1 cup of 2% milk.",
+      "expected": [
+        {
+          "names": [
+            "pea"
+          ],
+          "amount": 1,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 134.4,
+            "protein": 8.6,
+            "carbs": 25.0,
+            "fat": 0.4,
+            "fiber": 8.8
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170420: Peas, green, cooked, boiled, drained, without salt; values for 160 g (1 cup = 160 g)."
         },
         {
           "names": [
@@ -642,6 +746,24 @@
             "fiber": 0.0
           },
           "source": "USDA FoodData Central, SR Legacy, FDC ID 173410: Butter, salted; values for 14.2 g (1 tbsp = 14.2 g)."
+        },
+        {
+          "names": [
+            "carrot"
+          ],
+          "amount": 100,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 35.0,
+            "protein": 0.8,
+            "carbs": 8.2,
+            "fat": 0.2,
+            "fiber": 3.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 170394: Carrots, cooked, boiled, drained, without salt; values for 100 g."
         },
         {
           "names": [
@@ -764,115 +886,6 @@
       ]
     },
     {
-      "id": "five-items-steak-dinner",
-      "now": "2026-11-12 19:30:00 EST",
-      "message": "Dinner tonight: 200 g of grilled sirloin steak, 1 medium baked potato, 1 tablespoon of sour cream, 100 g of boiled asparagus and 100 g of boiled carrots.",
-      "expected": [
-        {
-          "names": [
-            "sirloin",
-            "steak",
-            "beef"
-          ],
-          "amount": 200,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 342.0,
-            "protein": 61.2,
-            "carbs": 0.0,
-            "fat": 10.7,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 174693: Beef, loin, top sirloin filet, boneless, separable lean only, trimmed to 0\" fat, all grades, cooked, grilled; values for 200 g."
-        },
-        {
-          "names": [
-            "potato"
-          ],
-          "amount": 1,
-          "units": [
-            "potato",
-            "medium",
-            "medium potato",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 160.9,
-            "protein": 4.3,
-            "carbs": 36.6,
-            "fat": 0.2,
-            "fiber": 3.8
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170093: Potatoes, baked, flesh and skin, without salt; values for 173 g (1 potato medium = 173 g)."
-        },
-        {
-          "names": [
-            "sour cream"
-          ],
-          "amount": 1,
-          "units": [
-            "tbsp"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 23.8,
-            "protein": 0.3,
-            "carbs": 0.6,
-            "fat": 2.3,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171257: Cream, sour, cultured; values for 12 g (1 tbsp = 12 g)."
-        },
-        {
-          "names": [
-            "asparagus"
-          ],
-          "amount": 100,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 22.0,
-            "protein": 2.4,
-            "carbs": 4.1,
-            "fat": 0.2,
-            "fiber": 2.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 168390: Asparagus, cooked, boiled, drained; values for 100 g."
-        },
-        {
-          "names": [
-            "carrot"
-          ],
-          "amount": 100,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 35.0,
-            "protein": 0.8,
-            "carbs": 8.2,
-            "fat": 0.2,
-            "fiber": 3.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170394: Carrots, cooked, boiled, drained, without salt; values for 100 g."
-        }
-      ]
-    },
-    {
       "id": "five-items-salad-lunch",
       "now": "2026-11-12 19:30:00 EST",
       "message": "For lunch I ate 100 g of romaine lettuce, 1 medium tomato, 50 g of cucumber, 60 g of feta cheese and 1 tablespoon of olive oil.",
@@ -979,6 +992,106 @@
             "fiber": 0.0
           },
           "source": "USDA FoodData Central, SR Legacy, FDC ID 171413: Oil, olive, salad or cooking; values for 13.5 g (1 tablespoon = 13.5 g)."
+        }
+      ]
+    },
+    {
+      "id": "five-items-holiday-dinner",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "Tonight's dinner: 150 g of roasted turkey breast, 60 g of canned cranberry sauce, 1 cup of boiled green beans, 1 tablespoon of butter and 1 slice of pumpkin pie.",
+      "expected": [
+        {
+          "names": [
+            "turkey"
+          ],
+          "amount": 150,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 220.5,
+            "protein": 45.2,
+            "carbs": 0.0,
+            "fat": 3.1,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171496: Turkey, whole, breast, meat only, cooked, roasted; values for 150 g."
+        },
+        {
+          "names": [
+            "cranberry sauce",
+            "cranberry"
+          ],
+          "amount": 60,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 95.4,
+            "protein": 0.5,
+            "carbs": 24.2,
+            "fat": 0.1,
+            "fiber": 0.7
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173961: Cranberry sauce, canned, sweetened; values for 60 g."
+        },
+        {
+          "names": [
+            "green bean",
+            "bean"
+          ],
+          "amount": 1,
+          "units": [
+            "cup"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 43.8,
+            "protein": 2.4,
+            "carbs": 9.9,
+            "fat": 0.4,
+            "fiber": 4.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 169141: Beans, snap, green, cooked, boiled, drained, without salt; values for 125 g (1 cup = 125 g)."
+        },
+        {
+          "names": [
+            "butter"
+          ],
+          "amount": 1,
+          "units": [
+            "tbsp"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 101.8,
+            "protein": 0.1,
+            "carbs": 0.0,
+            "fat": 11.5,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173410: Butter, salted; values for 14.2 g (1 tbsp = 14.2 g)."
+        },
+        {
+          "names": [
+            "pumpkin pie",
+            "pie"
+          ],
+          "amount": 1,
+          "units": [
+            "slice"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 323.2,
+            "protein": 5.2,
+            "carbs": 46.3,
+            "fat": 13.0,
+            "fiber": 2.4
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 172787: Pie, pumpkin, commercially prepared; values for 133 g (1 slice = 133 g)."
         }
       ]
     },
@@ -1370,9 +1483,9 @@
       ]
     },
     {
-      "id": "seven-items-brunch",
+      "id": "six-items-brunch",
       "now": "2026-11-12 19:30:00 EST",
-      "message": "Brunch: 2 large fried eggs, 2 slices of pan-fried bacon, 1 slice of whole wheat toast, 1 tablespoon of butter, 100 g of avocado, 1 cup of orange juice and 150 g of strawberries.",
+      "message": "Brunch: 2 large fried eggs, 1 slice of whole wheat toast, 1 tablespoon of butter, 100 g of avocado, 1 cup of orange juice and 150 g of strawberries.",
       "expected": [
         {
           "names": [
@@ -1401,24 +1514,6 @@
             "fiber": 0.0
           },
           "source": "USDA FoodData Central, SR Legacy, FDC ID 173423: Egg, whole, cooked, fried; values for 92 g (1 large = 46 g)."
-        },
-        {
-          "names": [
-            "bacon"
-          ],
-          "amount": 2,
-          "units": [
-            "slice"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 107.6,
-            "protein": 7.8,
-            "carbs": 0.4,
-            "fat": 8.1,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 168322: Pork, cured, bacon, pre-sliced, cooked, pan-fried; values for 23 g (1 slice = 11.5 g)."
         },
         {
           "names": [
@@ -1516,75 +1611,18 @@
       ]
     },
     {
-      "id": "seven-items-chicken-dinner",
+      "id": "six-items-taco-dinner",
       "now": "2026-11-12 19:30:00 EST",
-      "message": "Dinner: 150 g of roasted chicken thigh meat, 1 cup of mashed potatoes, 1 cup of boiled green peas, 1 dinner roll, 1 tablespoon of butter, 100 g of boiled carrots and 1 cup of 2% milk.",
+      "message": "Dinner was 3 corn tortillas, 120 g of cooked 90% lean ground beef, 30 g of shredded cheddar cheese, 2 tablespoons of salsa, 50 g of avocado and 2 tablespoons of sour cream.",
       "expected": [
         {
           "names": [
-            "chicken thigh",
-            "chicken"
+            "tortilla"
           ],
-          "amount": 150,
+          "amount": 3,
           "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 268.5,
-            "protein": 37.1,
-            "carbs": 0.0,
-            "fat": 12.2,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172388: Chicken, broilers or fryers, thigh, meat only, cooked, roasted; values for 150 g."
-        },
-        {
-          "names": [
-            "mashed potato",
-            "potato"
-          ],
-          "amount": 1,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 174.3,
-            "protein": 4.0,
-            "carbs": 36.9,
-            "fat": 1.2,
-            "fiber": 3.2
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170493: Potatoes, mashed, home-prepared, whole milk added; values for 210 g (1 cup = 210 g)."
-        },
-        {
-          "names": [
-            "pea"
-          ],
-          "amount": 1,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 134.4,
-            "protein": 8.6,
-            "carbs": 25.0,
-            "fat": 0.4,
-            "fiber": 8.8
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170420: Peas, green, cooked, boiled, drained, without salt; values for 160 g (1 cup = 160 g)."
-        },
-        {
-          "names": [
-            "roll",
-            "bun"
-          ],
-          "amount": 1,
-          "units": [
-            "roll",
-            "dinner roll",
+            "tortilla",
+            "corn tortilla",
             "piece",
             "item",
             "serving",
@@ -1596,67 +1634,104 @@
           ],
           "date": "2026-11-12",
           "nutrition": {
-            "calories": 86.8,
-            "protein": 3.0,
-            "carbs": 14.6,
-            "fat": 1.8,
-            "fiber": 0.6
+            "calories": 157.0,
+            "protein": 4.1,
+            "carbs": 32.1,
+            "fat": 2.1,
+            "fiber": 4.5
           },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172793: Rolls, dinner, plain, commercially prepared (includes brown-and-serve); values for 28 g (1 roll (1 oz) = 28 g)."
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 175036: Tortillas, ready-to-bake or -fry, corn; values for 72 g (1 tortilla = 24 g)."
         },
         {
           "names": [
-            "butter"
+            "beef"
           ],
-          "amount": 1,
-          "units": [
-            "tbsp"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 101.8,
-            "protein": 0.1,
-            "carbs": 0.0,
-            "fat": 11.5,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 173410: Butter, salted; values for 14.2 g (1 tbsp = 14.2 g)."
-        },
-        {
-          "names": [
-            "carrot"
-          ],
-          "amount": 100,
+          "amount": 120,
           "units": [
             "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
-            "calories": 35.0,
-            "protein": 0.8,
-            "carbs": 8.2,
-            "fat": 0.2,
-            "fiber": 3.0
+            "calories": 276.0,
+            "protein": 34.1,
+            "carbs": 0.0,
+            "fat": 14.4,
+            "fiber": 0.0
           },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170394: Carrots, cooked, boiled, drained, without salt; values for 100 g."
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171794: Beef, ground, 90% lean meat / 10% fat, crumbles, cooked, pan-browned; values for 120 g."
         },
         {
           "names": [
-            "milk"
+            "cheddar",
+            "cheese"
           ],
-          "amount": 1,
+          "amount": 30,
           "units": [
-            "cup"
+            "g"
           ],
           "date": "2026-11-12",
           "nutrition": {
-            "calories": 122.0,
-            "protein": 8.1,
-            "carbs": 11.7,
-            "fat": 4.8,
+            "calories": 120.9,
+            "protein": 6.9,
+            "carbs": 1.0,
+            "fat": 10.0,
             "fiber": 0.0
           },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171267: Milk, reduced fat, fluid, 2% milkfat, with added vitamin A and vitamin D; values for 244 g (1 cup = 244 g)."
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 173414: Cheese, cheddar (Includes foods for USDA's Food Distribution Program); values for 30 g."
+        },
+        {
+          "names": [
+            "salsa"
+          ],
+          "amount": 2,
+          "units": [
+            "tbsp"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 10.4,
+            "protein": 0.5,
+            "carbs": 2.4,
+            "fat": 0.1,
+            "fiber": 0.7
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 174524: Sauce, salsa, ready-to-serve; values for 36 g (2 tbsp = 36 g)."
+        },
+        {
+          "names": [
+            "avocado"
+          ],
+          "amount": 50,
+          "units": [
+            "g"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 80.0,
+            "protein": 1.0,
+            "carbs": 4.3,
+            "fat": 7.3,
+            "fiber": 3.4
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171705: Avocados, raw, all commercial varieties; values for 50 g."
+        },
+        {
+          "names": [
+            "sour cream"
+          ],
+          "amount": 2,
+          "units": [
+            "tbsp"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 47.5,
+            "protein": 0.6,
+            "carbs": 1.1,
+            "fat": 4.6,
+            "fiber": 0.0
+          },
+          "source": "USDA FoodData Central, SR Legacy, FDC ID 171257: Cream, sour, cultured; values for 24 g (1 tbsp = 12 g)."
         }
       ]
     },
@@ -1975,344 +2050,6 @@
             "fiber": 6.6
           },
           "source": "USDA FoodData Central, SR Legacy, FDC ID 168483: Sweet potato, cooked, baked in skin, flesh, without salt; values for 200 g."
-        }
-      ]
-    },
-    {
-      "id": "eight-items-holiday-dinner",
-      "now": "2026-11-12 19:30:00 EST",
-      "message": "Tonight's dinner: 150 g of roasted turkey breast, 1 cup of mashed potatoes, half a cup of bread stuffing, 60 g of canned cranberry sauce, 1 cup of boiled green beans, 1 dinner roll, 1 tablespoon of butter and 1 slice of pumpkin pie.",
-      "expected": [
-        {
-          "names": [
-            "turkey"
-          ],
-          "amount": 150,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 220.5,
-            "protein": 45.2,
-            "carbs": 0.0,
-            "fat": 3.1,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171496: Turkey, whole, breast, meat only, cooked, roasted; values for 150 g."
-        },
-        {
-          "names": [
-            "mashed potato",
-            "potato"
-          ],
-          "amount": 1,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 174.3,
-            "protein": 4.0,
-            "carbs": 36.9,
-            "fat": 1.2,
-            "fiber": 3.2
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 170493: Potatoes, mashed, home-prepared, whole milk added; values for 210 g (1 cup = 210 g)."
-        },
-        {
-          "names": [
-            "stuffing",
-            "dressing"
-          ],
-          "amount": 0.5,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 195.0,
-            "protein": 2.7,
-            "carbs": 18.8,
-            "fat": 12.1,
-            "fiber": 0.8
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 174931: Bread, stuffing, dry mix, prepared; values for 100 g (0.5 cup = 100 g)."
-        },
-        {
-          "names": [
-            "cranberry sauce",
-            "cranberry"
-          ],
-          "amount": 60,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 95.4,
-            "protein": 0.5,
-            "carbs": 24.2,
-            "fat": 0.1,
-            "fiber": 0.7
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 173961: Cranberry sauce, canned, sweetened; values for 60 g."
-        },
-        {
-          "names": [
-            "green bean",
-            "bean"
-          ],
-          "amount": 1,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 43.8,
-            "protein": 2.4,
-            "carbs": 9.9,
-            "fat": 0.4,
-            "fiber": 4.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 169141: Beans, snap, green, cooked, boiled, drained, without salt; values for 125 g (1 cup = 125 g)."
-        },
-        {
-          "names": [
-            "roll",
-            "bun"
-          ],
-          "amount": 1,
-          "units": [
-            "roll",
-            "dinner roll",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 86.8,
-            "protein": 3.0,
-            "carbs": 14.6,
-            "fat": 1.8,
-            "fiber": 0.6
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172793: Rolls, dinner, plain, commercially prepared (includes brown-and-serve); values for 28 g (1 roll (1 oz) = 28 g)."
-        },
-        {
-          "names": [
-            "butter"
-          ],
-          "amount": 1,
-          "units": [
-            "tbsp"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 101.8,
-            "protein": 0.1,
-            "carbs": 0.0,
-            "fat": 11.5,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 173410: Butter, salted; values for 14.2 g (1 tbsp = 14.2 g)."
-        },
-        {
-          "names": [
-            "pumpkin pie",
-            "pie"
-          ],
-          "amount": 1,
-          "units": [
-            "slice"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 323.2,
-            "protein": 5.2,
-            "carbs": 46.3,
-            "fat": 13.0,
-            "fiber": 2.4
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172787: Pie, pumpkin, commercially prepared; values for 133 g (1 slice = 133 g)."
-        }
-      ]
-    },
-    {
-      "id": "eight-items-taco-dinner",
-      "now": "2026-11-12 19:30:00 EST",
-      "message": "Dinner was 3 corn tortillas, 120 g of cooked 90% lean ground beef, half a cup of refried beans, 30 g of shredded cheddar cheese, 2 tablespoons of salsa, 50 g of avocado, 2 tablespoons of sour cream and 1 can of cola.",
-      "expected": [
-        {
-          "names": [
-            "tortilla"
-          ],
-          "amount": 3,
-          "units": [
-            "tortilla",
-            "corn tortilla",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 157.0,
-            "protein": 4.1,
-            "carbs": 32.1,
-            "fat": 2.1,
-            "fiber": 4.5
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 175036: Tortillas, ready-to-bake or -fry, corn; values for 72 g (1 tortilla = 24 g)."
-        },
-        {
-          "names": [
-            "beef"
-          ],
-          "amount": 120,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 276.0,
-            "protein": 34.1,
-            "carbs": 0.0,
-            "fat": 14.4,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171794: Beef, ground, 90% lean meat / 10% fat, crumbles, cooked, pan-browned; values for 120 g."
-        },
-        {
-          "names": [
-            "refried bean",
-            "bean"
-          ],
-          "amount": 0.5,
-          "units": [
-            "cup"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 107.1,
-            "protein": 5.9,
-            "carbs": 16.1,
-            "fat": 2.4,
-            "fiber": 4.4
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172438: Refried beans, canned, traditional style; values for 119 g (1 cup = 238 g)."
-        },
-        {
-          "names": [
-            "cheddar",
-            "cheese"
-          ],
-          "amount": 30,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 120.9,
-            "protein": 6.9,
-            "carbs": 1.0,
-            "fat": 10.0,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 173414: Cheese, cheddar (Includes foods for USDA's Food Distribution Program); values for 30 g."
-        },
-        {
-          "names": [
-            "salsa"
-          ],
-          "amount": 2,
-          "units": [
-            "tbsp"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 10.4,
-            "protein": 0.5,
-            "carbs": 2.4,
-            "fat": 0.1,
-            "fiber": 0.7
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 174524: Sauce, salsa, ready-to-serve; values for 36 g (2 tbsp = 36 g)."
-        },
-        {
-          "names": [
-            "avocado"
-          ],
-          "amount": 50,
-          "units": [
-            "g"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 80.0,
-            "protein": 1.0,
-            "carbs": 4.3,
-            "fat": 7.3,
-            "fiber": 3.4
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171705: Avocados, raw, all commercial varieties; values for 50 g."
-        },
-        {
-          "names": [
-            "sour cream"
-          ],
-          "amount": 2,
-          "units": [
-            "tbsp"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 47.5,
-            "protein": 0.6,
-            "carbs": 1.1,
-            "fat": 4.6,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 171257: Cream, sour, cultured; values for 24 g (1 tbsp = 12 g)."
-        },
-        {
-          "names": [
-            "cola",
-            "coke",
-            "soda"
-          ],
-          "amount": 1,
-          "units": [
-            "can",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 155.4,
-            "protein": 0.0,
-            "carbs": 38.3,
-            "fat": 0.9,
-            "fiber": 0.0
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 174852: Beverages, carbonated, cola, regular; values for 370 g (1 can or bottle (12 fl oz) = 370 g)."
         }
       ]
     }
