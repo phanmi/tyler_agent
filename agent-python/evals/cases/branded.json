@@ -84,13 +84,13 @@
           ],
           "date": "2026-11-12",
           "nutrition": {
-            "calories": 279.9,
-            "protein": 4.3,
-            "carbs": 35.1,
-            "fat": 13.6,
-            "fiber": 1.3
+            "calories": 250,
+            "protein": 5,
+            "carbs": 32,
+            "fat": 12,
+            "fiber": 1
           },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 169589: Candies, MARS SNACKFOOD US, SNICKERS Bar; values for 57 g (1 bar = 57 g)."
+          "source": "Mars Wrigley (US), SNICKERS Full Size Milk Chocolate Candy Bar, 1.86 oz, https://www.snickers.com/products/chocolate/snickers-full-size-milk-chocolate-candy-bar-186-oz-bars, checked 2026-11-15; values for 1 bar. Mars sells no 2 oz Snickers bar, so this regular bar is the one the message means. The page for a bag of the same bars gives 4 g of protein."
         }
       ]
     },
@@ -126,6 +126,106 @@
             "fiber": 4.6
           },
           "source": "USDA FoodData Central, SR Legacy, FDC ID 170721: McDONALD'S, french fries; values for 117 g (1 medium serving = 117 g)."
+        }
+      ]
+    },
+    {
+      "id": "chick-fil-a-sandwich",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had a Chick-fil-A chicken sandwich for lunch.",
+      "expected": [
+        {
+          "names": [
+            "chicken sandwich"
+          ],
+          "amount": 1,
+          "units": [
+            "sandwich",
+            "piece",
+            "item",
+            "serving",
+            "each",
+            "unit",
+            "count",
+            "whole",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 420,
+            "protein": 29,
+            "carbs": 41,
+            "fat": 16,
+            "fiber": 1
+          },
+          "source": "Chick-fil-A (US), Chick-fil-A Chicken Sandwich, https://www.chick-fil-a.com/nutrition-allergens, checked 2026-11-15; values for 1 sandwich (183 g)."
+        }
+      ]
+    },
+    {
+      "id": "starbucks-latte",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I had a grande caffè latte from Starbucks this morning.",
+      "expected": [
+        {
+          "names": [
+            "latte"
+          ],
+          "amount": 1,
+          "units": [
+            "grande",
+            "drink",
+            "cup",
+            "beverage",
+            "serving",
+            "item",
+            "each",
+            "unit",
+            "count",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 190,
+            "protein": 13,
+            "carbs": 19,
+            "fat": 7,
+            "fiber": 0
+          },
+          "source": "Starbucks (US), Caffè Latte, https://www.starbucks.com/menu/product/407/hot/nutrition, checked 2026-11-15; values for 1 Grande (16 fl oz) with the default 2% milk."
+        }
+      ]
+    },
+    {
+      "id": "clif-bar",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "I ate a Chocolate Chip Clif Bar.",
+      "expected": [
+        {
+          "names": [
+            "clif"
+          ],
+          "amount": 1,
+          "units": [
+            "bar",
+            "piece",
+            "item",
+            "serving",
+            "each",
+            "unit",
+            "count",
+            "whole",
+            "portion"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 250,
+            "protein": 10,
+            "carbs": 43,
+            "fat": 6,
+            "fiber": 5
+          },
+          "source": "Clif Bar & Company (US), CLIF BAR Chocolate Chip, https://www.clifbar.com/products/clif-bar-chocolate-chip, checked 2026-11-15; values for 1 bar (68 g), from the Nutrition Facts image on that page."
         }
       ]
     }

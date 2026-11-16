@@ -1,6 +1,6 @@
 # Many-foods eval baseline, November 2026
 
-[Eval harness](../../agent-python/evals/README.md) · [Full generated report](2026-11-16-many-items-report.md) · [First eval report](2026-11-12-food-recording.md)
+[Eval harness](../../../agent-python/evals/README.md) · [Full generated report](2026-11-16-many-items-report.md) · [First eval report](../eval-harness/2026-11-12-food-recording.md)
 
 **This run is the baseline for messages that list several foods.** It covers a run of the 20 `many-items` cases ([#111](https://github.com/phanmi/tyler_agent/issues/111)) against the three low-cost models. A later run of the same cases is compared with the numbers here.
 
@@ -33,7 +33,7 @@ Each case is one message about today that lists 3 to 8 foods, each with an amoun
 |---|--:|--:|--:|--:|--:|--:|
 | Cases | 4 | 6 | 3 | 5 | 1 | 1 |
 
-A chat is **fully correct** when every food the case expects is saved with the right name, amount, unit, date and nutrition, and nothing else is saved. Calories pass within 20% or 15 kcal of the reference, whichever is wider, and protein, carbs, fat and fiber within 20% or 2 g. The [harness README](../../agent-python/evals/README.md#read-the-report) defines every measure.
+A chat is **fully correct** when every food the case expects is saved with the right name, amount, unit, date and nutrition, and nothing else is saved. Calories pass within 20% or 15 kcal of the reference, whichever is wider, and protein, carbs, fat and fiber within 20% or 2 g. The [harness README](../../../agent-python/evals/README.md#read-the-report) defines every measure.
 
 ## Results
 
@@ -116,7 +116,7 @@ A record that verification rejects twice is refused: it is not saved, and the ch
 
 With verification off, `deepseek-flash` saved 61 records with a wrong or missing date, in 17 of its 59 chats: 49 records dated 2026-09-07 and 12 with no date. It made 2.75 model calls for each chat, where the other two models made 3. That fits it skipping the lookup of today's date in about a quarter of its chats.
 
-With verification on, no record had a wrong date, and 62 records were saved after a rejection. That fits verification rejecting the date and saving a corrected record. The [first eval report](2026-11-12-food-recording.md#other-findings) found the same, and noted that giving the agent today's date in every conversation would likely fix it without verification.
+With verification on, no record had a wrong date, and 62 records were saved after a rejection. That fits verification rejecting the date and saving a corrected record. The [first eval report](../eval-harness/2026-11-12-food-recording.md#other-findings) found the same, and noted that giving the agent today's date in every conversation would likely fix it without verification.
 
 ### It cost more and took longer
 
@@ -176,7 +176,7 @@ The `deepseek-flash` chats ran last, most likely after 01:00 UTC on a Monday, wh
 - **The sample is small.** Each model ran 60 chats in each mode, so one chat is worth 1.7 points. The 4-chat drop on `claude-haiku-5-5` is within noise on its own. The drops on `gpt-6-luna` (13 chats) and `deepseek-flash` (10 chats) are larger. The refused records and the whole-meal records are counted directly and do not depend on that comparison.
 - **Rejection reasons are not kept.** The report shows what was saved and how many records were rejected, not why.
 - **Only the low-cost models ran.** `claude-sonnet-5-5` and `gpt-6-sol` were run on an earlier version of these cases, and verification did not lower their results there: 71.7% and 66.7% fully correct with it off, 73.3% and 70.0% with it on. So the problems here may be specific to the low-cost models.
-- **Earlier runs are not comparable.** Two runs before this one used a version of the cases with twelve more foods and five cases for named dishes. Those were removed because one reference value could not be fair for them; the [harness README](../../agent-python/evals/README.md#add-a-case) gives the rule. This baseline is the first run of the 20 cases as they are.
+- **Earlier runs are not comparable.** Two runs before this one used a version of the cases with twelve more foods and five cases for named dishes. Those were removed because one reference value could not be fair for them; the [harness README](../../../agent-python/evals/README.md#add-a-case) gives the rule. This baseline is the first run of the 20 cases as they are.
 - **Sizes 7 and 8 have one case each**, so 3 chats in each mode for each model.
 - **The messages are simple.** Every food has an amount and every message is about today. Foods without an amount and relative dates are covered by other categories.
 - **Replies are not kept.** The report shows what was saved, not what the agent told the user about a refused food.

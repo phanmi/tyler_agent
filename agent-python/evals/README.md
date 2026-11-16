@@ -60,7 +60,7 @@ What they cost:
 
 - **`gpt-6-luna` and `claude-haiku-5-5`:** their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'.
 - **DeepSeek V4.1 Flash:** it is DeepSeek's only suggestion. It costs $0.15 input and $0.60 output per million tokens, and twice that in DeepSeek's peak hours (see [Limits](#limits)).
-- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases.
+- **A full run:** the [November 2026 eval](../../docs/evals/eval-harness/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases.
 
 To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. A cheap model must be one of its provider's suggestions: the backend refuses to start otherwise, and a `--cheap-models` run stops before any call. A test checks that each cheap model has a price in `prices.json`, so a cheap run always reports its cost.
 
@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 354 chats with the 59 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,478 chats, and `--cheap-models` is three, so 1,062 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 372 chats with the 62 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,604 chats, and `--cheap-models` is three, so 1,116 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -177,7 +177,9 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 | `source` | Where the reference values come from. Required. |
 | `tolerance` | Optional `relative` and `absolute` values that replace the defaults for this record. |
 
-Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID, or from the brand's own published values. Do not estimate them.
+Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID. Do not estimate them.
+
+The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac`, `mcdonalds-fries` and `pizza-hut-slices` cases still use FoodData Central SR Legacy entries, because McDonald's and Pizza Hut refuse automated reads of their pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product: its Pizza Hut slice weighs 113 g, against about 143 g in third-party listings of today's slice. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
 
 The `many-items` category has rules of its own. A case is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
 
@@ -185,7 +187,7 @@ The `many-items` category has rules of its own. A case is one message that lists
 - Keep a case of every size from 3 to 8.
 - Use foods whose amount settles their nutrition. Leave out a food whose values depend on a recipe or on the size of a piece, such as mashed potatoes, stuffing, a slice of bacon or a dinner roll. FoodData Central has more than one entry or piece weight for each, so no single reference value is fair.
 
-The [many-foods baseline](../../docs/evals/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
+The [many-foods baseline](../../docs/evals/many-items/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
 
 Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
 
