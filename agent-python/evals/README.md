@@ -60,7 +60,7 @@ What they cost:
 
 - **`gpt-6-luna` and `claude-haiku-5-5`:** their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'.
 - **DeepSeek V4.1 Flash:** it is DeepSeek's only suggestion. It costs $0.15 input and $0.60 output per million tokens, and twice that in DeepSeek's peak hours (see [Limits](#limits)).
-- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases.
+- **A full run:** the [November 2026 eval](../../docs/evals/eval-harness/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases.
 
 To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. A cheap model must be one of its provider's suggestions: the backend refuses to start otherwise, and a `--cheap-models` run stops before any call. A test checks that each cheap model has a price in `prices.json`, so a cheap run always reports its cost.
 
@@ -187,7 +187,7 @@ The `many-items` category has rules of its own. A case is one message that lists
 - Keep a case of every size from 3 to 8.
 - Use foods whose amount settles their nutrition. Leave out a food whose values depend on a recipe or on the size of a piece, such as mashed potatoes, stuffing, a slice of bacon or a dinner roll. FoodData Central has more than one entry or piece weight for each, so no single reference value is fair.
 
-The [many-foods baseline](../../docs/evals/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
+The [many-foods baseline](../../docs/evals/many-items/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
 
 Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
 

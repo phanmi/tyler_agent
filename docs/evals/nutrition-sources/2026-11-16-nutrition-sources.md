@@ -1,8 +1,8 @@
 # Nutrition sources eval, November 2026
 
-[Eval harness](../../agent-python/evals/README.md) · [Generated report, before](2026-11-16-nutrition-sources-before-report.md) · [Generated report, after](2026-11-16-nutrition-sources-after-report.md) · [Many-foods baseline](2026-11-16-many-items.md)
+[Eval harness](../../../agent-python/evals/README.md) · [Generated report, before](2026-11-16-nutrition-sources-before-report.md) · [Generated report, after](2026-11-16-nutrition-sources-after-report.md) · [Many-foods baseline](../many-items/2026-11-16-many-items.md)
 
-**This run measures [#105](https://github.com/phanmi/tyler_agent/issues/105).** With that change, the agent bases the nutrition values it estimates on the brand's published nutrition for packaged and restaurant food, and on USDA FoodData Central for other food. Values the user states are saved exactly as stated. Food verification judges estimates against the same sources and no longer rejects a value for differing slightly; see [Estimated nutrition values](../AGENT_OPERATIONS.md#estimated-nutrition-values).
+**This run measures [#105](https://github.com/phanmi/tyler_agent/issues/105).** With that change, the agent bases the nutrition values it estimates on the brand's published nutrition for packaged and restaurant food, and on USDA FoodData Central for other food. Values the user states are saved exactly as stated. Food verification judges estimates against the same sources and no longer rejects a value for differing slightly; see [Estimated nutrition values](../../AGENT_OPERATIONS.md#estimated-nutrition-values).
 
 The 62 shipped cases ran on the three low-cost models once before the change and once after it.
 
@@ -36,7 +36,7 @@ The 62 shipped cases ran on the three low-cost models once before the change and
 
 Both generated reports show version 0.2.1, the release version in the build configuration; the code is newer than that release.
 
-A chat is **fully correct** when every food the case expects is saved with the right name, amount, unit, date and nutrition, and nothing else is saved. Calories pass within 20% or 15 kcal of the reference, whichever is wider, and protein, carbs, fat and fiber within 20% or 2 g. The [harness README](../../agent-python/evals/README.md#read-the-report) defines every measure.
+A chat is **fully correct** when every food the case expects is saved with the right name, amount, unit, date and nutrition, and nothing else is saved. Calories pass within 20% or 15 kcal of the reference, whichever is wider, and protein, carbs, fat and fiber within 20% or 2 g. The [harness README](../../../agent-python/evals/README.md#read-the-report) defines every measure.
 
 ## Results
 
@@ -76,13 +76,13 @@ The table counts chats, before → after, over every chat the generated reports 
 | The chat failed | 0 → 1 | 1 → 1 | 0 → 0 | 1 → 0 | 0 → 1 | 0 → 0 |
 | **Chats not fully correct or failed** | **38 → 35** | **50 → 36** | **30 → 32** | **36 → 36** | **52 → 39** | **52 → 36** |
 
-As in the [many-foods baseline](2026-11-16-many-items.md#what-verification-changed), a record is counted as holding the whole meal when its unit is wrong and its calories are at least 1.8 times the reference for the food it is named for. Its other wrong fields are not counted again. A record for two slices of bread with peanut butter, at 1.7 times the reference for the peanut butter, falls under the amount and nutrition rows instead.
+As in the [many-foods baseline](../many-items/2026-11-16-many-items.md#what-verification-changed), a record is counted as holding the whole meal when its unit is wrong and its calories are at least 1.8 times the reference for the food it is named for. Its other wrong fields are not counted again. A record for two slices of bread with peanut butter, at 1.7 times the reference for the peanut butter, falls under the amount and nutrition rows instead.
 
 The date row is not something this change touches: the agent looks up today's date with a separate tool. `deepseek-flash` saved a wrong date in 31 chats before and 19 after with verification off, which shows how much one run can differ from another.
 
 ## Messages that list many foods
 
-Chats in the `many-items` category that were not fully correct, out of 60 for each model and mode; a failed chat counts as not fully correct. The baseline is the [earlier run of the same cases](2026-11-16-many-items.md) on the old code.
+Chats in the `many-items` category that were not fully correct, out of 60 for each model and mode; a failed chat counts as not fully correct. The baseline is the [earlier run of the same cases](../many-items/2026-11-16-many-items.md) on the old code.
 
 | Model | Off: baseline | before | after | On: baseline | before | after |
 |---|--:|--:|--:|--:|--:|--:|
@@ -124,7 +124,7 @@ Chats with a nutrition value outside the tolerance, before → after:
 | Pizza Hut slices | 3 → 3 | 3 → 1 | 0 → 0 | 0 → 0 | 2 → 2 | 3 → 2 |
 
 - **The brand-page cases.** The misses were a Chick-fil-A sandwich at 11 g of fat against 16, in one `claude-haiku-5-5` chat in each run, and a Starbucks latte's fat or carbs on `deepseek-flash`.
-- **Pizza Hut slices.** They were saved with 32 to 34 g of protein or 36 to 42 g of fat, against the SR Legacy reference of 26.0 g and 29.6 g. That matches today's larger slice; see the [first eval report](2026-11-12-food-recording.md#3-prefer-usda-fooddata-central-for-nutrition-values). Re-sourcing this case and the two McDonald's cases from the brands' pages is left for a follow-up.
+- **Pizza Hut slices.** They were saved with 32 to 34 g of protein or 36 to 42 g of fat, against the SR Legacy reference of 26.0 g and 29.6 g. That matches today's larger slice; see the [first eval report](../eval-harness/2026-11-12-food-recording.md#3-prefer-usda-fooddata-central-for-nutrition-values). Re-sourcing this case and the two McDonald's cases from the brands' pages is left for a follow-up.
 - **Units cause most branded misses, in both runs.**
   - "a regular 2 oz Snickers bar" was saved as 2 oz.
   - A grande latte was saved as 16 fl oz.
@@ -150,7 +150,7 @@ Chats with a nutrition value outside the tolerance, before → after:
 1. **Five chats failed, none for a reason this change touches.**
    - Before: a `gpt-6-luna` chat asked for a file read the harness does not provide (`unexpected operation: file.read`), and a `claude-haiku-5-5` chat for seven snacks hit the 300-second limit.
    - After: two `gpt-6-luna` chats ended with a provider failure, and a `deepseek-flash` chat asked for a file read.
-2. **Vague amounts were left unsaved more often.** `gpt-6-luna` and `deepseek-flash` saved nothing for "some almonds" in 8 of their 12 chats before and in all 12 after. The report keeps no replies; the [first eval report](2026-11-12-food-recording.md#2-ask-the-user-for-missing-details-before-saving) found asking for the amount the likely reason. [#106](https://github.com/phanmi/tyler_agent/issues/106) is to make that deliberate.
+2. **Vague amounts were left unsaved more often.** `gpt-6-luna` and `deepseek-flash` saved nothing for "some almonds" in 8 of their 12 chats before and in all 12 after. The report keeps no replies; the [first eval report](../eval-harness/2026-11-12-food-recording.md#2-ask-the-user-for-missing-details-before-saving) found asking for the amount the likely reason. [#106](https://github.com/phanmi/tyler_agent/issues/106) is to make that deliberate.
 
 ## Cost
 
