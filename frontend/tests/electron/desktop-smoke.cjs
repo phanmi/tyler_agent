@@ -182,8 +182,22 @@ async function launch(executable, directory, name, args = []) {
       async ready() {
         return until(() => backendReady(log, child, name), `backend ready (${name})`)
       },
-      // Read the token the way the window does, through its preload bridge.
+      // Read the token the way the window does, through its preload bridge. executeJavaScript
+      // waits for the window's page to finish loading, and a slow first load can outlast one
+      // inspector request's timeout, which `until` does not retry. So poll for the loaded page
+      // with quick requests first.
       async accessToken() {
+        await until(
+          async () =>
+            (
+              await debug.send('Runtime.evaluate', {
+                expression:
+                  '(() => { const contents = globalThis.__smokeElectron.BrowserWindow.getAllWindows()[0]?.webContents; return Boolean(contents?.getURL() && !contents.isLoading()) })()',
+                returnByValue: true,
+              })
+            ).result?.value,
+          `window page loaded (${name})`,
+        )
         const token = await until(
           async () =>
             (
