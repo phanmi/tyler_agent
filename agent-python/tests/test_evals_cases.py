@@ -7,7 +7,14 @@ from typing import Any
 
 import pytest
 
-from evals.cases import PACKAGE, InvalidCases, Tolerance, load_cases, select_cases
+from evals.cases import (
+    PACKAGE,
+    RUN_LAST,
+    InvalidCases,
+    Tolerance,
+    load_cases,
+    select_cases,
+)
 from evals.catalog import cheap_targets, suggested_targets
 from evals.cli import DEFAULT_REPEATS
 
@@ -41,7 +48,7 @@ def expected(**changes: Any) -> dict[str, Any]:
     return {key: item for key, item in value.items() if item is not ...}
 
 
-def write(directory: Path, name: str = "one.json", **case: Any) -> Path:
+def write(directory: Path, name: str = "one.json", category: str = "test", **case: Any) -> Path:
     value: dict[str, Any] = {
         "id": "rice",
         "now": "2026-11-12 19:30:00 EST",
@@ -49,7 +56,9 @@ def write(directory: Path, name: str = "one.json", **case: Any) -> Path:
         "expected": [expected()],
     }
     value.update(case)
-    directory.joinpath(name).write_text(json.dumps({"category": "test", "cases": [value]}), "utf-8")
+    directory.joinpath(name).write_text(
+        json.dumps({"category": category, "cases": [value]}), "utf-8"
+    )
     return directory
 
 
@@ -171,7 +180,24 @@ def test_a_file_that_is_not_json_or_cannot_be_opened_says_why(tmp_path: Path) ->
     assert isinstance(caught.value.__cause__, OSError)
 
 
-def test_cases_are_selected_by_id_or_category_in_file_order() -> None:
+def test_a_run_last_category_loads_after_files_that_sort_after_it(tmp_path: Path) -> None:
+    (category,) = RUN_LAST
+    write(tmp_path, "a.json", category=category, id="long")
+    write(tmp_path, "b.json", id="short")
+    write(tmp_path, "c.json", id="short-too")
+
+    assert [case.id for case in load_cases(tmp_path)] == ["short", "short-too", "long"]
+
+
+def test_the_shipped_run_last_cases_load_after_every_other_category() -> None:
+    categories = [case.category for case in load_cases()]
+    last = [name for name in categories if name in RUN_LAST]
+
+    assert last
+    assert categories[-len(last) :] == last
+
+
+def test_cases_are_selected_by_id_or_category_in_load_order() -> None:
     cases = load_cases()
 
     assert select_cases(cases, [], []) == cases

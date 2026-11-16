@@ -60,7 +60,7 @@ What they cost:
 
 - **`gpt-6-luna` and `claude-haiku-5-5`:** their input and output prices are a twentieth or less of the other OpenAI and Claude suggestions'.
 - **DeepSeek V4.1 Flash:** it is DeepSeek's only suggestion. It costs $0.15 input and $0.60 output per million tokens, and twice that in DeepSeek's peak hours (see [Limits](#limits)).
-- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases. The eval now has 59, and the added cases record more foods in each chat, so a run costs more.
+- **A full run:** the [November 2026 eval](../../docs/evals/2026-11-12-food-recording.md) cost $19.81 for all eight models then suggested. Of that, `claude-haiku-5-5` cost about $0.25. The report priced DeepSeek V4.1 Flash at $0.16, at DeepSeek's peak price; at the off-peak price the same run is $0.08. That run had 39 cases.
 
 To change the cheap models, edit the `llm.models.<provider>.cheap` entries in that file. A cheap model must be one of its provider's suggestions: the backend refuses to start otherwise, and a `--cheap-models` run stops before any call. A test checks that each cheap model has a price in `prices.json`, so a cheap run always reports its cost.
 
@@ -83,6 +83,8 @@ The report file is created before the first call and replaced after every chat, 
 ### Failed chats
 
 A chat that fails, for example on a rate limit, is counted and the run goes on. A model that reaches 10 failed chats while it still has chats to run is stopped: its remaining chats are skipped, the run goes on with the next model, and the report says which model was stopped. A model whose 10th failure is its last chat ran in full and is not stopped. A revoked key or a mistyped model ID would otherwise fail every chat of that model.
+
+A model's chats run in case-file order, by file name, with the `many-items` category last. Its chats take the longest and are the likeliest to fail on the run deadline, so a model that is stopped there has already run every other category.
 
 A run ends with a line that counts the failed chats of each model. It exits with:
 

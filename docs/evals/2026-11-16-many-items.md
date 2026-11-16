@@ -22,7 +22,7 @@ It also sets a goal for food verification, which lowered every model's result in
 |---|---|
 | Date | 2026-11-16, from 00:37 to about 02:07 UTC |
 | Code | Food verification from [#96](https://github.com/phanmi/tyler_agent/issues/96), the eval harness from [PR #102](https://github.com/phanmi/tyler_agent/pull/102) and the model list from [PR #110](https://github.com/phanmi/tyler_agent/pull/110). The generated report shows version 0.2.1, the release version in the build configuration; these changes are newer than that release. |
-| Cases | The 20 `many-items` cases, with 96 expected records and reference nutrition from USDA FoodData Central |
+| Cases | The 20 `many-items` cases, with 96 expected records and reference nutrition from USDA FoodData Central. After the run, `spaghetti sauce` was added to the accepted names of one sauce record. It changes only which record a sauce saved under that name is compared with. |
 | Repeats | Each case 3 times with food verification off and 3 times with it on |
 | Models | `gpt-6-luna`, `claude-haiku-5-5` and `deepseek-flash` (DeepSeek V4.1 Flash): each provider's low-cost model, which `--cheap-models` selects |
 | Chats | 360, or 120 for each model. One chat failed; see [Other findings](#other-findings). |

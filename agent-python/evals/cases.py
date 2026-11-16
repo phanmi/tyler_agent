@@ -15,6 +15,11 @@ from tyler_agent.protocol.protocol import Message
 PACKAGE = Path(__file__).parent
 CASES_DIRECTORY = PACKAGE / "cases"
 SCHEMA_PATH = PACKAGE / "case.schema.json"
+# The categories whose chats run after every other category's. Their chats take the longest
+# and are the likeliest to fail on the run deadline, and a model that reaches the failed-chat
+# limit has its remaining chats skipped. Running them last means the shorter categories have
+# been measured by then.
+RUN_LAST = frozenset({"many-items"})
 
 
 class InvalidCases(Exception):
@@ -71,7 +76,8 @@ class Case:
 
 
 def load_cases(directory: Path = CASES_DIRECTORY) -> tuple[Case, ...]:
-    """Read every case file in name order, so a run always uses the same case order."""
+    """Read every case file in name order, then move the RUN_LAST categories to the end, so
+    a run always uses the same case order."""
     validator = schema_validator(SCHEMA_PATH)
     cases = [case for path in sorted(directory.glob("*.json")) for case in _file(path, validator)]
     if not cases:
@@ -79,13 +85,18 @@ def load_cases(directory: Path = CASES_DIRECTORY) -> tuple[Case, ...]:
     repeated = sorted(name for name, uses in Counter(case.id for case in cases).items() if uses > 1)
     if repeated:
         raise InvalidCases(f"Case IDs are used more than once: {', '.join(repeated)}")
-    return tuple(cases)
+    # The sort is stable, so the cases of each group keep their file order.
+    return tuple(sorted(cases, key=_runs_last))
+
+
+def _runs_last(case: Case) -> bool:
+    return case.category in RUN_LAST
 
 
 def select_cases(
     cases: Sequence[Case], ids: Sequence[str], categories: Sequence[str]
 ) -> tuple[Case, ...]:
-    """The cases named by ID or category, in their file order; all of them when neither is
+    """The cases named by ID or category, in the order they loaded; all of them when neither is
     given. A name that matches nothing is an error, so a typo cannot quietly shrink a run."""
     unknown = sorted(set(ids) - {case.id for case in cases}) + sorted(
         set(categories) - {case.category for case in cases}
