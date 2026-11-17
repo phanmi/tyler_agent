@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 408 chats with the 68 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,856 chats, and `--cheap-models` is three, so 1,224 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -180,7 +180,7 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 
 Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID. Do not estimate them.
 
-The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac`, `mcdonalds-fries` and `pizza-hut-slices` cases still use FoodData Central SR Legacy entries, because McDonald's and Pizza Hut refuse automated reads of their pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product: its Pizza Hut slice weighs 113 g, against about 143 g in third-party listings of today's slice. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
+The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac` and `mcdonalds-fries` cases still use FoodData Central SR Legacy entries, because McDonald's refuses automated reads of its pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
 
 The `many-items` category has rules of its own. A case is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
 
@@ -190,7 +190,7 @@ The `many-items` category has rules of its own. A case is one message that lists
 
 The [many-foods baseline](../../docs/evals/many-items/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
 
-Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
+Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories. For the same reason, do not add a case for pizza, even from a named chain: crusts, sizes and toppings vary too much, and a slice's weight differs between sources.
 
 ### Accepted units
 
@@ -200,7 +200,7 @@ Tyler saves the amount and unit the user gave, in the user's own word; see [Amou
 - **When the user only counts**, such as "a Big Mac" or "3 large eggs", accept the food's own words (`egg`, `large egg`) and the generic count words: `piece`, `item`, `serving`, `each`, `unit`, `count`, `whole` and `portion`. None of these adds a number the user did not say.
 - **Never accept a converted unit**, such as `ml` for a cup or `g` for a medium fries.
 
-The `uncommon-unit` category holds units outside the common weights and measures, such as a scoop, a can, a stalk, a clove, a pat or an ear. Use only a unit that FoodData Central gives a weight for, in an SR Legacy or FNDDS portion, and take the reference values for that weight. FoodData Central has no weight for some household units, such as a glass, so they have no case.
+The `uncommon-unit` category holds units outside the common weights and measures, such as a can, a stalk, a clove, a pat or an ear. Use only a unit that FoodData Central gives a weight for, in an SR Legacy or FNDDS portion, and take the reference values for that weight. FoodData Central has no weight for some household units, such as a glass, so they have no case. A unit whose weight depends on the brand, such as a scoop of protein powder, is a `branded` case instead: name the product in the message and take the brand's values for its scoop.
 
 ## Update the prices
 

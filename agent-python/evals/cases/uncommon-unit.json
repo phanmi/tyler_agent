@@ -2,36 +2,6 @@
   "category": "uncommon-unit",
   "cases": [
     {
-      "id": "scoop-of-protein-powder",
-      "now": "2026-11-12 19:30:00 EST",
-      "message": "After my workout I had 1 scoop of whey protein powder.",
-      "expected": [
-        {
-          "names": [
-            "protein powder",
-            "whey"
-          ],
-          "amount": 1,
-          "units": [
-            "scoop"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 91.5,
-            "protein": 20.3,
-            "carbs": 1.6,
-            "fat": 0.4,
-            "fiber": 0.8
-          },
-          "source": "USDA FoodData Central, Survey (FNDDS), FDC ID 2710742: Nutritional powder mix, whey based, NFS; values for 26 g (1 scoop, NFS = 26 g). FNDDS gives named brands' scoops as 20.5 g to 32 g, so this case allows 25%.",
-          "tolerance": {
-            "relative": 0.25,
-            "absolute": 2
-          }
-        }
-      ]
-    },
-    {
       "id": "can-of-tuna",
       "now": "2026-11-12 19:30:00 EST",
       "message": "For lunch I ate 1 can of light tuna packed in water, drained.",

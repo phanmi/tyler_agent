@@ -37,31 +37,6 @@
       ]
     },
     {
-      "id": "pizza-hut-slices",
-      "now": "2026-11-12 19:30:00 EST",
-      "message": "I ate two slices of a 14-inch Pizza Hut pepperoni pan pizza.",
-      "expected": [
-        {
-          "names": [
-            "pizza"
-          ],
-          "amount": 2,
-          "units": [
-            "slice"
-          ],
-          "date": "2026-11-12",
-          "nutrition": {
-            "calories": 657.7,
-            "protein": 26.0,
-            "carbs": 71.9,
-            "fat": 29.6,
-            "fiber": 4.5
-          },
-          "source": "USDA FoodData Central, SR Legacy, FDC ID 172053: PIZZA HUT 14\" Pepperoni Pizza, Pan Crust; values for 226 g (1 slice = 113 g)."
-        }
-      ]
-    },
-    {
       "id": "snickers-bar",
       "now": "2026-11-12 19:30:00 EST",
       "message": "I ate one regular 2 oz Snickers bar.",
@@ -207,6 +182,33 @@
             "fiber": 5
           },
           "source": "Clif Bar & Company (US), CLIF BAR Chocolate Chip, https://www.clifbar.com/products/clif-bar-chocolate-chip, checked 2026-11-15; values for 1 bar (68 g), from the Nutrition Facts image on that page."
+        }
+      ]
+    },
+    {
+      "id": "dymatize-iso100-scoop",
+      "now": "2026-11-12 19:30:00 EST",
+      "message": "After my workout I had 1 scoop of Dymatize ISO100 Gourmet Chocolate protein powder.",
+      "expected": [
+        {
+          "names": [
+            "dymatize",
+            "iso100",
+            "protein powder",
+            "whey"
+          ],
+          "amount": 1,
+          "units": [
+            "scoop"
+          ],
+          "date": "2026-11-12",
+          "nutrition": {
+            "calories": 120,
+            "protein": 25,
+            "carbs": 2,
+            "fat": 1
+          },
+          "source": "Dymatize (US), ISO100 Gourmet Chocolate, https://dymatize.com/products/iso100-gourmet-chocolate, checked 2026-11-16; values for 1 scoop (32 g), from the Nutrition Facts on that page. The page gives dietary fiber as <1 g, so fiber is not checked."
         }
       ]
     }
