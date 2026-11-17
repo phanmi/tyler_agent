@@ -147,7 +147,7 @@ Unless you object, the implementation also does these.
 | The name check, the date check and the corrections receive this run's tool results, and no keys. | A general part of `ToolContext` (D6, P9), and a test that no check request carries a key. | 2, 3, 4 | Planned |
 | A food that matches neither the conversation nor a tool result is not saved. | The name check calls it incorrect, and Python removes it. | 3 | Planned |
 | Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Planned |
-| Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext` (D6). The agent loop changes once to provide it, not once per tool. | 2 | Planned |
+| Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Planned |
 | A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Planned |
 | Resending after such a failure creates no duplicates. | Nothing was saved, so nothing is saved twice. | 6, 9 | Planned |
 | Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | A bridge handler and service method of their own (D9). | 8, 9 | Planned |
@@ -162,7 +162,7 @@ Unless you object, the implementation also does these.
 | Step | Work | Status | Evidence |
 |---|---|---|---|
 | 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | Done | D1 to D9 and P1 to P10 answered, #113 updated to match, and what counts as done stated and agreed, on 2026-11-17. |
-| 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Not started | |
+| 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Done | See the execution record for 2026-11-17. |
 | 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Not started | |
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Not started | |
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Not started | |
@@ -190,3 +190,32 @@ Decisions made before this plan are in #113's description.
 ## Execution record
 
 _One entry per completed step or eval run, oldest first: the date, what changed, the checks or eval run and their results, and anything left open._
+
+### 2026-11-17 Step 2: a list of foods, and the run's earlier calls
+
+**What changed**
+
+- `recordFood` takes `{"foods": [...]}`. Each entry has the shape one food had before. A missing, null or empty list goes back to the model, and every food's types are checked before any number is encoded. Its description tells the chat model to put every food of the message in one call and not to combine a meal into one entry.
+- The result is `{"recorded": [...]}`, with each saved food in the released format. Foods the current verifier refuses are listed under `notRecorded` with the reason, beside an `error` that says they were not saved.
+- The current verifier checks every food of a call before the first is saved, so a failed model request saves none of them. Foods are still saved with one `food.insert` each until step 9.
+- `ToolContext.earlier_calls` holds every tool call the run finished before the current one, with its arguments and result. The registry (`ToolAdapters`) fills it in, so no tool needs wiring of its own and the agent loop did not change. It includes a call from the same model response and one the registry rejected.
+- The eval runner counts the foods a call lists as not recorded. The report's "Items saved after a rejection" row is removed: one call now carries several foods, so the runner can no longer tell which food a model request belonged to. Step 7 replaces it with each check's verdict.
+- `contracts/agent/v2/fixtures/tool-definitions.json` has the new definition, and `AgentPersistenceIntegrationTest` reads the saved food from `recorded`.
+
+**Tests shown to catch their bug.** Each of these failed with its change removed and passed with it restored:
+
+- `test_each_call_is_lent_the_calls_its_run_finished_before_it`, with the registry no longer passing `earlier_calls`.
+- `test_wrong_types_are_rejected_before_number_limits_apply`, its new case, with foods encoded one at a time.
+- `test_a_call_without_a_food_object_in_its_list_is_rejected`, the empty list, with an empty list allowed.
+- `test_every_food_of_a_call_is_checked_before_the_first_is_saved`, with each food saved right after its own check.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 909 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. This includes `PythonToolContractTest` on the new definition, and `AgentPersistenceIntegrationTest`, which drives the real worker with list calls.
+- Not run: `npm run check`, because the frontend did not change, and no eval run, because that is step 13.
+
+**Left open**
+
+- A chat model can still spread a message over several `recordFood` calls. Each call is then checked and saved on its own, until the name check reads `earlier_calls` in step 3.
+- #113 says the agent loop changes once to provide the tool results. It did not need to.

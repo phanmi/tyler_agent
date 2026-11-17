@@ -119,11 +119,11 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
     wrong = record(calories="900")
     chats = [
         # Off: one correct chat and one wrong save, over two repeats.
-        scored(False, (record(),), calls=2, checks=(FoodCheck(0, False),), seconds=2.0),
-        scored(False, (wrong,), calls=2, checks=(FoodCheck(0, False),), seconds=4.0, repeat=2),
-        # On: one item accepted after a rejection, one refused.
-        scored(True, (record(),), calls=5, checks=(FoodCheck(3, False),), seconds=6.0),
-        scored(True, (), calls=5, checks=(FoodCheck(3, True),), seconds=10.0, repeat=2),
+        scored(False, (record(),), calls=2, checks=(FoodCheck(0, 0),), seconds=2.0),
+        scored(False, (wrong,), calls=2, checks=(FoodCheck(0, 0),), seconds=4.0, repeat=2),
+        # On: one call that saved its food, and one call that had two foods refused.
+        scored(True, (record(),), calls=5, checks=(FoodCheck(3, 0),), seconds=6.0),
+        scored(True, (), calls=5, checks=(FoodCheck(3, 2),), seconds=10.0, repeat=2),
     ]
 
     (summary,) = summarize(chats, PRICES)
@@ -136,8 +136,7 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
     assert result["fullyCorrectPercent"] == (50, 50, 0)
     assert result["wrongSaves"] == (1, 0, -1)
     assert result["missedItems"] == (0, 1, 1)
-    assert result["savedAfterRejection"] == (0, 1, 1)
-    assert result["refused"] == (0, 1, 1)
+    assert result["refused"] == (0, 2, 2)
     assert result["modelCallsPerChat"] == (2, 5, 3)
     assert result["inputTokensPerChat"] == (200, 500, 300)
     assert result["cachedInputTokensPerChat"] == (80, 200, 120)
@@ -174,7 +173,7 @@ def test_a_failed_chat_counts_as_an_error_and_in_nothing_else() -> None:
             False,
             (record(calories="900"),),
             calls=9,
-            checks=(FoodCheck(3, True),),
+            checks=(FoodCheck(3, 1),),
             error="provider/PROVIDER_FAILURE",
             seconds=99.0,
             repeat=2,

@@ -28,10 +28,8 @@ ACCEPT = ToolCall("verdict", VERDICT_TOOL.name, '{"valid": true, "reason": "Matc
 def food_call(**changes: object) -> ToolCall:
     info = dict(foodName="Oats", amount=100, unit="g", calories=389, date="2026-10-19")
     info.update(changes)
-    return tool(
-        "recordFood",
-        dict(genericInfo=info, macroNutrients=dict(protein=17, carbs=66, fat=7, fiber=10)),
-    )
+    macros = dict(protein=17, carbs=66, fat=7, fiber=10)
+    return tool("recordFood", dict(foods=[dict(genericInfo=info, macroNutrients=macros)]))
 
 
 def tool(name: str, arguments: Message) -> ToolCall:
@@ -46,7 +44,7 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
         "before_write": (tool("getCurrentTime", {}), food_call()),
         "negative_food": (food_call(amount=-1),),
         "invalid_date": (food_call(date="2026-02-30"),),
-        "missing_food": (tool("recordFood", {}),),
+        "missing_food": (tool("recordFood", dict(foods=[{}])),),
         "plan": (
             tool(
                 "generateWorkoutPlan",

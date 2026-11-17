@@ -31,6 +31,16 @@ class RunSettings:
 
 
 @dataclass(frozen=True)
+class CompletedCall:
+    """One tool call this run has finished: what the model asked for, and the result it was
+    given. The result is whatever the tool returned, so treat it as untrusted text."""
+
+    name: str
+    arguments: str
+    result: str
+
+
+@dataclass(frozen=True)
 class ToolContext:
     """What one run lends its tool calls.
 
@@ -38,12 +48,17 @@ class ToolContext:
     catalog never holds one, so a tool cannot reach another run's model, conversation or Java
     operations. `conversation` is the run's saved history plus the current user message, as
     text only: no tool results, thinking, or provider-native content.
+
+    `earlier_calls` is every tool call the run finished before this one, oldest first, whatever
+    the tool. The registry fills it in for each call, so a tool needs no wiring of its own to
+    see what the chat model was given, such as a file it read.
     """
 
     operation: Operation
     respond: Respond
     conversation: tuple[UserTurn | AssistantTurn, ...]
     settings: RunSettings
+    earlier_calls: tuple[CompletedCall, ...] = ()
 
 
 type Handler = Callable[[str, ToolContext], Awaitable[str]]

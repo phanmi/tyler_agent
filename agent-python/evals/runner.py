@@ -70,14 +70,12 @@ class ModelCall:
 
 @dataclass(frozen=True)
 class FoodCheck:
-    """One recordFood call: the model requests made inside it, and whether it was refused.
-
-    Verification makes one request for an item it accepts straight away, so a saved item with
-    more than one request was rejected at least once first.
-    """
+    """One recordFood call: the model requests made inside it, and how many of its foods
+    verification refused. A call can carry several foods, so the requests are not split
+    between them."""
 
     model_calls: int
-    refused: bool
+    refused: int
 
 
 @dataclass(frozen=True)
@@ -127,7 +125,7 @@ class MeteredProvider:
 
 class RecordedTools(ToolAdapters):
     """The chat's real tools, noting for each recordFood call how many model requests ran
-    inside it and whether verification refused it.
+    inside it and how many of its foods verification refused.
 
     `checks` starts empty and grows by one for each recordFood call the model makes,
     including calls whose arguments were rejected. One instance belongs to one chat.
@@ -142,17 +140,20 @@ class RecordedTools(ToolAdapters):
         before = len(self._meter.calls)
         result = await super().execute(name, raw)
         if name == RECORD_FOOD:
-            self.checks.append(FoodCheck(len(self._meter.calls) - before, was_refused(result)))
+            self.checks.append(FoodCheck(len(self._meter.calls) - before, refused_foods(result)))
         return result
 
 
-def was_refused(result: str) -> bool:
-    """True for the result recordFood returns when verification refused the item."""
+def refused_foods(result: str) -> int:
+    """How many foods a recordFood result reports as refused by verification; none for a
+    call whose arguments were rejected, which has another result."""
     try:
         value = json.loads(result)
     except ValueError:
-        return False
-    return isinstance(value, dict) and value.get("error") == NOT_RECORDED
+        return 0
+    if not isinstance(value, dict) or value.get("error") != NOT_RECORDED:
+        return 0
+    return len(value["notRecorded"])
 
 
 def run_payload(chat: Chat, api_key: str) -> Message:

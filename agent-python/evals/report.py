@@ -131,12 +131,6 @@ METRICS: tuple[Metric, ...] = (
     Metric("wrongSaves", "Wrong saves", 0, lambda g: float(sum(i.wrong_save for i in g.items()))),
     Metric("missedItems", "Missed items", 0, lambda g: float(sum(i.missed for i in g.items()))),
     Metric("medianCalorieErrorPercent", "Median calorie error (%)", 1, _median_calorie_error),
-    Metric(
-        "savedAfterRejection",
-        "Items saved after a rejection",
-        0,
-        lambda g: float(sum(not c.refused and c.model_calls > 1 for c in g.checks())),
-    ),
     Metric("refused", "Items refused", 0, lambda g: float(sum(c.refused for c in g.checks()))),
     Metric(
         "modelCallsPerChat",

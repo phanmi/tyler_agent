@@ -1,9 +1,10 @@
 """Check a food record against the conversation before it is saved, regenerating rejects.
 
-The run's own model reviews each candidate record. It sees the conversation as text, today's
-date from Java, and the record, and answers through a verdict tool. A rejected record is
-regenerated with the verdict's reason and checked again; a record rejected twice is refused.
-Nothing here writes: the adapter saves only a record this module returns.
+The run's own model reviews each candidate record, one food of a recordFood call at a time. It
+sees the conversation as text, today's date from Java, and the record, and answers through a
+verdict tool. A rejected record is regenerated with the verdict's reason and checked again; a
+record rejected twice is refused. Nothing here writes: the adapter saves only a record this
+module returns.
 
 The model checks its own output, so it catches mismatches with the conversation (wrong food,
 amount or date) better than errors in its own nutrition estimates. It sees no tool results, so
@@ -27,6 +28,7 @@ from tyler_agent.tools.parsing import (
     object_value,
     text_value,
 )
+from tyler_agent.tools.rendering import pretty
 from tyler_agent.transcript import AssistantTurn, ToolCall, ToolDefinition, UserTurn
 
 log = logging.getLogger(__name__)
@@ -118,9 +120,9 @@ unit, without converting it or adding a conversion to the unit. Estimate nutriti
 food and amount only when the user did not give them."""
 
 NOT_RECORDED = (
-    "Not recorded: this food item failed verification, so nothing was saved. Tell the user it "
-    "was not recorded and why. Do not call recordFood for it again unless the user gives more "
-    "detail."
+    "Not recorded: the food items under notRecorded failed verification, so they were not "
+    "saved. Tell the user they were not recorded and why. Do not call recordFood for them "
+    "again unless the user gives more detail."
 )
 
 
@@ -143,8 +145,8 @@ class Refused:
 
 @dataclass(frozen=True)
 class Candidate:
-    """One record under review: the model's recordFood arguments, their parsed input, and
-    the rejected arguments it corrects, if it is a regeneration."""
+    """One record under review: its text as the verifier reads it, its food.insert input, and
+    the text of the rejected record it corrects, if it is a regeneration."""
 
     raw: str
     food: Message
@@ -181,11 +183,6 @@ def parse_verdict(turn: AssistantTurn) -> Verdict:
     return Verdict(valid, reason)
 
 
-def not_recorded(refused: Refused) -> str:
-    """The model-facing result for a refused record, which was never sent to Java."""
-    return json.dumps({"error": NOT_RECORDED, "reason": refused.reason}, ensure_ascii=False)
-
-
 def conversation_text(context: ToolContext) -> str:
     """JSON keeps message boundaries unambiguous whatever the messages contain."""
     return json.dumps(
@@ -198,8 +195,12 @@ def conversation_text(context: ToolContext) -> str:
 
 
 def record_food_tool() -> ToolDefinition:
-    """recordFood's own definition, so a regenerated record has the shape the chat model uses."""
-    return ToolDefinition.from_definition(read_definition(files(__name__.rpartition(".")[0])))
+    """recordFood taking one food as its arguments, with recordFood's own description and the
+    schema of one entry of its list, so a regenerated record has the shape of the entry the
+    chat model writes."""
+    definition = read_definition(files(__name__.rpartition(".")[0]))
+    one_food: Message = definition["parameters"]["properties"]["foods"]["items"]
+    return ToolDefinition(definition["name"], definition["description"], one_food)
 
 
 @dataclass(frozen=True)
@@ -249,11 +250,11 @@ class Review:
             return None
 
 
-async def verified_food(raw: str, food: Message, context: ToolContext) -> Message | Refused:
-    """Return the record to save, regenerated if needed, or why nothing should be saved.
+async def verified_food(food: Message, context: ToolContext) -> Message | Refused:
+    """Return the record to save, regenerated if needed, or why it should not be saved.
 
-    `raw` is the chat model's recordFood arguments and `food` their parsed food.insert input.
-    Each of these counts as one rejection: a verdict that rejects, an unusable verdict, and a
+    `food` is the food.insert input of one food the chat model gave recordFood. Each of these
+    counts as one rejection: a verdict that rejects, an unusable verdict, and a
     regeneration that is not a usable recordFood call. A rejected record is regenerated; after
     an unusable verdict the same record is checked again, because there is nothing to correct.
 
@@ -261,7 +262,7 @@ async def verified_food(raw: str, food: Message, context: ToolContext) -> Messag
     cancellation propagate, so nothing is saved after them.
     """
     review = Review(context, await current_time(context.operation), conversation_text(context))
-    candidate = Candidate(raw, food)
+    candidate = Candidate(pretty(food["food"]), food)
     rejections, reason = 0, MALFORMED_VERDICT.reason
     while rejections < MAX_REJECTIONS:
         verdict = await review.verdict(candidate)

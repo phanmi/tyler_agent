@@ -121,7 +121,6 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 | Wrong saves | Saved records with a field outside tolerance, plus records that should not have been saved. |
 | Missed items | Expected records that were not saved, including ones verification refused. |
 | Median calorie error (%) | Over saved records that matched an expected one. Calories the user stated are left out. |
-| Items saved after a rejection | Records verification rejected at least once and then accepted. As in verification itself, a check that returned no usable verdict counts as a rejection. |
 | Items refused | Records verification rejected twice, so nothing was saved. |
 | Model calls, tokens, cost | Averages per chat. They include the verification and regeneration calls inside `recordFood`. |
 | Latency | Wall time per chat: the median and the 95th percentile. |
@@ -212,7 +211,7 @@ Before a run starts, `prices.json` is checked against [prices.schema.json](price
 
 - **Java's rules are not applied.** A stand-in answers the Java operations and keeps whatever `recordFood` sends. A record Java would reject, such as an impossible date, is scored as a wrong save.
 - **Other tools are not answered.** Only the time, food and profile operations have a stand-in. A chat that reads or writes a file, or saves a workout plan, ends as a failed chat that names the operation.
-- **Verification outcomes are inferred.** The harness counts the model calls inside each `recordFood` call. One call means the item was accepted straight away, and more than one means it was rejected at least once. This holds while verification checks one item per call.
+- **Only refusals are counted.** The harness reads the foods a `recordFood` result lists as not recorded. One call can carry several foods, so the report does not show a food that verification rejected once and then accepted.
 - **Chats run one at a time**, including across providers, so a full run of several models takes a long time.
 - **A fallback model is priced as the requested one.** Claude can serve a declined request with another model. Food messages should not trigger it.
 - **Prices are the standard tier.** Long-prompt rates are noted in `prices.json` and not applied.

@@ -84,16 +84,23 @@ def record(**changes: object) -> Message:
     }
 
 
-def food_call(call_id: str = "food", **changes: object) -> ToolCall:
-    """A recordFood call as a model writes it: numbers are JSON numbers."""
+def food(**changes: object) -> Message:
+    """One food as a model writes it: numbers are JSON numbers."""
     info: dict[str, object] = dict(
         foodName="Grilled chicken breast", amount=200, unit="g", calories=302, date=TODAY
     )
     info.update(changes)
-    macros = dict(protein=61, carbs=0, fat=6.3, fiber=0)
-    return ToolCall(
-        call_id, "recordFood", json.dumps({"genericInfo": info, "macroNutrients": macros})
-    )
+    return {"genericInfo": info, "macroNutrients": dict(protein=61, carbs=0, fat=6.3, fiber=0)}
+
+
+def food_call(call_id: str = "food", **changes: object) -> ToolCall:
+    """The chat model's recordFood call for one food."""
+    return ToolCall(call_id, "recordFood", json.dumps({"foods": [food(**changes)]}))
+
+
+def corrected_food(**changes: object) -> ToolCall:
+    """The regenerator's answer: recordFood with one food as its whole arguments."""
+    return ToolCall("fix", "recordFood", json.dumps(food(**changes)))
 
 
 def verdict(valid: bool, reason: str = "Checked.") -> ToolCall:

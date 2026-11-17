@@ -10,6 +10,7 @@ from support.eval_fakes import (
     USAGE,
     case,
     chat,
+    corrected_food,
     expected,
     food_call,
     record,
@@ -36,7 +37,7 @@ def test_verification_off_saves_through_the_real_tool_with_no_extra_model_calls(
 
     assert result.error is None
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(0, False),)
+    assert result.checks == (FoodCheck(0, 0),)
     assert [call.usage for call in result.calls] == [USAGE, USAGE]
 
 
@@ -46,7 +47,7 @@ def test_verification_calls_are_metered_with_the_chats_own_calls() -> None:
     result = run(provider, verify=True)
 
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(1, False),)
+    assert result.checks == (FoodCheck(1, 0),)
     # The chat's first round, the verification inside recordFood, and the closing round.
     assert result.calls == (ModelCall(USAGE, 1.0),) * 3
 
@@ -56,7 +57,7 @@ def test_a_regenerated_item_counts_its_verification_and_regeneration_calls() -> 
         [
             turn(food_call(amount=20)),
             turn(verdict(False, "The user said 200 g.")),
-            turn(food_call(amount=200)),
+            turn(corrected_food(amount=200)),
             turn(verdict(True)),
             turn(text="Recorded."),
         ]
@@ -65,7 +66,7 @@ def test_a_regenerated_item_counts_its_verification_and_regeneration_calls() -> 
     result = run(provider, verify=True)
 
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(3, False),)
+    assert result.checks == (FoodCheck(3, 0),)
     assert len(result.calls) == 5
 
 
@@ -74,7 +75,7 @@ def test_a_refused_item_is_not_saved_and_is_reported_as_refused() -> None:
         [
             turn(food_call(amount=20)),
             turn(verdict(False, "The user said 200 g.")),
-            turn(food_call(amount=30)),
+            turn(corrected_food(amount=30)),
             turn(verdict(False, "Still not 200 g.")),
             turn(text="I could not record it."),
         ]
@@ -83,7 +84,7 @@ def test_a_refused_item_is_not_saved_and_is_reported_as_refused() -> None:
     result = run(provider, verify=True)
 
     assert result.error is None and result.saved == ()
-    assert result.checks == (FoodCheck(3, True),)
+    assert result.checks == (FoodCheck(3, 1),)
 
 
 def test_rejected_arguments_are_a_food_check_with_no_model_calls() -> None:
@@ -91,7 +92,7 @@ def test_rejected_arguments_are_a_food_check_with_no_model_calls() -> None:
 
     result = run(provider, verify=True)
 
-    assert result.saved == () and result.checks == (FoodCheck(0, False),)
+    assert result.saved == () and result.checks == (FoodCheck(0, 0),)
 
 
 def test_the_cases_fixed_time_answers_the_time_tool_and_the_verification() -> None:

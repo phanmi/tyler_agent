@@ -103,10 +103,33 @@ PLAN_FIELDS = ("startDate", "goal", "equipment")
 
 
 def food_arguments(raw: str) -> Message:
-    food = object_value(arguments(raw), ("genericInfo", "macroNutrients"))
-    # Check every part before encoding either, so a number limit cannot hide a wrong type.
+    """One food written as a whole arguments object, as food.insert input."""
+    return _food_input(_food_parts(arguments(raw)))
+
+
+def foods_arguments(raw: str) -> list[Message]:
+    """Each food of a recordFood call as food.insert input, in the model's order.
+
+    A call must carry at least one food: with none there is no operation to request, so an
+    absent, null or empty list goes back to the model like any other shape mismatch.
+    """
+    foods = object_value(arguments(raw), ("foods",)).get("foods")
+    if not isinstance(foods, list) or not foods:
+        raise ArgumentsRejected
+    # Check every food before encoding any, so a number limit cannot hide a wrong type.
+    return [_food_input(parts) for parts in [_food_parts(food) for food in foods]]
+
+
+def _food_parts(value: Any) -> tuple[Message | None, Message | None]:
+    """Check one food's shape and field types; its numbers are still unbounded."""
+    food = object_value(value, ("genericInfo", "macroNutrients"))
     info = _food_part(food.get("genericInfo"), GENERIC_INFO_FIELDS, {"amount", "calories"})
     macros = _food_part(food.get("macroNutrients"), MACRO_FIELDS, set(MACRO_FIELDS))
+    return info, macros
+
+
+def _food_input(parts: tuple[Message | None, Message | None]) -> Message:
+    info, macros = parts
     return {"food": {"genericInfo": _encoded(info), "macroNutrients": _encoded(macros)}}
 
 

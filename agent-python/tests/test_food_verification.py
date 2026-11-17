@@ -68,6 +68,11 @@ def food_raw(**changes: object) -> str:
     return json.dumps(dict(genericInfo=info, macroNutrients=macros))
 
 
+def foods_raw(*foods: str) -> str:
+    """The chat model's recordFood arguments: every food of the message in one list."""
+    return '{"foods": [' + ", ".join(foods or (food_raw(),)) + "]}"
+
+
 def verdict_call(valid: bool, reason: str) -> ToolCall:
     return ToolCall("verdict", VERDICT_TOOL.name, json.dumps({"valid": valid, "reason": reason}))
 
@@ -134,12 +139,26 @@ def record(
     java = Java()
     model = Model(java, replies)
     tools = ToolAdapters(fake_context(java, model, conversation, VERIFICATION_ON))
-    output = asyncio.run(tools.execute("recordFood", raw or food_raw()))
+    output = asyncio.run(tools.execute("recordFood", raw or foods_raw()))
     return output, java, model
 
 
-def saved_output(raw: str) -> str:
+def shown(raw: str) -> str:
+    """One food of the chat model's call as the verifier is shown it."""
     return pretty(food_arguments(raw)["food"])
+
+
+def saved_output(*raws: str) -> str:
+    return pretty({"recorded": [food_arguments(raw)["food"] for raw in raws]})
+
+
+def refused_output(reason: str, *saved: str) -> Message:
+    """recordFood's result, parsed, when the default food was refused and `saved` were saved."""
+    return {
+        "recorded": json.loads(saved_output(*saved))["recorded"],
+        "notRecorded": [{"foodName": "Chicken breast", "reason": reason}],
+        "error": NOT_RECORDED,
+    }
 
 
 # An uncommon unit is saved as the model gave it, never normalized on the way to Java (#104).
@@ -147,7 +166,7 @@ def saved_output(raw: str) -> str:
     "raw", [food_raw(), food_raw(foodName="Whey protein powder", amount=1, unit="scoop")]
 )
 def test_an_accepted_item_is_saved_unchanged_after_one_model_request(raw: str) -> None:
-    output, java, model = record([verdict(True)], raw)
+    output, java, model = record([verdict(True)], foods_raw(raw))
     assert java.requests == [("time.current", {}), ("food.insert", food_arguments(raw))]
     assert output == saved_output(raw)
     assert model.tools == [[VERDICT_TOOL.name]]
@@ -157,7 +176,7 @@ def test_an_accepted_item_is_saved_unchanged_after_one_model_request(raw: str) -
 def test_the_verifier_sees_the_conversation_date_and_record() -> None:
     _, _, model = record([verdict(True)])
     (prompt,) = model.prompts
-    assert TODAY in prompt and food_raw() in prompt
+    assert TODAY in prompt and shown(food_raw()) in prompt
     for turn in CONVERSATION:
         assert json.dumps(turn.text) in prompt
 
@@ -169,11 +188,12 @@ def test_a_rejected_item_is_regenerated_with_the_reason_and_saved_when_accepted(
     assert java.saved() == [food_arguments(food_raw(amount=250))]
     assert output == saved_output(food_raw(amount=250))
     assert model.tools == [[VERDICT_TOOL.name], ["recordFood"], [VERDICT_TOOL.name]]
-    assert "The user said 250 g." in model.prompts[1] and food_raw() in model.prompts[1]
+    assert "The user said 250 g." in model.prompts[1] and shown(food_raw()) in model.prompts[1]
     assert TODAY in model.prompts[1]
     assert food_raw(amount=250) in model.prompts[2]
     # Only the check of a correction also sees the record it replaces.
-    assert "replaces the rejected record" in model.prompts[2] and food_raw() in model.prompts[2]
+    assert "replaces the rejected record" in model.prompts[2]
+    assert shown(food_raw()) in model.prompts[2]
     assert "replaces the rejected record" not in model.prompts[0]
     assert model.saved_at_request == [0, 0, 0]
 
@@ -218,8 +238,26 @@ def test_an_item_rejected_twice_is_not_saved() -> None:
         [verdict(False, "Wrong amount."), regenerated(amount=250), verdict(False, "It was 300 g.")]
     )
     assert java.requests == [("time.current", {})]
-    assert json.loads(output) == {"error": NOT_RECORDED, "reason": "It was 300 g."}
+    assert json.loads(output) == refused_output("It was 300 g.")
     assert len(model.prompts) == 3
+
+
+OATS = food_raw(foodName="Oats", amount=50, calories=190)
+
+
+def test_every_food_of_a_call_is_checked_before_the_first_is_saved() -> None:
+    output, java, model = record([verdict(True), verdict(True)], foods_raw(OATS, food_raw()))
+    assert java.saved() == [food_arguments(OATS), food_arguments(food_raw())]
+    assert output == saved_output(OATS, food_raw())
+    assert shown(OATS) in model.prompts[0] and shown(food_raw()) in model.prompts[1]
+    assert model.saved_at_request == [0, 0]
+
+
+def test_a_refused_food_is_reported_beside_the_foods_that_were_saved() -> None:
+    rejected_twice = [verdict(False, "Wrong."), regenerated(), verdict(False, "No.")]
+    output, java, _ = record([verdict(True), *rejected_twice], foods_raw(OATS, food_raw()))
+    assert java.saved() == [food_arguments(OATS)]
+    assert json.loads(output) == refused_output("No.", OATS)
 
 
 def verdict_arguments(raw: str) -> AssistantTurn:
@@ -252,7 +290,7 @@ def test_unusable_verdicts_never_lead_to_a_save() -> None:
     unusable = AssistantTurn((), "valid")
     output, java, model = record([unusable, unusable])
     assert java.saved() == []
-    assert json.loads(output) == {"error": NOT_RECORDED, "reason": MALFORMED_VERDICT.reason}
+    assert json.loads(output) == refused_output(MALFORMED_VERDICT.reason)
     assert model.tools == [[VERDICT_TOOL.name], [VERDICT_TOOL.name]]
 
 
@@ -261,13 +299,13 @@ def test_after_an_unusable_verdict_the_same_item_is_checked_again_not_regenerate
     assert java.saved() == [food_arguments(food_raw())]
     assert output == saved_output(food_raw())
     assert model.tools == [[VERDICT_TOOL.name], [VERDICT_TOOL.name]]
-    assert all(food_raw() in prompt for prompt in model.prompts)
+    assert all(shown(food_raw()) in prompt for prompt in model.prompts)
 
 
 def test_a_rejection_after_an_unusable_verdict_refuses_with_the_real_reason() -> None:
     output, java, _ = record([AssistantTurn((), "Hmm."), verdict(False, "It was 300 g.")])
     assert java.saved() == []
-    assert json.loads(output)["reason"] == "It was 300 g."
+    assert json.loads(output) == refused_output("It was 300 g.")
 
 
 @pytest.mark.parametrize(
@@ -284,7 +322,7 @@ def test_a_rejection_after_an_unusable_verdict_refuses_with_the_real_reason() ->
 def test_a_malformed_regeneration_counts_as_a_rejection(correction: AssistantTurn) -> None:
     output, java, model = record([verdict(False, "Wrong amount."), correction])
     assert java.saved() == []
-    assert json.loads(output) == {"error": NOT_RECORDED, "reason": "Wrong amount."}
+    assert json.loads(output) == refused_output("Wrong amount.")
     assert len(model.prompts) == 2
 
 
@@ -302,7 +340,7 @@ def test_a_provider_failure_fails_the_run_and_saves_nothing(
     java = Java()
     tools = ToolAdapters(fake_context(java, Model(java, replies), CONVERSATION, VERIFICATION_ON))
     with pytest.raises(AgentFailure) as caught:
-        asyncio.run(tools.execute("recordFood", food_raw()))
+        asyncio.run(tools.execute("recordFood", foods_raw()))
     assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
     assert java.saved() == []
 
@@ -310,7 +348,7 @@ def test_a_provider_failure_fails_the_run_and_saves_nothing(
 def test_with_verification_off_the_item_is_saved_without_model_requests() -> None:
     java = Java()
     # fake_context's model fails the test if a tool makes any model request.
-    output = asyncio.run(ToolAdapters(fake_context(java)).execute("recordFood", food_raw()))
+    output = asyncio.run(ToolAdapters(fake_context(java)).execute("recordFood", foods_raw()))
     assert java.requests == [("food.insert", food_arguments(food_raw()))]
     assert output == saved_output(food_raw())
 
@@ -336,7 +374,7 @@ def test_the_verifier_never_sees_tool_results_or_the_key() -> None:
     provider = FakeProvider(
         [
             AssistantTurn((ToolCall("clock", "getCurrentTime", "{}"),), ""),
-            AssistantTurn((ToolCall("food", "recordFood", food_raw()),), ""),
+            AssistantTurn((ToolCall("food", "recordFood", foods_raw()),), ""),
             verdict(True),
             AssistantTurn((), "Recorded."),
         ]
@@ -376,7 +414,7 @@ class WaitingModel:
         if names in ([VERDICT_TOOL.name], ["recordFood"]):
             self.waiting.set()
             await asyncio.Event().wait()
-        return AssistantTurn((ToolCall("food", "recordFood", food_raw()),), "")
+        return AssistantTurn((ToolCall("food", "recordFood", foods_raw()),), "")
 
     @asynccontextmanager
     async def open(self, value: Message) -> AsyncIterator[Provider]:
@@ -529,7 +567,7 @@ def record_through(kind: str, server: Server, java: Java) -> str:
     async def scenario() -> str:
         async with opener(server) as provider:
             context = tool_context(payload(), provider, java, VERIFICATION_ON)
-            return await ToolAdapters(context).execute("recordFood", food_raw())
+            return await ToolAdapters(context).execute("recordFood", foods_raw())
 
     return asyncio.run(scenario())
 
@@ -559,7 +597,7 @@ def test_each_provider_regenerates_and_refuses_an_item_rejected_twice(kind: str)
     java = Java()
     output = record_through(kind, server, java)
     assert java.saved() == []
-    assert json.loads(output) == {"error": NOT_RECORDED, "reason": "It was 300 g."}
+    assert json.loads(output) == refused_output("It was 300 g.")
     assert [tools(server.body(index)) for index in range(3)] == [
         [VERDICT_TOOL.name],
         ["recordFood"],
