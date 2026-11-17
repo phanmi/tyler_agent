@@ -225,7 +225,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | Done | D1 to D9 and P1 to P10 answered, #113 updated to match, and what counts as done stated and agreed, on 2026-11-17. |
 | 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Done | See the execution record for 2026-11-17. |
 | 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Done | See the execution record for 2026-11-17, step 3. |
-| 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Not started | |
+| 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Done | See the execution record for 2026-11-17, step 4. |
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Not started | |
 | 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Not started | |
 | 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). `FakeJava` answers the new save operation. | Not started | |
@@ -315,3 +315,36 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 
 - Whether the check finds the right foods is the model's work, and only the eval run in step 13 measures it. These tests script the model's answers and prove what Python does with them.
 - The through-the-loop tests, with each real provider class, come with step 6, when `recordFood` uses the checks.
+
+### 2026-11-17 Step 4: the date check
+
+**What changed**
+
+- A new module, `date_check.py`, with the `verifyFoodDates` and `correctFoodDates` tools. It is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodDates` is shown today's date, the conversation, the run's earlier calls (P9), and each food's number, name and date. It answers with the foods whose date is wrong, each with a reason.
+- When a date is wrong, one `correctFoodDates` request gives the new dates. It is shown only the foods the check named, with the reasons. Python changes the date and nothing else in a record (P2).
+- The correction must give a date for every food the check named and for no other. Anything else is an unusable answer, so a food is never left with a date the check called wrong.
+- An unusable answer from the check or the correction is asked again, 4 requests in all, and then the chat fails (D10, D14).
+- A list with no foods, which the name check can leave, is not checked.
+- Python does not judge whether a corrected date is a real calendar date. Java does that when the food is saved, as it does for a date the chat model writes.
+- The helpers the check tests share moved to `tests/support/food_fakes.py`.
+
+**Tests shown to catch their bug.** `tests/test_food_date_check.py` has 30 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- A corrected date not written into the record: 17 tests failed.
+- A correction that may leave out a food the check named.
+- A correction that may change a food the check did not name. The first run of this removal passed every test, because the rule that the answer covers exactly the named foods already rejects an extra food. The guard still stops a number such as 1.5 being rounded to food 1, so that case was added, and it now fails.
+- `true` read as food number 1.
+- The check not shown the run's earlier calls.
+- A list with no foods being checked.
+- An answer without its list read as every date right.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 978 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check finds a wrong date is the model's work, and only the eval run in step 13 measures it.

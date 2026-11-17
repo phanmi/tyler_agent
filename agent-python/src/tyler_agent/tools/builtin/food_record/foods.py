@@ -69,14 +69,28 @@ def record_text(food: Message) -> str:
     return pretty(food["food"])
 
 
+def listed(foods: FoodList, fields: Sequence[str]) -> list[Message]:
+    """Each food's number with these fields of its general info, as a check lists the foods
+    for the model: only what that check judges."""
+    return [
+        {"number": number} | {field: _info(food)[field] for field in fields}
+        for number, food in foods.numbered()
+    ]
+
+
 def portions_text(foods: FoodList) -> str:
     """Each food's number, name, amount and unit, as the name and count check is shown them."""
-    return pretty(
-        [
-            {"number": number} | {field: _info(food)[field] for field in PORTION_FIELDS}
-            for number, food in foods.numbered()
-        ]
-    )
+    return pretty(listed(foods, PORTION_FIELDS))
+
+
+def with_date(food: Message, date: str) -> Message:
+    """`food` with this date; everything else stays."""
+    return {
+        "food": {
+            "genericInfo": _info(food) | {"date": date},
+            "macroNutrients": food["food"]["macroNutrients"],
+        }
+    }
 
 
 def with_portion(food: Message, corrected: Message) -> Message:

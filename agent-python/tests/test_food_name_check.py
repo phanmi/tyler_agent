@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 from collections.abc import Iterable, Sequence
-from dataclasses import replace
 
 import pytest
 from support.agent_fakes import fake_context
@@ -13,13 +12,18 @@ from support.food_fakes import (
     SOURCE_PHRASES,
     TODAY,
     UNIT_PHRASES,
+    Flag,
     Java,
     Model,
+    answer,
+    flags,
     food_raw,
+    run_check,
 )
+from support.food_fakes import check_context as context_for
+from support.food_fakes import food_list as foods
 
 from tyler_agent.failures import AgentFailure
-from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.asking import REQUIRED_ATTEMPTS, evidence
 from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD, correct_food_tool
 from tyler_agent.tools.builtin.food_record.foods import (
@@ -33,18 +37,15 @@ from tyler_agent.tools.builtin.food_record.name_check import (
     VERIFY_FOOD_LIST,
     check_names,
 )
-from tyler_agent.tools.contracts import CompletedCall, ToolContext
+from tyler_agent.tools.contracts import CompletedCall
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
     AssistantTurn,
-    ToolCall,
     ToolDefinition,
     TranscriptEntry,
     UserTurn,
 )
-
-type Flag = tuple[int, str]
 
 CHICKEN = food_raw()
 RICE = food_raw(foodName="Cooked rice", amount=1, unit="cup", calories=205)
@@ -54,18 +55,10 @@ VERIFY, CORRECT = [VERIFY_FOOD_LIST.name], [CORRECT_FOOD]
 UNUSABLE_TEXT = AssistantTurn((), "The list looks right.")
 
 
-def answer(tool: str, raw: str) -> AssistantTurn:
-    return AssistantTurn((ToolCall("answer", tool, raw),), "")
-
-
 def listed(
     missing: Iterable[str] = (), incorrect: Iterable[Flag] = (), wrong_amount: Iterable[Flag] = ()
 ) -> AssistantTurn:
     """A verifyFoodList answer."""
-
-    def flags(found: Iterable[Flag]) -> list[Message]:
-        return [{"number": number, "reason": reason} for number, reason in found]
-
     value = dict(missing=list(missing), incorrect=flags(incorrect), wrongAmount=flags(wrong_amount))
     return answer(VERIFY_FOOD_LIST.name, json.dumps(value))
 
@@ -75,27 +68,13 @@ def written(raw: str = CHICKEN) -> AssistantTurn:
     return answer(CORRECT_FOOD, raw)
 
 
-def foods(*raws: str) -> FoodList:
-    return FoodList(tuple(food_arguments(raw) for raw in raws))
-
-
-def context_for(respond: Model, earlier: Sequence[CompletedCall] = ()) -> ToolContext:
-    return replace(fake_context(respond.java, respond, CONVERSATION), earlier_calls=tuple(earlier))
-
-
 def check(
     replies: Sequence[AssistantTurn | Exception],
     *raws: str,
     earlier: Sequence[CompletedCall] = (),
 ) -> tuple[FoodList, Model]:
-    """Run the check on these foods with a scripted model."""
-    model = Model(Java(), list(replies))
-    context = context_for(model, earlier)
-
-    async def scenario() -> FoodList:
-        return await check_names(foods(*raws), await evidence(context), context)
-
-    return asyncio.run(scenario()), model
+    """Run the name and count check on these foods with a scripted model."""
+    return run_check(check_names, replies, *raws, earlier=earlier)
 
 
 def test_a_list_with_nothing_wrong_is_kept_after_one_request() -> None:

@@ -1,15 +1,27 @@
 """Scripted Java and model doubles for the recordFood tests, and the foods they record."""
 
+import asyncio
 import json
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
+from dataclasses import replace
 
+from support.agent_fakes import fake_context
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.food_record.asking import Evidence, evidence
+from tyler_agent.tools.builtin.food_record.foods import FoodList
+from tyler_agent.tools.contracts import CompletedCall, ToolContext
+from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
     AssistantTurn,
+    ToolCall,
     ToolDefinition,
     TranscriptEntry,
     UserTurn,
 )
+
+# One check of a recordFood call's foods, and a food a check's answer points at with a reason.
+type Check = Callable[[FoodList, Evidence, ToolContext], Awaitable[FoodList]]
+type Flag = tuple[int, str]
 
 TODAY = "2026-11-10 12:30:00 EST"
 # The parts of the rule for values the user did not state that recordFood's description gives
@@ -92,3 +104,38 @@ class Model:
         if isinstance(reply, Exception):
             raise reply
         return reply
+
+
+def answer(tool: str, raw: str) -> AssistantTurn:
+    """A model reply that calls one tool with these arguments."""
+    return AssistantTurn((ToolCall("answer", tool, raw),), "")
+
+
+def flags(found: Iterable[Flag]) -> list[Message]:
+    """The entries of a check's answer that point at foods by number."""
+    return [{"number": number, "reason": reason} for number, reason in found]
+
+
+def food_list(*raws: str) -> FoodList:
+    return FoodList(tuple(food_arguments(raw) for raw in raws))
+
+
+def check_context(model: Model, earlier: Sequence[CompletedCall] = ()) -> ToolContext:
+    """A run context whose model is the scripted one, with these earlier tool calls."""
+    return replace(fake_context(model.java, model, CONVERSATION), earlier_calls=tuple(earlier))
+
+
+def run_check(
+    check: Check,
+    replies: Sequence[AssistantTurn | Exception],
+    *raws: str,
+    earlier: Sequence[CompletedCall] = (),
+) -> tuple[FoodList, Model]:
+    """Run one check on these foods with a scripted model."""
+    model = Model(Java(), list(replies))
+    context = check_context(model, earlier)
+
+    async def scenario() -> FoodList:
+        return await check(food_list(*raws), await evidence(context), context)
+
+    return asyncio.run(scenario()), model
