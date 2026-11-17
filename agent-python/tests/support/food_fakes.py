@@ -5,11 +5,11 @@ import json
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import replace
 
-from support.agent_fakes import fake_context
+from support.agent_fakes import VERIFICATION_OFF, fake_context
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.asking import Evidence, evidence
 from tyler_agent.tools.builtin.food_record.foods import FoodList
-from tyler_agent.tools.contracts import CompletedCall, ToolContext
+from tyler_agent.tools.contracts import CompletedCall, RunSettings, ToolContext
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
     AssistantTurn,
@@ -120,9 +120,15 @@ def food_list(*raws: str) -> FoodList:
     return FoodList(tuple(food_arguments(raw) for raw in raws))
 
 
-def check_context(model: Model, earlier: Sequence[CompletedCall] = ()) -> ToolContext:
+def check_context(
+    model: Model,
+    earlier: Sequence[CompletedCall] = (),
+    conversation: tuple[UserTurn | AssistantTurn, ...] = CONVERSATION,
+    settings: RunSettings = VERIFICATION_OFF,
+) -> ToolContext:
     """A run context whose model is the scripted one, with these earlier tool calls."""
-    return replace(fake_context(model.java, model, CONVERSATION), earlier_calls=tuple(earlier))
+    context = fake_context(model.java, model, conversation, settings)
+    return replace(context, earlier_calls=tuple(earlier))
 
 
 def run_check(
@@ -130,10 +136,12 @@ def run_check(
     replies: Sequence[AssistantTurn | Exception],
     *raws: str,
     earlier: Sequence[CompletedCall] = (),
+    conversation: tuple[UserTurn | AssistantTurn, ...] = CONVERSATION,
+    settings: RunSettings = VERIFICATION_OFF,
 ) -> tuple[FoodList, Model]:
     """Run one check on these foods with a scripted model."""
     model = Model(Java(), list(replies))
-    context = check_context(model, earlier)
+    context = check_context(model, earlier, conversation, settings)
 
     async def scenario() -> FoodList:
         return await check(food_list(*raws), await evidence(context), context)

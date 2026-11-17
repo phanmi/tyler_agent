@@ -18,6 +18,7 @@ from importlib.resources import files
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.asking import conversation_text, single_call
+from tyler_agent.tools.builtin.food_record.content_check import NUTRITION_SOURCES
 from tyler_agent.tools.builtin.time_current.adapter import current_time
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.discovery import read_definition
@@ -35,15 +36,6 @@ log = logging.getLogger(__name__)
 
 # A record is refused at this many rejections, so one item costs one to three model requests.
 MAX_REJECTIONS = 2
-
-# Where values the user did not state come from, so the verifier judges a record against the
-# source it was meant to use. recordFood's definition gives the chat model, and the regenerator
-# that is offered recordFood, the same sources in its own words.
-NUTRITION_SOURCES = (
-    "the brand's published nutrition for a packaged or restaurant food, and, for any other food "
-    "or when the brand's values are not known, USDA FoodData Central values for that food or "
-    "for the closest generic food in FoodData Central"
-)
 
 VERDICT_TOOL = ToolDefinition(
     "submitFoodVerdict",

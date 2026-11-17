@@ -9,7 +9,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.tools.parsing import GENERIC_INFO_FIELDS
+from tyler_agent.tools.parsing import GENERIC_INFO_FIELDS, MACRO_FIELDS
 from tyler_agent.tools.rendering import pretty
 
 # What the name and count check is shown of each food, beside its number.
@@ -102,6 +102,25 @@ def with_portion(food: Message, corrected: Message) -> Message:
     return {
         "food": {
             "genericInfo": _info(food) | amount,
+            "macroNutrients": corrected["food"]["macroNutrients"],
+        }
+    }
+
+
+def nutrition_text(food: Message) -> str:
+    """One food's name, amount, unit and nutrition values, as the content check is shown it.
+    Its date has nothing to do with its nutrition, so it is left out."""
+    macros: Message | None = food["food"]["macroNutrients"]
+    shown = {field: _info(food)[field] for field in ("foodName", "amount", "unit", "calories")}
+    return pretty(shown | (dict.fromkeys(MACRO_FIELDS) if macros is None else macros))
+
+
+def with_nutrition(food: Message, corrected: Message) -> Message:
+    """`food` with the calories and other nutrition values of `corrected`; its name, amount,
+    unit and date stay."""
+    return {
+        "food": {
+            "genericInfo": _info(food) | {"calories": _info(corrected)["calories"]},
             "macroNutrients": corrected["food"]["macroNutrients"],
         }
     }

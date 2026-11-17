@@ -28,6 +28,9 @@ class RunSettings:
 
     # recordFood saves an item only after the run's model accepts it.
     verify_food: bool = True
+    # recordFood's content check judges each food's nutrition values, and has the ones it
+    # rejects written again. The name and count check and the date check have no switch.
+    check_nutrition: bool = True
 
 
 @dataclass(frozen=True)

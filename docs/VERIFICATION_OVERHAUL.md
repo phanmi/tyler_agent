@@ -226,7 +226,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Done | See the execution record for 2026-11-17. |
 | 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Done | See the execution record for 2026-11-17, step 3. |
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Done | See the execution record for 2026-11-17, step 4. |
-| 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Not started | |
+| 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Done | See the execution record for 2026-11-17, step 5. |
 | 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Not started | |
 | 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). `FakeJava` answers the new save operation. | Not started | |
 | 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
@@ -348,3 +348,36 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 **Left open**
 
 - Whether the check finds a wrong date is the model's work, and only the eval run in step 13 measures it.
+
+### 2026-11-17 Step 5: the content check
+
+**What changed**
+
+- A new module, `content_check.py`, with the `verifyFoodNutrition` tool. It is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodNutrition` is shown one food's name, amount, unit and nutrition values, and nothing else: no conversation, no tool result, no date and no other food. Every food is checked at the same time (P6).
+- A food it rejects gets one `correctFood` request, which is shown the conversation and told that a value the user stated is right however unusual it looks. Python keeps only the nutrition values of the answer (P4), and they are saved without a second check (D1, D5). So the check cannot overrule a value the user stated.
+- An unusable answer is asked once more. After that the food goes on with the values it has: an unusable check answer is read neither as a pass nor as a rejection, and an unusable correction keeps the food's values (D10, D14). This check never fails the chat on its own.
+- `RunSettings.check_nutrition` switches the check, and is on by default. With it off, the check makes no request. `RunSettings.verify_food` still switches the current verifier until step 6 removes it.
+- The sources text the check judges against moved from the current verifier to `content_check.py`, and the current verifier imports it, so there is one copy.
+
+**Tests shown to catch their bug.** `tests/test_food_content_check.py` has 24 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- A nutrition correction that also changes the amount and unit.
+- The switch ignored.
+- An unusable answer read as a rejection: 10 tests failed.
+- An unusable answer not asked again: 15 tests failed.
+- Foods checked one after another.
+- The check shown the conversation.
+- The check shown the food's date.
+- A rejection accepted without a reason.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1002 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check judges nutrition values well is the model's work, and only the eval run in step 13 measures it.
+- `test_a_value_the_user_stated_survives_a_rejection` scripts a correction that keeps the user's 1900 kcal. It proves the correction is shown the conversation, is told to keep stated values, and is not checked again. Whether a real model then keeps the value is for the eval's `stated-nutrition` cases.
