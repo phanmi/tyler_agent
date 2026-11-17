@@ -92,7 +92,7 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 
 ### Design decisions
 
-Answered on 2026-11-17. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
+D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
 
 | | Question | Recommended | Other options | Steps | Answer               |
 |---|---|---|---|---|----------------------|
@@ -105,6 +105,11 @@ Answered on 2026-11-17. Where these decisions and the proposals differ from the 
 | D7 | Where is the switch saved? | As the first agent setting from #82, with its own model, service, controller and file, so agent behavior stays out of the provider settings. | A field in `LlmSettings`: about half the code, but "Reset provider settings" would also reset it. | 9, 10 | recommended          |
 | D8 | How is the contract version kept? | Move `contracts/agent/v2/` to `v3/` with `git mv` and edit it in place, so the PR shows only the real changes. Version 2 stays in git history, and the rule in `docs/AGENT_PROTOCOL.md` changes. | Keep a full copy: about 5,000 lines of fixtures. | 8 | recommended          |
 | D9 | How is the list saved? | A new Java operation saves every food of the message in one transaction, added in protocol version 3. | Save one food at a time, and when Java rejects one, tell the user which were saved. | 8, 9 | recommended          |
+| D10 | What happens when a check's answer cannot be used: a text reply, the wrong tool, several calls, or arguments that do not fit? D5 does not say. | Ask once more. If the second answer is also unusable, the check changes nothing, the foods go on to the next check, and a warning is logged without any food or chat text. The check tools are offered, not forced, so this happens now and then, and the baseline showed that dropping foods does more harm than leaving them unchecked. | Fail the chat. Or treat every food as rejected. | 3, 4, 5 | Content check: recommended. Name check and date check: ask again up to 3 times, then fail the chat with an error that says the model could not complete the check. |
+| D11 | D4 says an amount correction changes only the amount and unit. But a food's nutrition values were estimated for the amount it had. If "2 eggs" was saved as 3, changing only the amount leaves the nutrition of 3 eggs, and with the content check switched off nothing fixes it. | The amount correction rewrites the amount, the unit and the nutrition values, keeping any value the user stated. The name and date stay. | Only the amount and unit, as D4 reads, leaving the nutrition to the content check. | 3 | recommended |
+| D12 | Is a correction one request for each food, or one for all the foods a check flagged? | One request for each food, all sent at the same time. Each answer is one food record, so it cannot be matched to the wrong food. | One request for all of them: fewer requests, but each answer has to be matched back to its food. | 3, 5 | recommended |
+| D13 | `verifyFoodList`, `verifyFoodDates` and `correctFoodDates` are each sent every food of the message at once, and their answer names only some of them, such as the one whole-meal record to remove. How does the answer say which food it means? The other two tools handle one food at a time, so the question does not come up for them. | By the food's number. Python numbers the foods when it lists them for the model, and the answer gives the number. Two foods can share a name, such as eggs at breakfast and at lunch, and the model may not repeat a name exactly. | By the food's name, which Python then has to find in the list. | 3, 4 | recommended |
+| D14 | D10 covers the verify tools. What happens when a correction's answer cannot be used? D5 says the food keeps its old values, but a missing food has none, so it would stay missing without anyone being told. | A correction follows the rule of its check. For the name check and the date check: ask again up to 3 times, then fail the chat. For the content check: ask once more, then keep the food's values. | Every correction keeps the old values, as D5 reads. | 3, 4, 5 | recommended |
 
 ### Proposed additions
 
@@ -122,6 +127,62 @@ Unless you object, the implementation also does these.
 | P8 | Tool results stay inside the JSON the checks read, as untrusted text. | A file's text cannot change what a check is asked to do (#100). | 2, 3 | accept |
 | P9 | The date check also gets this run's tool results. | D6 gives them only to the name check and the corrections. A date can come from a file, such as a food log with dated entries, and without the file the date check would reject that date and the correction would replace it with a guess. | 4 | agree |
 | P10 | The switch is named for what it turns off: "Check nutrition values" in Settings, and `checkNutrition` in the `run` payload in place of #113's `verifyFood`. | After D3 it no longer turns off all verification, so `verifyFood` would mislead. | 8, 9, 10 | agree |
+
+### Code design for the checks
+
+This is how steps 3 to 6 are built.
+
+**Modules.** All of them sit in `tools/builtin/food_record/`, beside `recordFood`'s adapter. Nothing outside that package changes.
+
+| Module | What it holds | Step |
+|---|---|---|
+| `foods.py` | `FoodList`: the foods of one `recordFood` call, held in memory while the checks run. It never changes in place: removing a food, adding one, or setting a date, an amount or nutrition values returns a new list. It also keeps each removed food with the reason, for the tool result. | 3 |
+| `asking.py` | `ask`: one model request that offers one tool, and returns the arguments of exactly one call of that tool, or nothing. `must_ask` fails the chat when no answer can be used, and `together` sends several requests at the same time. Also `Evidence`: what a check judges the foods against, read once for the call: today's date, the conversation, and the run's earlier tool calls. | 3 |
+| `correction.py` | The correct food tool: one request that writes one food record. It uses `recordFood`'s own schema for one food and the existing parser. | 3 |
+| `name_check.py` | The verify food name and count tool, and what it does with the answer. | 3 |
+| `date_check.py` | The verify date and correct date tools. | 4 |
+| `content_check.py` | The verify food content tool, run for each food at the same time. | 5 |
+| `checks.py` | Runs the checks in P1's order and returns the final list. | 6 |
+| `verification.py` | The current verifier. Removed. | 6 |
+
+**The five tools.** Each is offered only to its own request (P5).
+
+| Tool | What the model is shown | What it answers |
+|---|---|---|
+| `verifyFoodList` | The conversation, the earlier tool calls, and each food's number, name, amount and unit | `missing`: foods the message asks to record that are not in the list, each as the user described it. `incorrect`: the numbers of foods the message does not ask to record, such as an invented food, a whole meal, a food listed twice or one an earlier call already saved, each with a reason. `wrongAmount`: the numbers of foods whose amount or unit differs from what the user said, each with a reason. |
+| `correctFood` | The conversation, the earlier tool calls, today's date, what to write, and the record being corrected, if there is one | One food record |
+| `verifyFoodDates` | The conversation, the earlier tool calls, today's date, and each food's number, name and date | `wrong`: the numbers of foods whose date is wrong, each with a reason |
+| `correctFoodDates` | The same, with those reasons | The corrected date for each of those numbers |
+| `verifyFoodNutrition` | One food record and nothing else | Whether its nutrition values are plausible, with a reason |
+
+**What Python keeps from a `correctFood` answer.** The model writes a whole record each time, and Python takes only the fields that correction may change.
+
+| The correction is for | Python keeps |
+|---|---|
+| A missing food | The whole record. Its date is checked next (P1). |
+| A wrong amount or unit | The amount, the unit and the nutrition values (D11) |
+| Implausible nutrition values | The nutrition values (P4) |
+
+**Model requests for a message with n foods.**
+
+| Check | Requests | Extra requests |
+|---|---|---|
+| Name and count | 1 | 1 for each missing food and each wrong amount |
+| Date | 1 | 1 if any date is wrong |
+| Content, with the switch on | n, at the same time | 1 for each food it rejects |
+
+**An answer that cannot be used.** This is a text reply, the wrong tool, several calls, or arguments that do not fit the tool (D10, D14).
+
+| Request | What happens |
+|---|---|
+| `verifyFoodList`, `verifyFoodDates`, and their corrections | Asked again, up to 3 more times. Then the chat fails with an error that says the model could not complete the check, and nothing is saved. |
+| `verifyFoodNutrition` and its correction | Asked once more. Then the food goes on with the values it has. |
+
+The error needs a failure code of its own, and the contract allows a new code only in a new protocol version. So it is added with version 3 in step 8, and until then the chat fails with the existing provider failure.
+
+**Tests.** Steps 3 to 5 test each check on its own, with a real tool context and a scripted model, as the current verifier's tests do. Step 6 puts the checks into `recordFood` and adds the tests through the real agent loop, registry and runtime.
+
+**Adding another check** takes one new module, with its tool and its prompt, and one line in the ordered list in `checks.py`. The registry, the agent loop, `ToolContext` and the other checks do not change.
 
 ### How the acceptance criteria are met
 
@@ -163,13 +224,13 @@ Unless you object, the implementation also does these.
 |---|---|---|---|
 | 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | Done | D1 to D9 and P1 to P10 answered, #113 updated to match, and what counts as done stated and agreed, on 2026-11-17. |
 | 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Done | See the execution record for 2026-11-17. |
-| 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Not started | |
+| 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Done | See the execution record for 2026-11-17, step 3. |
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Not started | |
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Not started | |
 | 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Not started | |
 | 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). `FakeJava` answers the new save operation. | Not started | |
-| 8 | Protocol version 3 (D8): the switch field in `run`, and the operation that saves a list of foods (D9). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
-| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it. | Not started | |
+| 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
+| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it. The new failure code gets its own message for the user (D10). | Not started | |
 | 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
 | 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
 | 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
@@ -183,6 +244,7 @@ Unless you object, the implementation also does these.
 | 2026-11-17 | Split the current verification tool into separate tools. | Maintainer, when this plan was set up |
 | 2026-11-17 | D1 to D9: the recommended option for each. P1 to P8 accepted. | Maintainer, in the tables under Design |
 | 2026-11-17 | P9 and P10 accepted. #113's scope and acceptance criteria updated to match the design, with one new criterion for D9's one-transaction save. | Maintainer |
+| 2026-11-17 | D10: an unusable answer from the name check or the date check is asked again up to 3 times, then the chat fails; from the content check it is asked once more, then the food goes on unchanged. D11 to D14: the recommended option for each. | Maintainer |
 | 2026-11-17 | What counts as done: every check implemented and the content check switchable from Settings, every criterion met, the cheap models improve, no wrong date and no missing food, and better results with the content check on. How the eval is read against it, as recommended. | Maintainer |
 
 Decisions made before this plan are in #113's description.
@@ -219,3 +281,37 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 
 - A chat model can still spread a message over several `recordFood` calls. Each call is then checked and saved on its own, until the name check reads `earlier_calls` in step 3.
 - #113 says the agent loop changes once to provide the tool results. It did not need to.
+
+### 2026-11-17 Step 3: the name and count check
+
+**What changed**
+
+- Four new modules in `tools/builtin/food_record/`: `foods.py`, `asking.py`, `correction.py` and `name_check.py`, as the code design describes. The check is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodList` is shown the conversation, the run's earlier calls, and each food's number, name, amount and unit. It answers with the missing foods, the records that do not belong and the records with a wrong amount, each pointing at a food by its number (D13).
+- A record that does not belong is removed in Python and kept with its reason for the tool result. Each missing food and each wrong amount gets its own `correctFood` request, and they are sent at the same time (D12). An amount correction brings its nutrition values; the name and date stay (D11).
+- An answer that cannot be used is asked again, 4 requests in all, and then the chat fails as a provider failure (D10, D14). If one correction fails, the others are cancelled before the failure reaches the caller.
+- The conversation and the earlier calls reach every prompt as JSON text (P8).
+- One limit was added that the design does not name: `verifyFoodList` may report 20 missing foods at most. A longer list is an unusable answer, so a confused model cannot start an unbounded number of correction requests.
+- The shared test fakes moved from `test_food_verification.py` to `tests/support/food_fakes.py`, and the current verifier now imports `single_call` and `conversation_text` from `asking.py`, so there is one copy of each.
+
+**Tests shown to catch their bug.** `tests/test_food_name_check.py` has 39 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- An unusable answer asked again: with the question asked only once, 30 tests failed.
+- `test_a_wrong_amount_brings_its_nutrition_and_the_name_and_date_stay`, with the old nutrition values kept.
+- `test_a_record_that_does_not_belong_is_removed_without_correcting_its_amount`, with a removed record still corrected.
+- `test_an_unusable_correction_is_asked_again_then_fails_the_run`, with a correction allowed to lack its nutrition values.
+- `test_corrections_are_sent_at_the_same_time_and_kept_in_order`, with corrections sent one after another.
+- `test_a_failed_correction_cancels_the_others_before_the_check_ends`, with the others left running.
+- `test_the_check_and_its_corrections_see_the_runs_earlier_calls_as_data`, with a tool result pasted into the prompt as plain text.
+- `test_an_unusable_answer_is_asked_again_and_never_read_as_nothing_wrong`, with a food number outside the list accepted.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 948 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step; the run confirms the worker still starts and serves the integration tests with the new modules.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check finds the right foods is the model's work, and only the eval run in step 13 measures it. These tests script the model's answers and prove what Python does with them.
+- The through-the-loop tests, with each real provider class, come with step 6, when `recordFood` uses the checks.

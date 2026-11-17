@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.food_record.foods import food_name
 from tyler_agent.tools.builtin.food_record.verification import NOT_RECORDED, Refused, verified_food
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import foods_arguments
@@ -36,13 +37,7 @@ def recorded(saved: Sequence[Message], refused: Sequence[tuple[Message, Refused]
     result: Message = {"recorded": list(saved)}
     if refused:
         result["notRecorded"] = [
-            {"foodName": _food_name(food), "reason": refusal.reason} for food, refusal in refused
+            {"foodName": food_name(food), "reason": refusal.reason} for food, refusal in refused
         ]
         result["error"] = NOT_RECORDED
     return pretty(result)
-
-
-def _food_name(food: Message) -> str | None:
-    """The name the model gave a food; None when it gave no general info or no name."""
-    info = food["food"]["genericInfo"]
-    return None if info is None else info["foodName"]

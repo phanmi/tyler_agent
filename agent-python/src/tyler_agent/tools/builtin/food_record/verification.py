@@ -11,13 +11,13 @@ amount or date) better than errors in its own nutrition estimates. It sees no to
 a record whose facts came from one, such as a file the chat model read, is likely to be refused.
 """
 
-import json
 import logging
 from dataclasses import dataclass
 from importlib.resources import files
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.food_record.asking import conversation_text, single_call
 from tyler_agent.tools.builtin.time_current.adapter import current_time
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.discovery import read_definition
@@ -29,7 +29,7 @@ from tyler_agent.tools.parsing import (
     text_value,
 )
 from tyler_agent.tools.rendering import pretty
-from tyler_agent.transcript import AssistantTurn, ToolCall, ToolDefinition, UserTurn
+from tyler_agent.transcript import AssistantTurn, ToolDefinition, UserTurn
 
 log = logging.getLogger(__name__)
 
@@ -153,14 +153,6 @@ class Candidate:
     replaces: str | None = None
 
 
-def single_call(turn: AssistantTurn, tool: ToolDefinition) -> ToolCall | None:
-    """The turn's call when it is exactly one call of `tool`; a text reply, another tool, or
-    several calls give None."""
-    if len(turn.calls) != 1 or turn.calls[0].name != tool.name:
-        return None
-    return turn.calls[0]
-
-
 def parse_verdict(turn: AssistantTurn) -> Verdict:
     """Accept exactly one verdict call with a boolean and a text reason; anything else, or a
     rejection that gives no reason, is MALFORMED_VERDICT.
@@ -181,17 +173,6 @@ def parse_verdict(turn: AssistantTurn) -> Verdict:
     if not isinstance(valid, bool) or reason is None or not (valid or reason.strip()):
         return MALFORMED_VERDICT
     return Verdict(valid, reason)
-
-
-def conversation_text(context: ToolContext) -> str:
-    """JSON keeps message boundaries unambiguous whatever the messages contain."""
-    return json.dumps(
-        [
-            {"role": "user" if isinstance(turn, UserTurn) else "assistant", "content": turn.text}
-            for turn in context.conversation
-        ],
-        ensure_ascii=False,
-    )
 
 
 def record_food_tool() -> ToolDefinition:
