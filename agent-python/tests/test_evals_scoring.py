@@ -5,11 +5,12 @@ from decimal import Decimal
 import pytest
 from support.eval_fakes import case, expected, record
 
-from evals.cases import Tolerance
+from evals.cases import Portion, Tolerance
 from evals.scoring import (
     CALORIE_TOLERANCE,
     MACRO_TOLERANCE,
     ItemScore,
+    expected_value,
     fully_correct,
     score,
     unit_form,
@@ -162,6 +163,36 @@ def test_a_saved_plural_unit_ending_in_es_is_scored_as_the_right_unit() -> None:
     saved = record(foodName="Big Mac", amount="2", unit="sandwiches")
 
     assert "unit" not in only(score(case(sandwich), [saved])).wrong
+
+
+TWO_UNITS = expected(
+    names=("snickers",),
+    amount=Decimal(1),
+    units=("bar",),
+    alternatives=(Portion(Decimal(2), ("oz",)),),
+)
+
+
+@pytest.mark.parametrize(
+    "amount,unit,wrong",
+    [
+        ("1", "bar", ()),
+        ("2", "ounces", ()),
+        ("2", "bars", ("amount",)),
+        # Each portion has one field wrong, so the record is scored against the main one.
+        ("1", "oz", ("unit",)),
+        ("57", "g", ("amount", "unit")),
+    ],
+)
+def test_a_record_may_use_either_amount_and_unit_the_user_gave(
+    amount: str, unit: str, wrong: tuple[str, ...]
+) -> None:
+    """For "one 2 oz bar", 1 bar and 2 oz are both right, but not a mix of the two (#104)."""
+    saved = record(foodName="Snickers", amount=amount, unit=unit)
+
+    assert only(score(case(TWO_UNITS), [saved])).wrong == wrong
+    assert expected_value(TWO_UNITS, "amount") == expected_value(TWO_UNITS, "unit")
+    assert expected_value(TWO_UNITS, "unit") == "1 bar or 2 oz"
 
 
 def test_amount_is_compared_as_a_number_and_must_be_exact() -> None:

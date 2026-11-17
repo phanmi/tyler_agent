@@ -72,15 +72,15 @@
           ],
           "amount": 1,
           "units": [
-            "bar",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
+            "bar"
+          ],
+          "alternatives": [
+            {
+              "amount": 2,
+              "units": [
+                "oz"
+              ]
+            }
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -105,17 +105,7 @@
           ],
           "amount": 1,
           "units": [
-            "medium",
-            "order",
-            "medium serving",
-            "piece",
-            "item",
-            "serving",
-            "each",
-            "unit",
-            "count",
-            "whole",
-            "portion"
+            "medium"
           ],
           "date": "2026-11-12",
           "nutrition": {
@@ -173,16 +163,7 @@
           ],
           "amount": 1,
           "units": [
-            "grande",
-            "drink",
-            "cup",
-            "beverage",
-            "serving",
-            "item",
-            "each",
-            "unit",
-            "count",
-            "portion"
+            "grande"
           ],
           "date": "2026-11-12",
           "nutrition": {

@@ -45,7 +45,7 @@
   {
     "type": "function",
     "name": "recordFood",
-    "description": "Parse a single food item the user consumed into a structured record. Use this when the user tells you what they ate. Save every nutrition value the user states exactly as stated. Estimate only the nutrition values (calories, protein, carbs, fat, fiber) the user did not give, for the food and amount: for a packaged or restaurant food, base them on the brand's published nutrition for that product; for any other food, or when you do not know the brand's values, base them on USDA FoodData Central values for that food, or for the closest generic food in FoodData Central.",
+    "description": "Parse a single food item the user consumed into a structured record. Use this when the user tells you what they ate. When the user gives an amount, save that amount and the user's own word for its unit, such as cup, slice, oz, scoop, can or medium, even when the unit is uncommon. Do not convert it to grams or millilitres, and do not add a conversion to the unit, such as \"cup (240 ml)\". When the user gives two units for one food, such as \"one 2 oz bar\", use either of them. Save every nutrition value the user states exactly as stated. Estimate only the nutrition values (calories, protein, carbs, fat, fiber) the user did not give, for the food and the amount in its unit: for a packaged or restaurant food, base them on the brand's published nutrition for that product; for any other food, or when you do not know the brand's values, base them on USDA FoodData Central values for that food, or for the closest generic food in FoodData Central.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -58,11 +58,11 @@
             },
             "amount": {
               "type": "number",
-              "description": "Amount consumed."
+              "description": "Amount consumed: the amount the user gave, when they gave one."
             },
             "unit": {
               "type": "string",
-              "description": "Unit of the amount, such as g, ml, piece, serving."
+              "description": "Unit of the amount: the user's own word for it when they gave an amount, such as g, cup, slice, oz or scoop."
             },
             "calories": {
               "type": "number",

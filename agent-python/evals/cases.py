@@ -43,13 +43,23 @@ class Tolerance:
 
 
 @dataclass(frozen=True)
+class Portion:
+    """An amount the user gave and the units a record may use with it."""
+
+    amount: Decimal
+    units: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Expected:
     """One food record a case should save.
 
     `amount` is None when the user gave no amount, and then neither amount nor unit is
-    checked. `nutrition` holds reference values for the expected amount; a nutrient that is
-    not listed is not checked. Nutrients in `stated` were given by the user and must be saved
-    exactly. `tolerance` replaces the default tolerances for this record.
+    checked. `alternatives` are other amounts the user gave for the same food, such as 2 oz
+    for "one 2 oz bar"; a record may use the amount and units or any alternative. `nutrition`
+    holds reference values for the expected amount; a nutrient that is not listed is not
+    checked. Nutrients in `stated` were given by the user and must be saved exactly.
+    `tolerance` replaces the default tolerances for this record.
     """
 
     names: tuple[str, ...]
@@ -60,6 +70,15 @@ class Expected:
     stated: frozenset[str]
     source: str
     tolerance: Tolerance | None
+    alternatives: tuple[Portion, ...] = ()
+
+    @property
+    def portions(self) -> tuple[Portion, ...]:
+        """Every amount and its units a record may use, the main one first; none when the user
+        gave no amount."""
+        if self.amount is None:
+            return ()
+        return (Portion(self.amount, self.units), *self.alternatives)
 
 
 @dataclass(frozen=True)
@@ -143,4 +162,8 @@ def _expected(value: dict[str, Any], case_id: str, file_name: str) -> Expected:
         stated,
         value["source"],
         None if tolerance is None else Tolerance(tolerance["relative"], tolerance["absolute"]),
+        tuple(
+            Portion(portion["amount"], tuple(portion["units"]))
+            for portion in value.get("alternatives", ())
+        ),
     )

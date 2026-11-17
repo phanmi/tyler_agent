@@ -12,6 +12,7 @@ from evals.cases import (
     PACKAGE,
     RUN_LAST,
     InvalidCases,
+    Portion,
     Tolerance,
     load_cases,
     select_cases,
@@ -30,8 +31,10 @@ REQUIRED_CATEGORIES = {
     "stated-nutrition",
     "record-nothing",
     "many-items",
+    "uncommon-unit",
 }
 MINIMUM_CASES = 30
+MINIMUM_UNCOMMON_UNIT_CASES = 5
 # The numbers of foods a many-items message lists. The category has a case of every size.
 MANY_ITEMS_SIZES = set(range(3, 9))
 BRANDED = "branded"
@@ -99,6 +102,10 @@ def test_shipped_cases_have_the_shape_their_category_promises() -> None:
     assert all(
         item.amount is not None for case in by_category["many-items"] for item in case.expected
     )
+    assert len(by_category["uncommon-unit"]) >= MINIMUM_UNCOMMON_UNIT_CASES
+    assert all(
+        item.amount is not None for case in by_category["uncommon-unit"] for item in case.expected
+    )
     assert any(
         item.date != case.now[:10]
         for case in by_category["relative-date"]
@@ -115,6 +122,7 @@ def test_numbers_are_read_exactly_and_optional_fields_default(tmp_path: Path) ->
                 nutrition={"calories": 13.5, "fat": 0.1},
                 stated=["fat"],
                 tolerance={"relative": 0.5, "absolute": 30},
+                alternatives=[{"amount": 2.5, "units": ["oz"]}],
             )
         ],
         history=[{"role": "user", "content": "Hi"}],
@@ -131,6 +139,10 @@ def test_numbers_are_read_exactly_and_optional_fields_default(tmp_path: Path) ->
     assert item.amount == Decimal("0.5") and item.nutrition["fat"] == Decimal("0.1")
     assert item.stated == {"fat"}
     assert item.tolerance == Tolerance(Decimal("0.5"), Decimal(30))
+    assert item.portions == (
+        Portion(Decimal("0.5"), ("g",)),
+        Portion(Decimal("2.5"), ("oz",)),
+    )
 
 
 @pytest.mark.parametrize(
@@ -141,6 +153,10 @@ def test_numbers_are_read_exactly_and_optional_fields_default(tmp_path: Path) ->
         ({"expected": [expected(source=" ")]}, "one.json: $.cases[0].expected[0].source"),
         ({"expected": [expected(source=...)]}, "'source' is a required property"),
         ({"expected": [expected(units=[])]}, "one.json: $.cases[0].expected[0].units"),
+        (
+            {"expected": [expected(alternatives=[{"amount": 2, "units": []}])]},
+            "one.json: $.cases[0].expected[0].alternatives[0].units",
+        ),
         ({"expected": [expected(date="12/11/2026")]}, "one.json: $.cases[0].expected[0].date"),
         ({"expected": [expected(nutrition={"sugar": 1})]}, "nutrition"),
         ({"extra": 1}, "one.json: $.cases[0]"),
