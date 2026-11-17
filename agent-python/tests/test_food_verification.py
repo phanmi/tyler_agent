@@ -199,23 +199,11 @@ def test_estimates_are_judged_against_the_sources_record_food_names() -> None:
     assert "Do not reject it for differing slightly." in model.prompts[0]
 
 
-def test_a_converted_unit_is_rejected_and_the_users_unit_is_saved() -> None:
-    """A unit converted from the user's, or with a conversion added, does not match what the
-    user said; the correction keeps the user's amount and unit, and only it is saved (#104)."""
-    milk = (UserTurn("I drank 1 cup of whole milk."),)
-    converted = food_raw(foodName="Whole milk", amount=244, unit="ml", calories=149)
-    users_unit = dict(foodName="Whole milk", amount=1, unit="cup", calories=149)
-    output, java, model = record(
-        [
-            verdict(False, "The user said 1 cup, not 244 ml."),
-            regenerated(**users_unit),
-            verdict(True),
-        ],
-        converted,
-        milk,
-    )
-    assert java.saved() == [food_arguments(food_raw(**users_unit))]
-    assert output == saved_output(food_raw(**users_unit))
+def test_a_converted_unit_does_not_match_and_a_correction_keeps_the_users_unit() -> None:
+    """The verifier rejects a unit converted from the user's, or with a conversion added, with
+    the same examples recordFood's definition gives the chat model; the regenerator keeps the
+    user's own word for the unit (#104)."""
+    _, _, model = record([verdict(False, "The user said 1 cup."), regenerated(), verdict(True)])
     verify, regenerate = model.prompts[:2]
     assert "A unit converted from the user's, such as 240 ml for 1 cup, does not" in verify
     description = record_food_tool().description

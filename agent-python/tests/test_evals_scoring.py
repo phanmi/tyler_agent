@@ -191,6 +191,9 @@ def test_a_record_may_use_either_amount_and_unit_the_user_gave(
     saved = record(foodName="Snickers", amount=amount, unit=unit)
 
     assert only(score(case(TWO_UNITS), [saved])).wrong == wrong
+
+
+def test_the_expected_amount_and_unit_show_every_portion_the_user_gave() -> None:
     assert expected_value(TWO_UNITS, "amount") == expected_value(TWO_UNITS, "unit")
     assert expected_value(TWO_UNITS, "unit") == "1 bar or 2 oz"
 

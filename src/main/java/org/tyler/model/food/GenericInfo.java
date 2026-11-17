@@ -7,7 +7,7 @@ import java.math.BigDecimal;
  *
  * @param foodName food name
  * @param amount   amount consumed
- * @param unit     unit, such as g, ml, piece, or serving
+ * @param unit     the user's own word for the unit, such as g, cup, slice or scoop
  * @param calories energy in kcal
  * @param date     intake date in YYYY-MM-DD format
  */

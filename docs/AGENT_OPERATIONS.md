@@ -59,7 +59,7 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 
 ### Amounts and units
 
-When the user gives an amount, `recordFood`'s [definition](../agent-python/src/tyler_agent/tools/builtin/food_record/definition.json) tells the chat model to save that amount and the user's own word for its unit: cup, slice, oz, scoop, can, "medium", and so on, even when the unit is uncommon. The model does not convert the amount to grams or millilitres, and does not add a conversion to the unit, such as `cup (240 ml)`. When the user gives two units for one food, such as "one 2 oz bar", either is saved. Nutrition values are for that amount in that unit. When the user gives no amount, the model estimates one, as before.
+When the user gives an amount, `recordFood`'s [definition](../agent-python/src/tyler_agent/tools/builtin/food_record/definition.json) tells the chat model to save that amount and the user's own word for its unit: cup, slice, oz, scoop, can, "medium", and so on, even when the unit is uncommon. The model does not convert the amount to grams or millilitres, and does not add a conversion to the unit, such as `cup (240 ml)`. When the user gives two units for one food, such as "one 2 oz bar", either is saved. Nutrition values are for that amount in that unit. When the user gives no amount, the model estimates one.
 
 Java's food validation accepts any non-blank unit, and the Python adapter passes the unit through unchanged. Daily totals add up nutrition values, never amounts, so units need no conversion for them. [Verification](#food-verification) rejects a converted or annotated unit.
 
