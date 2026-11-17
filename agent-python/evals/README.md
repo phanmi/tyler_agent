@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 372 chats with the 62 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,604 chats, and `--cheap-models` is three, so 1,116 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -133,7 +133,7 @@ Wrong saves should fall with verification on. Missed items and cost will rise. W
 
 Scoring uses no model. [scoring.py](scoring.py) pairs each expected record with a saved record whose name contains one of its accepted names as whole words, ignoring case. A plural also matches, so "Boiled eggs" matches `egg` and "Eggplant" does not. A more specific name is paired first: the pair whose matching name has more words wins, so `fried rice` gets "Fried rice" before `rice` can take it. Among equally specific names, the saved record with the fewest wrong fields is paired.
 
-- **Amount and unit** must match exactly. Common spellings of a unit count as the same unit (`g`, `gram`, `grams`), and so does a plural ending in "s" or "es" (`item`, `items`; `glass`, `glasses`). Neither is checked when the user gave no amount.
+- **Amount and unit** must match exactly. Common spellings of a unit count as the same unit (`g`, `gram`, `grams`), and so does a plural ending in "s" or "es" (`item`, `items`; `glass`, `glasses`). A unit converted from the user's, such as 240 ml for 1 cup, is wrong, and so is one with a conversion added, such as `cup (240 ml)`. When the user gave two amounts for one food, such as "one 2 oz bar", a record may use either, but not the amount of one with the unit of the other. Neither is checked when the user gave no amount.
 - **Date** must match exactly.
 - **Calories** may differ from the reference by 20% or 15 kcal, whichever is larger.
 - **Protein, carbs, fat and fiber** may differ by 20% or 2 g, whichever is larger.
@@ -171,7 +171,8 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 | `history` | Optional earlier turns, each with `role` (`user` or `assistant`) and `content`. |
 | `expected` | The records the chat should save. Use `[]` for a message that should record nothing. |
 | `names` | Accepted food names. A saved name matches when it contains one of them as whole words. List a different word, such as `oatmeal` beside `oat`, separately. |
-| `amount`, `units` | The amount and the accepted units, one spelling each. Use `null` and `[]` when the user gave no amount. |
+| `amount`, `units` | The amount the user gave and the accepted units, one spelling each. Use `null` and `[]` when the user gave no amount. See [Accepted units](#accepted-units). |
+| `alternatives` | Optional. Other amounts the user gave for the same food, each with `amount` and `units`, such as `[{"amount": 2, "units": ["oz"]}]` for "one 2 oz bar". The nutrition is the same for each. |
 | `nutrition` | Reference values for the expected amount. A nutrient you leave out is not checked. |
 | `stated` | Optional. The nutrients the user stated, which must be saved exactly. |
 | `source` | Where the reference values come from. Required. |
@@ -179,7 +180,7 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 
 Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID. Do not estimate them.
 
-The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac`, `mcdonalds-fries` and `pizza-hut-slices` cases still use FoodData Central SR Legacy entries, because McDonald's and Pizza Hut refuse automated reads of their pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product: its Pizza Hut slice weighs 113 g, against about 143 g in third-party listings of today's slice. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
+The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac` and `mcdonalds-fries` cases still use FoodData Central SR Legacy entries, because McDonald's refuses automated reads of its pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
 
 The `many-items` category has rules of its own. A case is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
 
@@ -189,7 +190,17 @@ The `many-items` category has rules of its own. A case is one message that lists
 
 The [many-foods baseline](../../docs/evals/many-items/2026-11-16-many-items.md) records how each provider's low-cost model did on this category. Compare a later run with it.
 
-Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories.
+Do not add a case for a cooked dish named as a whole, such as egg fried rice. Recipes differ too much for one reference value to be fair: FoodData Central's own entries for one dish, such as lasagna with meat or spaghetti with meat sauce, differ by a quarter or more in calories. For the same reason, do not add a case for pizza, even from a named chain: crusts, sizes and toppings vary too much, and a slice's weight differs between sources.
+
+### Accepted units
+
+Tyler saves the amount and unit the user gave, in the user's own word; see [Amounts and units](../../docs/AGENT_OPERATIONS.md#amounts-and-units). A case accepts the same:
+
+- **When the user names a unit**, such as `slice`, `cup`, `oz`, a Snickers `bar`, `medium` fries or a `grande` latte, accept only that word. The scorer already accepts its common spellings and plurals.
+- **When the user only counts**, such as "a Big Mac" or "3 large eggs", accept the food's own words (`egg`, `large egg`) and the generic count words: `piece`, `item`, `serving`, `each`, `unit`, `count`, `whole` and `portion`. None of these adds a number the user did not say.
+- **Never accept a converted unit**, such as `ml` for a cup or `g` for a medium fries.
+
+The `uncommon-unit` category holds units outside the common weights and measures, such as a can, a stalk, a clove, a pat or an ear. Use only a unit that FoodData Central gives a weight for, in an SR Legacy or FNDDS portion, and take the reference values for that weight. FoodData Central has no weight for some household units, such as a glass, so they have no case. A unit whose weight depends on the brand, such as a scoop of protein powder, is a `branded` case instead: name the product in the message and take the brand's values for its scoop.
 
 ## Update the prices
 

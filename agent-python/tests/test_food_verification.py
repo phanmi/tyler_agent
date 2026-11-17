@@ -49,6 +49,9 @@ SOURCE_PHRASES = (
     "USDA FoodData Central values for that food",
     "the closest generic food in FoodData Central",
 )
+# The examples of the unit rule that recordFood's description and the verify prompt both give,
+# so the chat model and the verifier keep the same units (#104).
+UNIT_PHRASES = ('"cup (240 ml)"', '"one 2 oz bar"')
 CONVERSATION = (
     UserTurn("I had oats for breakfast."),
     AssistantTurn((), "Noted."),
@@ -123,10 +126,14 @@ class Model:
         return reply
 
 
-def record(replies: list[AssistantTurn | Exception], raw: str = "") -> tuple[str, Java, Model]:
+def record(
+    replies: list[AssistantTurn | Exception],
+    raw: str = "",
+    conversation: tuple[UserTurn | AssistantTurn, ...] = CONVERSATION,
+) -> tuple[str, Java, Model]:
     java = Java()
     model = Model(java, replies)
-    tools = ToolAdapters(fake_context(java, model, CONVERSATION, VERIFICATION_ON))
+    tools = ToolAdapters(fake_context(java, model, conversation, VERIFICATION_ON))
     output = asyncio.run(tools.execute("recordFood", raw or food_raw()))
     return output, java, model
 
@@ -135,10 +142,14 @@ def saved_output(raw: str) -> str:
     return pretty(food_arguments(raw)["food"])
 
 
-def test_an_accepted_item_is_saved_unchanged_after_one_model_request() -> None:
-    output, java, model = record([verdict(True)])
-    assert java.requests == [("time.current", {}), ("food.insert", food_arguments(food_raw()))]
-    assert output == saved_output(food_raw())
+# An uncommon unit is saved as the model gave it, never normalized on the way to Java (#104).
+@pytest.mark.parametrize(
+    "raw", [food_raw(), food_raw(foodName="Whey protein powder", amount=1, unit="scoop")]
+)
+def test_an_accepted_item_is_saved_unchanged_after_one_model_request(raw: str) -> None:
+    output, java, model = record([verdict(True)], raw)
+    assert java.requests == [("time.current", {}), ("food.insert", food_arguments(raw))]
+    assert output == saved_output(raw)
     assert model.tools == [[VERDICT_TOOL.name]]
     assert model.saved_at_request == [0]
 
@@ -186,6 +197,20 @@ def test_estimates_are_judged_against_the_sources_record_food_names() -> None:
         assert phrase in description, phrase
         assert phrase in model.prompts[0], phrase
     assert "Do not reject it for differing slightly." in model.prompts[0]
+
+
+def test_a_converted_unit_does_not_match_and_a_correction_keeps_the_users_unit() -> None:
+    """The verifier rejects a unit converted from the user's, or with a conversion added, with
+    the same examples recordFood's definition gives the chat model; the regenerator keeps the
+    user's own word for the unit (#104)."""
+    _, _, model = record([verdict(False, "The user said 1 cup."), regenerated(), verdict(True)])
+    verify, regenerate = model.prompts[:2]
+    assert "A unit converted from the user's, such as 240 ml for 1 cup, does not" in verify
+    description = record_food_tool().description
+    for phrase in UNIT_PHRASES:
+        assert phrase in description, phrase
+        assert phrase in verify, phrase
+    assert "Keep the amount the user gave in the user's own word for its unit" in regenerate
 
 
 def test_an_item_rejected_twice_is_not_saved() -> None:

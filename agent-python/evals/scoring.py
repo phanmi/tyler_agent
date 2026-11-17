@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from evals.cases import Case, Expected, Tolerance
+from evals.cases import Case, Expected, Portion, Tolerance
 from tyler_agent.protocol.protocol import Message
 
 # Calories may be 20% off, the margin US labelling rules allow between a label and a lab
@@ -177,7 +177,12 @@ def saved_value(record: Message, field: str) -> str:
 
 
 def expected_value(expected: Expected, field: str) -> str:
-    """What a checked field should have been, as the report shows it."""
+    """What a checked field should have been, as the report shows it. With alternatives, the
+    amount and the unit both show every portion the user gave, such as "1 bar or 2 oz"."""
+    if field in ("amount", "unit") and expected.alternatives:
+        return " or ".join(
+            f"{portion.amount} {'/'.join(portion.units)}" for portion in expected.portions
+        )
     if field == "amount":
         return str(expected.amount)
     if field == "unit":
@@ -228,15 +233,30 @@ def _matching_words(expected: Expected, record: Message) -> int:
     )
 
 
+def _has_amount(portion: Portion, record: Message) -> bool:
+    return _number(record, "genericInfo", "amount") == portion.amount
+
+
+def _has_unit(portion: Portion, record: Message) -> bool:
+    unit = _part(record, "genericInfo").get("unit")
+    return isinstance(unit, str) and any(units_match(unit, accepted) for accepted in portion.units)
+
+
+def _closest_portion(expected: Expected, record: Message) -> Portion:
+    """The user's portion a record is scored against: the one with the fewer of amount and unit
+    wrong, the main portion first among equals. Only called when the user gave an amount."""
+    return min(
+        expected.portions,
+        key=lambda portion: (not _has_amount(portion, record)) + (not _has_unit(portion, record)),
+    )
+
+
 def _amount_matches(expected: Expected, record: Message) -> bool:
-    return expected.amount is None or _number(record, "genericInfo", "amount") == expected.amount
+    return expected.amount is None or _has_amount(_closest_portion(expected, record), record)
 
 
 def _unit_matches(expected: Expected, record: Message) -> bool:
-    if expected.amount is None:
-        return True
-    unit = _part(record, "genericInfo").get("unit")
-    return isinstance(unit, str) and any(units_match(unit, accepted) for accepted in expected.units)
+    return expected.amount is None or _has_unit(_closest_portion(expected, record), record)
 
 
 def _date_matches(expected: Expected, record: Message) -> bool:

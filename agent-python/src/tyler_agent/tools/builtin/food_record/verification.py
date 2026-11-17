@@ -70,8 +70,10 @@ the user said they ate.
 
 Reject the record if any of these is wrong:
 - The food is not something the user said they ate, or is a different food.
-- The amount or unit does not match what the user said. When the user gave no amount, accept a \
-reasonable estimate.
+- The amount or unit does not match what the user said. A unit converted from the user's, such \
+as 240 ml for 1 cup, does not match, and neither does a unit with a conversion added, such as \
+"cup (240 ml)". When the user gave two units for one food, such as "one 2 oz bar", either \
+matches. When the user gave no amount, accept a reasonable estimate.
 - The date does not match when the user said they ate it, counted from today's date below. When \
 the user gave no date, the date is today.
 - A calorie, protein, carbs, fat or fiber value differs from one the user stated. The user's \
@@ -111,8 +113,9 @@ The rejected record:
 {record}
 
 Call {tool} exactly once with the corrected record. Keep every value the user stated, including \
-nutrition values, exactly as stated. Estimate nutrition values from the food and amount only \
-when the user did not give them."""
+nutrition values, exactly as stated. Keep the amount the user gave in the user's own word for its \
+unit, without converting it or adding a conversion to the unit. Estimate nutrition values from the \
+food and amount only when the user did not give them."""
 
 NOT_RECORDED = (
     "Not recorded: this food item failed verification, so nothing was saved. Tell the user it "
