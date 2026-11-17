@@ -50,6 +50,22 @@ verify food name and count tool
 verify food content tool
 correct food tool
 ```
+### What counts as done
+
+Stated by the maintainer on 2026-11-17:
+
+1. Every check tool in the split is implemented, and the content check can be turned off from the Settings page.
+2. Every #113 acceptance criterion is met.
+3. An eval run shows that the cheap models improve.
+4. The name and count check and the date check always run, so the eval shows no wrong or missing date and no missing food.
+5. With the content check on, the results are better than with it off.
+
+The eval results are read against items 3 to 5 as follows (agreed on 2026-11-17):
+
+- **Item 3.** For each cheap model, "Fully correct chats (%)" with the switch on is higher than that model's verification-off result in the baseline run of the same cases. The baseline's off results beat its on results for every model, so beating "off" shows the new checks do better than having none.
+- **Item 4.** In both runs of step 13, for every cheap model, with the switch off and on: the report's "Missed items" is 0, and no chat lists a wrong or missing date. Chats that failed are left out, as the report already does when it compares chats. A chat where the chat model calls `recordFood` for no food counts too, although no check runs in it.
+- **Item 5.** For each cheap model, in each run, "Fully correct chats (%)" is higher with the switch on than with it off.
+
 ### How the design meets #113
 
 This table checks the scope of #113. The [acceptance criteria](#how-the-acceptance-criteria-are-met) are checked below the proposals.
@@ -72,7 +88,7 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 | Tool results cannot change what a check is asked to do (#100) | Tool results stay inside the JSON the checks read (P8) | Yes |
 | A failed check saves nothing from the message (#101) | No food is saved until every check has run, and the whole list is saved in one Java transaction (D9) | Yes |
 | One list of foods per message | `recordFood` takes every food of the message in one call (D2) | Yes |
-| What result on the baseline runs counts as done | Not stated | Open: for you to state |
+| What result on the baseline runs counts as done | Stated under [What counts as done](#what-counts-as-done) | Yes |
 
 ### Design decisions
 
@@ -113,7 +129,7 @@ Unless you object, the implementation also does these.
 
 | #113 criterion | How it is met | Steps | Status |
 |---|---|---|---|
-| A design is approved before code. It says what counts as done on the baseline run, and how it meets #98, #100, #101 and #104's eval. | This plan: the scope table above, D1 to D9 and P1 to P10. | 1 | Open: what counts as done is not stated |
+| A design is approved before code. It says what counts as done on the baseline run, and how it meets #98, #100, #101 and #104's eval. | This plan: [What counts as done](#what-counts-as-done), the scope table above, D1 to D9 and P1 to P10. | 1 | Met on 2026-11-17 |
 | A `--cheap-models --category many-items` run is reported beside the baseline. | The eval's "off" mode now means the switch is off, which still runs the name and date checks (D3). So the baseline's no-check numbers come only from the 2026-11-16 report. | 7, 13 | Planned |
 | No food is saved until every check that is switched on has run on it. A corrected value is saved without a second check. | The list is saved in one operation after the last check (D9), and each correction runs once (D5). | 6, 9 | Planned |
 | Python tests drive the new behavior through the real agent loop, tool registry and `recordFood`. | Each check's tests run through them. | 3 to 6 | Planned |
@@ -145,7 +161,7 @@ Unless you object, the implementation also does these.
 
 | Step | Work | Status | Evidence |
 |---|---|---|---|
-| 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | In progress | D1 to D9 and P1 to P10 answered, and #113 updated to match, on 2026-11-17. Open: what counts as done. |
+| 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | Done | D1 to D9 and P1 to P10 answered, #113 updated to match, and what counts as done stated and agreed, on 2026-11-17. |
 | 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Not started | |
 | 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Not started | |
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Not started | |
@@ -157,7 +173,7 @@ Unless you object, the implementation also does these.
 | 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
 | 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
 | 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
-| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Write it up under `docs/evals/`. | Not started | |
+| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Not started | |
 | 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Not started | |
 
 ## Decisions
@@ -167,6 +183,7 @@ Unless you object, the implementation also does these.
 | 2026-11-17 | Split the current verification tool into separate tools. | Maintainer, when this plan was set up |
 | 2026-11-17 | D1 to D9: the recommended option for each. P1 to P8 accepted. | Maintainer, in the tables under Design |
 | 2026-11-17 | P9 and P10 accepted. #113's scope and acceptance criteria updated to match the design, with one new criterion for D9's one-transaction save. | Maintainer |
+| 2026-11-17 | What counts as done: every check implemented and the content check switchable from Settings, every criterion met, the cheap models improve, no wrong date and no missing food, and better results with the content check on. How the eval is read against it, as recommended. | Maintainer |
 
 Decisions made before this plan are in #113's description.
 
