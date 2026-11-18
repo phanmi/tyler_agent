@@ -4,8 +4,10 @@ It runs once for a recordFood call, on every food at once, so it can tell a food
 missing from one that is there, and a record for a whole meal from the foods it stands for.
 It reads names, amounts and units only; dates and nutrition values have their own checks.
 
-The foods cannot be saved without this check, so an answer that cannot be used, from the
-check or from one of its corrections, is asked again and then fails the run.
+It is switched off in every run (`RunSettings.check_names`): it then asks nothing and
+changes nothing. When it is on, the foods cannot be saved without it, so an answer that
+cannot be used, from the check or from one of its corrections, is asked again and then fails
+the run.
 """
 
 import json
@@ -163,10 +165,14 @@ async def check_names(foods: FoodList, evidence: Evidence, context: ToolContext)
     """Return the list with the records that do not belong removed, wrong amounts corrected
     and missing foods added at the end.
 
-    Every correction is its own request, and they run at the same time. This requests no
-    Java operation. Provider failures and cancellation propagate, and so does the failure of
-    a check or correction that could not be answered, so nothing is saved after them.
+    With the check switched off (`RunSettings.check_names`), the list comes back as it is
+    and no request is made. Every correction is its own request, and they run at the same
+    time. This requests no Java operation. Provider failures and cancellation propagate, and
+    so does the failure of a check or correction that could not be answered, so nothing is
+    saved after them.
     """
+    if not context.settings.check_names:
+        return foods
     verdict = await must_ask(context, list_question(evidence, foods))
     # A record that does not belong is removed, so its amount needs no correction.
     amounts = {

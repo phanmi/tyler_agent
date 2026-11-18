@@ -481,8 +481,8 @@ def report(scored: Sequence[Scored], prices: PriceTable, run: RunInfo) -> str:
             f"- **Status:** {_progress(run, len(scored))}",
             "",
             "Each model's table compares recordFood's nutrition check off and on over the chats "
-            "that finished in both modes. The name and count check and the date check run in "
-            "both. `agent-python/evals/README.md` explains every row.",
+            "that finished in both modes. The date check runs in both, and the name and count "
+            "check in neither. `agent-python/evals/README.md` explains every row.",
         ]
     )
     sections = [

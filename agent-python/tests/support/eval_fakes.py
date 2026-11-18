@@ -15,7 +15,6 @@ from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
 from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD
 from tyler_agent.tools.builtin.food_record.date_check import VERIFY_FOOD_DATES
-from tyler_agent.tools.builtin.food_record.name_check import VERIFY_FOOD_LIST
 from tyler_agent.tools.parsing import GENERIC_INFO_FIELDS, MACRO_FIELDS
 from tyler_agent.transcript import (
     AssistantTurn,
@@ -113,15 +112,9 @@ def nutrition_rejected(reason: str) -> ToolCall:
     return ToolCall("nutrition", VERIFY_FOOD_NUTRITION.name, arguments)
 
 
-def list_without(number: int, reason: str) -> ToolCall:
-    """The name and count check's answer that one record does not belong."""
-    flagged = [{"number": number, "reason": reason}]
-    arguments = json.dumps({"missing": [], "incorrect": flagged, "wrongAmount": []})
-    return ToolCall("list", VERIFY_FOOD_LIST.name, arguments)
-
-
-# The checks recordFood always runs, and those it runs with the nutrition check on.
-ALWAYS = (VERIFY_FOOD_LIST.name, VERIFY_FOOD_DATES.name)
+# The check recordFood runs in every chat, and those it runs with the nutrition check on.
+# The name and count check is off in every chat.
+ALWAYS = (VERIFY_FOOD_DATES.name,)
 WITH_NUTRITION = (*ALWAYS, VERIFY_FOOD_NUTRITION.name)
 
 

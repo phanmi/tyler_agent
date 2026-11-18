@@ -2,7 +2,7 @@
 
 [Python development guide](../README.md) · [Food verification](../../docs/AGENT_OPERATIONS.md#food-verification)
 
-This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The name and count check and the date check run in both modes, because the app has no switch for them.
+This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The date check runs in both modes, because the app has no switch for it. The name and count check is off in every chat, as it is in the app ([#118](https://github.com/phanmi/tyler_agent/issues/118)).
 
 **A run makes paid API calls on your own provider account.** It is not part of the worker wheel or the Windows bundle, and CI never runs it. CI runs only its tests, which use a fake model.
 
@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus two for the name and count check and the date check, one for each correction they ask for, and, with the nutrition check on, one more for each food. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus one for the date check, one for each correction it asks for, and, with the nutrition check on, one more for each food. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -124,7 +124,7 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 | Wrong saves | Saved records with a field outside tolerance, plus records that should not have been saved. |
 | Missed items | Expected records that were not saved, including ones the checks removed. |
 | Median calorie error (%) | Over saved records that matched an expected one. Calories the user stated are left out. |
-| Records the checks removed | Records the name and count check took out of a call's list, so they were not saved. |
+| Records the checks removed | Records the name and count check took out of a call's list, so they were not saved. This row and the next two are 0 while that check is off. |
 | Foods the checks added | Foods the name and count check found missing and had written. |
 | Amounts corrected | Foods whose amount or unit the name and count check had written again. |
 | Dates corrected | Foods whose date the date check corrected. |
@@ -136,7 +136,7 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 
 Wrong saves should fall with the nutrition check on, and cost will rise. Whether the check pays for itself is the comparison between those.
 
-Reports made before the checks were split (issue #113) are not directly comparable. In those, "off" meant no check at all and "on" meant one check of the whole record. Now the name and count check and the date check run in both modes.
+Reports made before the checks were split (issue #113) are not directly comparable. In those, "off" meant no check at all and "on" meant one check of the whole record. Now the date check runs in both modes. Reports made before the name and count check was switched off have one more model call for each `recordFood` call, in both modes.
 
 ## How records are scored
 

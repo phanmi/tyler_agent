@@ -50,7 +50,8 @@ class Target:
 @dataclass(frozen=True)
 class Chat:
     """One planned chat: a case on a target, with recordFood's nutrition check on or off,
-    and which repeat. The name and count check and the date check run in both."""
+    and which repeat. The date check runs in both, and the name and count check in
+    neither."""
 
     case: Case
     target: Target

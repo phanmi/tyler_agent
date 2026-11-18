@@ -27,8 +27,12 @@ class RunSettings:
     """
 
     # recordFood's content check judges each food's nutrition values, and has the ones it
-    # rejects written again. The name and count check and the date check have no switch.
+    # rejects written again. The date check has no switch.
     check_nutrition: bool = True
+    # recordFood's name and count check compares the list of foods with what the user said.
+    # It costs a model request for every call, and no eval has shown what it is worth, so it
+    # is off in every run. Tests switch it on to keep it working.
+    check_names: bool = False
 
 
 @dataclass(frozen=True)

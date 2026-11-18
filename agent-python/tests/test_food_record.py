@@ -11,7 +11,16 @@ import pytest
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 from support.agent_fakes import DEFAULT_SETTINGS, FakeProvider, payload
-from support.food_fakes import TODAY, Flag, Java, answer, flags, food_raw, foods_raw
+from support.food_fakes import (
+    NAMES_ON,
+    TODAY,
+    Flag,
+    Java,
+    answer,
+    flags,
+    food_raw,
+    foods_raw,
+)
 from support.http_server import Server
 from support.persistence_worker import ALL_CLEAR, all_clear
 
@@ -122,9 +131,26 @@ def run(
     return asyncio.run(scenario()), java, provider
 
 
+def test_a_run_never_asks_the_name_and_count_check() -> None:
+    """The check is off in every run until an eval shows what it is worth (#118). A record
+    it would remove is saved, and the request it would cost is not made."""
+    replies: list[AssistantTurn | Exception] = [
+        asked(chat(DINNER)),
+        clear(DATES),
+        clear(NUTRITION),
+        DONE,
+    ]
+    _, java, provider = run(replies)
+
+    assert provider.checks() == [DATES, NUTRITION]
+    assert java.saved() == [food_arguments(DINNER)]
+    assert provider.tool_result() == pretty({"recorded": [food_arguments(DINNER)["food"]]})
+
+
 def test_the_checks_run_in_order_and_nothing_is_saved_before_the_last_one() -> None:
-    """A whole-meal record is replaced by its food, an invented date is corrected and an
-    implausible value is rewritten, each by its own check, before Java is sent any food."""
+    """With every check on: a whole-meal record is replaced by its food, an invented date is
+    corrected and an implausible value is rewritten, each by its own check, before Java is
+    sent any food."""
     whole = "It stands for the whole meal."
     invented = food_raw(foodName="Oats", amount=50, calories=190, date="2026-09-07")
     replies: list[AssistantTurn | Exception] = [
@@ -138,7 +164,7 @@ def test_the_checks_run_in_order_and_nothing_is_saved_before_the_last_one() -> N
         answer(CORRECT_FOOD, food_raw(macros=LEAN)),
         DONE,
     ]
-    reply, java, provider = run(replies)
+    reply, java, provider = run(replies, settings=NAMES_ON)
 
     assert reply == "Recorded."
     assert provider.checks() == [
@@ -169,7 +195,6 @@ def test_a_food_from_a_file_the_chat_model_read_is_saved_and_no_check_sees_the_k
     replies: list[AssistantTurn | Exception] = [
         asked(ToolCall("read", "readFile", '{"path": "meal-plan.md"}')),
         asked(chat(salmon)),
-        clear(LIST),
         clear(DATES),
         clear(NUTRITION),
         DONE,
@@ -178,20 +203,20 @@ def test_a_food_from_a_file_the_chat_model_read_is_saved_and_no_check_sees_the_k
 
     assert java.saved() == [food_arguments(salmon)]
     # Every check is shown the file, as JSON text: a value can be stated in it too.
-    for index in (2, 3, 4):
+    for index in (2, 3):
         assert json.dumps(plan) in provider.prompt(index)
         assert payload()["apiKey"] not in provider.prompt(index)
 
 
 def test_a_second_call_in_the_same_response_is_shown_what_the_first_saved() -> None:
     """A chat model that spreads a message over two calls must not have a food saved twice,
-    so the second call's name and count check sees the first call's result."""
+    so the second call's name and count check, when it is on, sees the first call's result."""
     replies: list[AssistantTurn | Exception] = [
         asked(chat(OATS, call_id="first"), chat(CHICKEN, call_id="second")),
         *(clear(check) for check in (LIST, DATES, NUTRITION) * 2),
         DONE,
     ]
-    _, java, provider = run(replies)
+    _, java, provider = run(replies, settings=NAMES_ON)
 
     assert java.saved() == [food_arguments(OATS), food_arguments(CHICKEN)]
     first_result = pretty({"recorded": [food_arguments(OATS)["food"]]})
@@ -204,7 +229,6 @@ def test_a_food_the_chat_model_gave_no_date_is_saved_with_one() -> None:
     foods, its date check passed them, and they were saved with no date."""
     replies: list[AssistantTurn | Exception] = [
         asked(chat(food_raw(date=None))),
-        clear(LIST),
         clear(DATES),
         answer(CORRECT_FOOD_DATES.name, '{"dates": [{"number": 1, "date": "2026-11-10"}]}'),
         clear(NUTRITION),
@@ -213,39 +237,42 @@ def test_a_food_the_chat_model_gave_no_date_is_saved_with_one() -> None:
     _, java, provider = run(replies)
 
     assert java.saved() == [food_arguments(CHICKEN)]
-    assert provider.checks() == [LIST, DATES, CORRECT_FOOD_DATES.name, NUTRITION]
+    assert provider.checks() == [DATES, CORRECT_FOOD_DATES.name, NUTRITION]
 
 
-def test_with_the_nutrition_check_off_only_the_other_two_checks_run() -> None:
-    replies: list[AssistantTurn | Exception] = [asked(chat(SCOOP)), clear(LIST), clear(DATES), DONE]
+def test_with_the_nutrition_check_off_only_the_date_check_runs() -> None:
+    replies: list[AssistantTurn | Exception] = [asked(chat(SCOOP)), clear(DATES), DONE]
     _, java, provider = run(replies, settings=RunSettings(check_nutrition=False))
 
-    assert provider.checks() == [LIST, DATES]
+    assert provider.checks() == [DATES]
     assert java.requests == [("time.current", {}), ("food.insert", food_arguments(SCOOP))]
 
 
 @pytest.mark.parametrize(
-    "before",
+    ("settings", "before"),
     [
-        [],
-        [clear(LIST)],
-        [clear(LIST), clear(DATES)],
-        [listed(missing=["1 cup of rice"])],
-        [clear(LIST), clear(DATES), clear(NUTRITION)],
+        (DEFAULT_SETTINGS, []),
+        (DEFAULT_SETTINGS, [clear(DATES)]),
+        (DEFAULT_SETTINGS, [clear(DATES), clear(NUTRITION)]),
+        (NAMES_ON, []),
+        (NAMES_ON, [listed(missing=["1 cup of rice"])]),
+        (NAMES_ON, [clear(LIST)]),
     ],
-    ids=["names", "dates", "content", "correction", "second-food"],
+    ids=["dates", "content", "second-food", "names", "correction", "dates-after-names"],
 )
-def test_a_provider_failure_between_checks_saves_nothing(before: list[AssistantTurn]) -> None:
+def test_a_provider_failure_between_checks_saves_nothing(
+    settings: RunSettings, before: list[AssistantTurn]
+) -> None:
     """A message with several foods is saved whole or not at all (#101)."""
     with pytest.raises(AgentFailure) as caught:
-        run([asked(chat(CHICKEN, RICE)), *before, FAILURE])
+        run([asked(chat(CHICKEN, RICE)), *before, FAILURE], settings=settings)
     assert caught.value is FAILURE
 
 
 def test_a_failed_check_leaves_only_the_clock_request_behind() -> None:
     java = Java()
     with pytest.raises(AgentFailure):
-        run([asked(chat(CHICKEN, RICE)), clear(LIST), clear(DATES), FAILURE], java)
+        run([asked(chat(CHICKEN, RICE)), clear(DATES), FAILURE], java)
     assert java.requests == [("time.current", {})]
 
 
@@ -278,9 +305,9 @@ class WaitingModel:
         yield self
 
 
-@pytest.mark.parametrize("stage", [LIST, DATES, NUTRITION])
+@pytest.mark.parametrize("stage", [DATES, NUTRITION])
 def test_cancelling_during_a_check_saves_nothing(stage: str) -> None:
-    """Through the production runtime, which runs every check by default."""
+    """Through the production runtime, which runs the date and content checks."""
 
     async def scenario() -> None:
         model = WaitingModel(stage)
@@ -414,12 +441,14 @@ PROVIDERS: dict[
 }
 
 
-def record_through(kind: str, server: Server, java: Java, *foods: str) -> str:
+def record_through(
+    kind: str, server: Server, java: Java, *foods: str, settings: RunSettings = DEFAULT_SETTINGS
+) -> str:
     opener = PROVIDERS[kind][0]
 
     async def scenario() -> str:
         async with opener(server) as provider:
-            context = tool_context(payload(), provider, java, DEFAULT_SETTINGS)
+            context = tool_context(payload(), provider, java, settings)
             return await ToolAdapters(context).execute("recordFood", foods_raw(*foods))
 
     return asyncio.run(scenario())
@@ -432,18 +461,19 @@ def replies(kind: str, *turns: AssistantTurn) -> Server:
 
 
 @pytest.mark.parametrize("kind", PROVIDERS)
-def test_each_provider_carries_the_three_checks_and_a_passing_food_is_saved(kind: str) -> None:
-    server = replies(kind, clear(LIST), clear(DATES), clear(NUTRITION))
+def test_each_provider_carries_a_runs_checks_and_a_passing_food_is_saved(kind: str) -> None:
+    server = replies(kind, clear(DATES), clear(NUTRITION))
     java = Java()
     output = record_through(kind, server, java, SCOOP)
     assert java.saved() == [food_arguments(SCOOP)]
     assert output == pretty({"recorded": [food_arguments(SCOOP)["food"]]})
     tools = PROVIDERS[kind][2]
-    assert [tools(server.body(index)) for index in range(3)] == [[LIST], [DATES], [NUTRITION]]
+    assert [tools(server.body(index)) for index in range(2)] == [[DATES], [NUTRITION]]
 
 
 @pytest.mark.parametrize("kind", PROVIDERS)
 def test_each_provider_carries_a_removal_an_added_food_and_a_date_correction(kind: str) -> None:
+    """With the name and count check on, so its tool stays usable on each provider."""
     yesterday = food_raw(
         foodName="Cooked rice", amount=1, unit="cup", calories=205, date="2026-11-09"
     )
@@ -456,7 +486,7 @@ def test_each_provider_carries_a_removal_an_added_food_and_a_date_correction(kin
         clear(NUTRITION),
     )
     java = Java()
-    output = record_through(kind, server, java, OATS)
+    output = record_through(kind, server, java, OATS, settings=NAMES_ON)
     assert java.saved() == [food_arguments(yesterday)]
     assert json.loads(output)["notRecorded"] == [
         {"foodName": "Oats", "reason": "The user did not eat it."}

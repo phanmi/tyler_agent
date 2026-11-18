@@ -16,7 +16,6 @@ from support.eval_fakes import (
     corrected_food,
     expected,
     food_call,
-    list_without,
     nutrition_rejected,
     record,
     session,
@@ -31,7 +30,6 @@ from tyler_agent.protocol.validation import MessageValidator
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
 from tyler_agent.tools.builtin.food_record.foods import Change, Finding
-from tyler_agent.tools.builtin.food_record.name_check import VERIFY_FOOD_LIST
 from tyler_agent.tools.contracts import RunSettings
 from tyler_agent.transcript import AssistantTurn, ToolResult, UserTurn
 
@@ -40,15 +38,15 @@ def run(provider: FakeProvider, check_nutrition: bool) -> ChatResult:
     return asyncio.run(run_chat(chat(check_nutrition), session(provider.open)))
 
 
-def test_with_the_nutrition_check_off_the_other_two_checks_still_run() -> None:
+def test_with_the_nutrition_check_off_the_date_check_still_runs() -> None:
     provider = FakeProvider([turn(food_call()), *cleared(ALWAYS), turn(text="Recorded.")])
 
     result = run(provider, check_nutrition=False)
 
     assert result.error is None
     assert result.saved == (record(),)
-    assert result.food_calls == (FoodCall(2, ()),)
-    assert [call.usage for call in result.calls] == [USAGE] * 4
+    assert result.food_calls == (FoodCall(1, ()),)
+    assert [call.usage for call in result.calls] == [USAGE] * 3
 
 
 def test_check_requests_are_metered_with_the_chats_own_calls() -> None:
@@ -57,9 +55,9 @@ def test_check_requests_are_metered_with_the_chats_own_calls() -> None:
     result = run(provider, check_nutrition=True)
 
     assert result.saved == (record(),)
-    assert result.food_calls == (FoodCall(3, ()),)
-    # The chat's first round, the three checks inside recordFood, and the closing round.
-    assert result.calls == (ModelCall(USAGE, 1.0),) * 5
+    assert result.food_calls == (FoodCall(2, ()),)
+    # The chat's first round, the two checks inside recordFood, and the closing round.
+    assert result.calls == (ModelCall(USAGE, 1.0),) * 4
 
 
 def test_a_corrected_food_counts_its_check_and_correction_requests() -> None:
@@ -82,34 +80,15 @@ def test_a_corrected_food_counts_its_check_and_correction_requests() -> None:
         Change.NUTRITION_CORRECTED,
         "3020 kcal is ten times too high.",
     )
-    assert result.food_calls == (FoodCall(4, (corrected,)),)
-    assert len(result.calls) == 6
-
-
-def test_a_record_the_checks_leave_out_is_not_saved_and_is_counted() -> None:
-    provider = FakeProvider(
-        [
-            turn(food_call()),
-            turn(list_without(1, "The user did not eat it.")),
-            turn(text="I did not record it."),
-        ]
-    )
-
-    result = run(provider, check_nutrition=True)
-
-    assert result.error is None and result.saved == ()
-    # With no food left in the list, the date check and the nutrition check ask nothing.
-    removed = Finding(
-        VERIFY_FOOD_LIST.name, "Grilled chicken breast", Change.REMOVED, "The user did not eat it."
-    )
-    assert result.food_calls == (FoodCall(1, (removed,)),)
+    assert result.food_calls == (FoodCall(3, (corrected,)),)
+    assert len(result.calls) == 5
 
 
 def test_the_chat_model_is_given_the_result_the_real_tool_gives() -> None:
     """The harness stands in for recordFood's handler to keep what the checks found. The chat
     must still see what the agent's own handler returns for the same call."""
-    script = [turn(list_without(1, "The user did not eat it."))]
-    provider = FakeProvider([turn(food_call()), *script, turn(text="I did not record it.")])
+    script = cleared(WITH_NUTRITION)
+    provider = FakeProvider([turn(food_call()), *script, turn(text="Recorded.")])
     run(provider, check_nutrition=True)
     given = provider.requests[-1]["transcript"][-1]
 
@@ -143,7 +122,7 @@ def test_the_cases_fixed_time_answers_the_time_tool_and_the_date_check() -> None
 
     time_result = provider.requests[1]["transcript"][-1]
     assert time_result == ToolResult("call-1", NOW)
-    date_check = provider.requests[3]["transcript"][0]
+    date_check = provider.requests[2]["transcript"][0]
     assert isinstance(date_check, UserTurn) and NOW in date_check.text
 
 
@@ -226,7 +205,7 @@ def test_a_provider_failure_is_an_error_that_keeps_what_was_saved() -> None:
     result = run(provider, check_nutrition=False)
 
     assert result.error == "provider/PROVIDER_FAILURE"
-    assert result.saved == (record(),) and len(result.calls) == 3
+    assert result.saved == (record(),) and len(result.calls) == 2
 
 
 def test_an_unexpected_exception_is_an_error_without_its_text() -> None:

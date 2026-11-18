@@ -189,7 +189,7 @@ Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent
 | `GetUserInfo` | Reads the saved profile. |
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
-| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check which foods are in the list, their dates and their nutrition values, and correct what it finds. It saves the foods the checks leave through the food service; see [food verification](AGENT_OPERATIONS.md#food-verification). |
+| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and nutrition values, and correct what it finds. It saves the foods the checks leave through the food service; see [food verification](AGENT_OPERATIONS.md#food-verification). |
 | `generateWorkoutPlan` | Requests seven dated days and saves planned exercises through the Java plan service. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.

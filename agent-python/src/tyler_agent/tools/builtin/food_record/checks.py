@@ -2,7 +2,8 @@
 
 The order matters. The name and count check settles which foods are in the list, so a food
 it adds has its date checked next. The content check comes last, on the amounts the name and
-count check left.
+count check left. A check that is switched off stays in its place and passes the list on, as
+the name and count check does in every run.
 
 Adding a check takes a module with its tool and prompt, and one entry in CHECKS.
 """

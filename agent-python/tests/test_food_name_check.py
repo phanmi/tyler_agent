@@ -9,6 +9,7 @@ import pytest
 from support.agent_fakes import fake_context
 from support.food_fakes import (
     CONVERSATION,
+    NAMES_ON,
     SOURCE_PHRASES,
     TODAY,
     UNIT_PHRASES,
@@ -38,7 +39,7 @@ from tyler_agent.tools.builtin.food_record.name_check import (
     VERIFY_FOOD_LIST,
     check_names,
 )
-from tyler_agent.tools.contracts import CompletedCall
+from tyler_agent.tools.contracts import CompletedCall, RunSettings
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
@@ -78,9 +79,20 @@ def check(
     replies: Sequence[AssistantTurn | Exception],
     *raws: str,
     earlier: Sequence[CompletedCall] = (),
+    settings: RunSettings = NAMES_ON,
 ) -> tuple[FoodList, Model]:
-    """Run the name and count check on these foods with a scripted model."""
-    return run_check(check_names, replies, *raws, earlier=earlier)
+    """Run the name and count check on these foods with a scripted model. The check is
+    switched on unless a test says otherwise."""
+    return run_check(check_names, replies, *raws, earlier=earlier, settings=settings)
+
+
+def test_the_check_is_off_in_every_run_and_then_asks_and_changes_nothing() -> None:
+    """The runtime gives a run the default settings. The full low-cost eval run of
+    2026-11-18 showed the check's cost and not its worth, so it waits for #118."""
+    assert RunSettings().check_names is False
+    result, model = check([], DINNER, LATTE, settings=RunSettings())
+    assert result == foods(DINNER, LATTE)
+    assert model.prompts == [] and model.java.requests == [("time.current", {})]
 
 
 def test_a_list_with_nothing_wrong_is_kept_after_one_request() -> None:
@@ -231,7 +243,7 @@ def test_the_check_is_asked_three_more_times_before_the_run_fails() -> None:
     assert result == foods(CHICKEN) and len(model.prompts) == REQUIRED_ATTEMPTS == 4
 
     model = Model(Java(), [UNUSABLE_TEXT] * (REQUIRED_ATTEMPTS + 1))
-    context = context_for(model)
+    context = context_for(model, settings=NAMES_ON)
 
     async def scenario() -> FoodList:
         return await check_names(foods(CHICKEN), await evidence(context), context)
@@ -307,7 +319,7 @@ class HeldCorrections:
 
 
 def held(model: HeldCorrections, *raws: str) -> FoodList:
-    context = fake_context(model.java, model, CONVERSATION)
+    context = fake_context(model.java, model, CONVERSATION, NAMES_ON)
 
     async def scenario() -> FoodList:
         check = check_names(foods(*raws), await evidence(context), context)
@@ -329,7 +341,7 @@ def test_corrections_are_sent_at_the_same_time_and_kept_in_order() -> None:
 
 def test_a_failed_correction_cancels_the_others_before_the_check_ends() -> None:
     model = HeldCorrections(VERDICT, [CHICKEN, OATS, RICE], failing=2)
-    context = fake_context(model.java, model, CONVERSATION)
+    context = fake_context(model.java, model, CONVERSATION, NAMES_ON)
 
     async def scenario() -> int:
         with pytest.raises(AgentFailure) as caught:

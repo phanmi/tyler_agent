@@ -43,6 +43,8 @@ CONVERSATION = (
     UserTurn("I ate 200 g of chicken breast for lunch today."),
 )
 MACROS = dict(protein=62, carbs=0, fat=7, fiber=0)
+# No run switches the name and count check on, so the tests that keep it working ask for it.
+NAMES_ON = RunSettings(check_names=True)
 
 
 def food_raw(**changes: object) -> str:
