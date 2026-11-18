@@ -136,7 +136,7 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 
 Wrong saves should fall with the nutrition check on, and cost will rise. Whether the check pays for itself is the comparison between those.
 
-Reports made before the checks were split (issue #113) are not directly comparable. In those, "off" meant no check at all and "on" meant one check of the whole record. Now the date check runs in both modes. Reports made before the name and count check was switched off have one more model call for each `recordFood` call, in both modes.
+Reports made before the checks were split (issue #113) are not directly comparable. In those, "off" meant no check at all and "on" meant one check of the whole record. Now the date check runs in both modes. Reports made before the name and count check was switched off have one more model call for each `recordFood` call, in both modes. The [verification overhaul eval](../../docs/evals/verification-overhaul/2026-11-18-verification-overhaul.md) is the first run of the split checks, and compares them with the earlier runs.
 
 ## How records are scored
 

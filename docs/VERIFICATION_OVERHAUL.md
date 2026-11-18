@@ -243,7 +243,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
 | 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
 | 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
-| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Not started | |
+| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Partly done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md). Still to do: a run with the name and count check off, and the time a multi-food message takes. |
 | 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Not started | |
 
 ## Decisions
@@ -615,3 +615,24 @@ The table gives fully correct chats (%) against each case's newest baseline: the
 
 - The full run's figures include the name and count check. A run with it off has not been made.
 - PR #117's review finding about two `recordFood` calls in one response rested on this check seeing the first call's result.
+
+### 2026-11-18 The full run is written up
+
+**What was added.** The [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md), with the run's generated report beside it. It is the write-up of the full run above, which was made before the name and count check was switched off.
+
+**What it holds**
+
+- **The improvement over the baselines.** Fully correct chats on the 65 cases that have a baseline, and on each set: `many-items`, the 22 unit cases, and the other 23.
+- **What went wrong in each chat, baseline against this run:** missing foods, dates, amounts and units, nutrition values, foods the case does not expect, and failed chats.
+- **What each check did,** with the content check's reasons counted for `gpt-6-luna`: 14 of its 40 note that the user did not state the values.
+- **Cost and time** against the run of 2026-11-16, which has 61 of the 67 cases. With the nutrition check on, a chat costs about what it did with the old verifier on, and the 95th percentile of reply time is about half.
+- **The run against what counts as done.**
+- **The three decisions made from the run, each with its reason and evidence:** `some-almonds` set aside, the run marked a temporary success, and the name and count check switched off (D17).
+
+**One figure differs from the entry above.** That entry says the name and count check passed three records of the kind it is meant to correct. The write-up counts four: `deepseek-flash`'s three lattes, and a Snickers bar that `claude-haiku-5-5` saved with the unit "bar (2 oz)".
+
+**Left open**
+
+- A run with the name and count check off has not been made, so the write-up does not measure the checks as they now stand.
+- The report does not split reply time by category. So the time a multi-food message takes, which #113 asks for before and after, is not measured directly.
+- PR #117's description still says the report is not in the repository.
