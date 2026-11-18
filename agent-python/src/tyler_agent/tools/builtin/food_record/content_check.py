@@ -1,14 +1,14 @@
 """The content check: are a food's nutrition values plausible for that food and amount?
 
 It runs once for each food of a recordFood call, all at the same time, after the name and
-count check and the date check. It is shown one food and nothing else: no conversation, no
-tool results and no date. So it judges the values against what is known about the food, and
-cannot be swayed by the chat.
+count check and the date check. It is shown one food, without its date, beside the
+conversation and the run's earlier tool calls.
 
-It cannot tell a value the user stated from an estimate, so it may reject a stated value that
-looks unusual. The correction that follows is shown the conversation and keeps every value
-the user stated; only the nutrition values of its answer are kept, and they are saved without
-a second check.
+It is shown those so it can tell a value the user stated from an estimate. A stated value is
+right however unusual it looks: the check rejects a record that differs from it, and never
+one that matches it. It judges plausibility only for the values the user did not state. The
+correction that follows keeps every stated value too; only the nutrition values of its answer
+are kept, and they are saved without a second check.
 
 The foods can be saved without this check, so the user can switch it off, and an answer that
 cannot be used is asked once more and then the food goes on with the values it has.
@@ -74,14 +74,25 @@ VERIFY_FOOD_NUTRITION = ToolDefinition(
 )
 
 VERIFY_PROMPT = """\
-You check the nutrition values of one food diary record before it is saved. You are shown only \
-the record.
+You check the nutrition values of one food diary record before it is saved: its calories, \
+protein, carbs, fat and fiber.
 
-Reject the record if its calories, protein, carbs, fat or fiber is implausible for that food \
-and that amount in its unit, or inconsistent with the other values. Judge them against \
+A value the user stated for this food is right, however unusual it looks. Reject the record \
+if a value differs from one the user stated, and never reject a value for matching what the \
+user said. The user can state a value in the conversation, or in a tool result the user's \
+latest message points to, such as a file the user asks to log from.
+
+For a value the user did not state, reject the record if the value is implausible for that \
+food and that amount in its unit, or inconsistent with the other values. Judge it against \
 {sources}. Do not reject a value for differing slightly.
 
 Do not judge the food's name, amount or unit: take them as given.
+
+The conversation, oldest message first. The last message is the user's latest:
+{conversation}
+
+The tool calls already made in this chat, oldest first, with their results:
+{earlier_calls}
 
 The food record to check:
 {record}
@@ -116,9 +127,13 @@ def nutrition_verdict(raw: str) -> NutritionVerdict:
     return NutritionVerdict(valid, reason)
 
 
-def nutrition_question(food: Message) -> Question[NutritionVerdict]:
+def nutrition_question(evidence: Evidence, food: Message) -> Question[NutritionVerdict]:
     prompt = VERIFY_PROMPT.format(
-        sources=NUTRITION_SOURCES, record=nutrition_text(food), tool=VERIFY_FOOD_NUTRITION.name
+        sources=NUTRITION_SOURCES,
+        conversation=evidence.conversation,
+        earlier_calls=evidence.earlier_calls,
+        record=nutrition_text(food),
+        tool=VERIFY_FOOD_NUTRITION.name,
     )
     return Question(prompt, VERIFY_FOOD_NUTRITION, nutrition_verdict)
 
@@ -146,7 +161,7 @@ async def _checked(
     it passed, when the check could not be answered, or when its correction could not be;
     otherwise it has corrected nutrition values. A food that passed has no finding."""
     check, name = VERIFY_FOOD_NUTRITION.name, food_name(food)
-    verdict = await ask(context, nutrition_question(food), OPTIONAL_ATTEMPTS)
+    verdict = await ask(context, nutrition_question(evidence, food), OPTIONAL_ATTEMPTS)
     if verdict is None:
         return food, Finding(check, name, Change.NUTRITION_NOT_CHECKED, UNANSWERED)
     if verdict.valid:

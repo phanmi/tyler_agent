@@ -83,10 +83,10 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 | Some checks in code instead of a model | Python removes incorrect foods | Yes |
 | A converted unit is not accepted (from #104) | The name check compares each food's amount and unit with the message, and the correction restores the user's unit (D4) | Yes |
 | Whether the date and unit checks run with the switch off | They always run; the switch turns off only the content check (D3) | Yes |
-| User-stated values always win (#96) | The food correction sees the chat and keeps every value the user stated, so the user's 1900 kcal banana is saved as stated (D1) | Yes |
+| User-stated values always win (#96) | The content check is shown the conversation and the tool results, and treats a stated value as right (D15). Its correction keeps every stated value too (D1). | Yes |
 | A Settings switch, saved, sent in the `run` payload, protocol version 3 (#98) | The switch turns off the content check (D3). It is saved as the first agent setting (D7) and sent in the `run` payload of protocol version 3, moved from version 2 (D8). | Yes |
 | With the switch off, no content check or food correction runs (#98, reworded) | With the switch off, the name and date checks still run (D3) | Yes |
-| Checks see the tool results a record was based on (#100) | The name check, the date check and the corrections get this run's tool results (D6, P9) | Yes |
+| Checks see the tool results a record was based on (#100) | Every check and every correction gets this run's tool results (D6, P9, D15) | Yes |
 | Tool results cannot change what a check is asked to do (#100) | Tool results stay inside the JSON the checks read (P8) | Yes |
 | A failed check saves nothing from the message (#101) | No food is saved until every check has run, and the whole list is saved in one Java transaction (D9) | Yes |
 | One list of foods per message | `recordFood` takes every food of the message in one call (D2) | Yes |
@@ -94,11 +94,11 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 
 ### Design decisions
 
-D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
+D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. D15 and D16 came from the first eval run of the new checks. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
 
 | | Question | Recommended | Other options | Steps | Answer               |
 |---|---|---|---|---|----------------------|
-| D1 | How are values the user stated kept? | The content check stays without the chat. The food correction sees the chat and keeps every value the user stated, and a corrected food is saved without a second content check. | `recordFood` marks which values the user stated, and the content check skips them. Or the content check also sees the user's message. | 5, 6 | recommended solution |
+| D1 | How are values the user stated kept? | The content check stays without the chat. The food correction sees the chat and keeps every value the user stated, and a corrected food is saved without a second content check. | `recordFood` marks which values the user stated, and the content check skips them. Or the content check also sees the user's message. | 5, 6 | recommended, then replaced by D15 |
 | D2 | Where does the list of foods come from? | `recordFood` takes every food of the message in one call, as a `foods` list. | Python collects all `recordFood` calls in one model response, which changes the agent loop. | 2 | recommended          |
 | D3 | What does the Settings switch turn off? | Only the content check, as the design's note reads. The date and name checks always run, and #98's "no extra model calls when off" is reworded. | Every check, as #98 says. Or one switch per check. | 5, 8, 9, 10 | recommended          |
 | D4 | Does "count" mean how many foods, or how much of each? Where are amount and unit checked? | The name check also gets each food's amount and unit, and reports those that differ from the message, including a converted unit. The correction changes only those two fields. | A separate amount-and-unit check. | 3 | recommended          |
@@ -111,6 +111,8 @@ D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and
 | D11 | D4 says an amount correction changes only the amount and unit. But a food's nutrition values were estimated for the amount it had. If "2 eggs" was saved as 3, changing only the amount leaves the nutrition of 3 eggs, and with the content check switched off nothing fixes it. | The amount correction rewrites the amount, the unit and the nutrition values, keeping any value the user stated. The name and date stay. | Only the amount and unit, as D4 reads, leaving the nutrition to the content check. | 3 | recommended |
 | D12 | Is a correction one request for each food, or one for all the foods a check flagged? | One request for each food, all sent at the same time. Each answer is one food record, so it cannot be matched to the wrong food. | One request for all of them: fewer requests, but each answer has to be matched back to its food. | 3, 5 | recommended |
 | D13 | `verifyFoodList`, `verifyFoodDates` and `correctFoodDates` are each sent every food of the message at once, and their answer names only some of them, such as the one whole-meal record to remove. How does the answer say which food it means? The other two tools handle one food at a time, so the question does not come up for them. | By the food's number. Python numbers the foods when it lists them for the model, and the answer gives the number. Two foods can share a name, such as eggs at breakfast and at lunch, and the model may not repeat a name exactly. | By the food's name, which Python then has to find in the list. | 3, 4 | recommended |
+| D15 | D1 kept the conversation from the content check. Should the check see what the user said? | Decided by the maintainer on 2026-11-17, after the first eval run, in place of D1's answer: the content check is shown the whole conversation and the run's tool results, the same as the other checks, because a user can state calories and nutrition values, in a message or in a file. The check must respect whatever the user gives. | Only the latest user message. Or the conversation without the tool results. | 5 | decided |
+| D16 | What does the date check do with a food that has no date? | Decided by the maintainer on 2026-11-17, after the first eval run: the date check never accepts one. Python sends a food with a missing or blank date to the date correction, whatever the check answers. | Leave it to the check's answer. | 4 | decided |
 | D14 | D10 covers the verify tools. What happens when a correction's answer cannot be used? D5 says the food keeps its old values, but a missing food has none, so it would stay missing without anyone being told. | A correction follows the rule of its check. For the name check and the date check: ask again up to 3 times, then fail the chat. For the content check: ask once more, then keep the food's values. | Every correction keeps the old values, as D5 reads. | 3, 4, 5 | recommended |
 
 ### Proposed additions
@@ -153,9 +155,9 @@ This is how steps 3 to 6 are built.
 |---|---|---|
 | `verifyFoodList` | The conversation, the earlier tool calls, and each food's number, name, amount and unit | `missing`: foods the message asks to record that are not in the list, each as the user described it. `incorrect`: the numbers of foods the message does not ask to record, such as an invented food, a whole meal, a food listed twice or one an earlier call already saved, each with a reason. `wrongAmount`: the numbers of foods whose amount or unit differs from what the user said, each with a reason. |
 | `correctFood` | The conversation, the earlier tool calls, today's date, what to write, and the record being corrected, if there is one | One food record |
-| `verifyFoodDates` | The conversation, the earlier tool calls, today's date, and each food's number, name and date | `wrong`: the numbers of foods whose date is wrong, each with a reason |
+| `verifyFoodDates` | The conversation, the earlier tool calls, today's date, and each food's number, name and date | `wrong`: the numbers of foods whose date is wrong, each with a reason. Python adds every food with no date (D16). |
 | `correctFoodDates` | The same, with those reasons | The corrected date for each of those numbers |
-| `verifyFoodNutrition` | One food record and nothing else | Whether its nutrition values are plausible, with a reason |
+| `verifyFoodNutrition` | The conversation, the earlier tool calls, and one food record without its date (D15) | Whether its nutrition values match what the user stated and are otherwise plausible, with a reason |
 
 **What Python keeps from a `correctFood` answer.** The model writes a whole record each time, and Python takes only the fields that correction may change.
 
@@ -207,7 +209,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | The version 3 schema and fixtures reject a `run` without `checkNutrition` or with a non-boolean, the fixture tests agree, and a version 2 peer fails with `UNSUPPORTED_VERSION`. | Version 2 moved to version 3 and edited in place (D8). | 8 | Planned |
 | Frontend tests cover the default, a save and a failed save. | Settings page tests. | 10 | Planned |
 | A food recorded from a file the chat model read can be accepted and saved. | The name check, the date check and the corrections see the file's content (D6, P9). | 2, 6 | Planned |
-| The name check, the date check and the corrections receive this run's tool results, and no keys. | A general part of `ToolContext` (D6, P9), and a test that no check request carries a key. | 2, 3, 4 | Planned |
+| The name check, the date check and the corrections receive this run's tool results, and no keys. | A general part of `ToolContext` (D6, P9), and a test that no check request carries a key. Since D15 the content check receives them too, so #113's wording needs "every check". | 2, 3, 4, 5 | Planned |
 | A food that matches neither the conversation nor a tool result is not saved. | The name check calls it incorrect, and Python removes it. | 3 | Planned |
 | Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Planned |
 | Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Planned |
@@ -247,6 +249,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 2026-11-17 | D1 to D9: the recommended option for each. P1 to P8 accepted. | Maintainer, in the tables under Design |
 | 2026-11-17 | P9 and P10 accepted. #113's scope and acceptance criteria updated to match the design, with one new criterion for D9's one-transaction save. | Maintainer |
 | 2026-11-17 | D10: an unusable answer from the name check or the date check is asked again up to 3 times, then the chat fails; from the content check it is asked once more, then the food goes on unchanged. D11 to D14: the recommended option for each. | Maintainer |
+| 2026-11-17 | D15 and D16, after the first eval run of the new checks: the content check is shown the conversation and the tool results and respects every value the user stated, and the date check never accepts a food with no date. | Maintainer |
 | 2026-11-17 | What counts as done: every check implemented and the content check switchable from Settings, every criterion met, the cheap models improve, no wrong date and no missing food, and better results with the content check on. How the eval is read against it, as recommended. | Maintainer |
 
 Decisions made before this plan are in #113's description.
@@ -466,3 +469,47 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 
 - A check that changes nothing leaves no row, so the report does not show what a check was asked about a food it accepted.
 - The report's rows and the new table are untested against a real model until the eval run in step 13.
+
+### 2026-11-17 After the first eval run: stated values and missing dates
+
+**The run.** The maintainer ran `--cheap-models` on #104's four categories with the checks as they stood after step 7: 23 cases, 3 repeats, 414 chats. It is a first look, not the run step 13 reports, and its report is not in the repository.
+
+| Model | Chats that failed | Fully correct, switch off → on (%) | Missed items | Dates corrected, off / on | Foods saved with no date | Nutrition values corrected, on |
+|---|--:|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 0 | 98.6 → 97.1 | 0 | 16 / 16 | 0 | 9 |
+| `claude-haiku-5-5` | 0 | 92.8 → 94.2 | 0 | 0 / 0 | 0 | 0 |
+| `deepseek-flash` | 0 | 97.1 → 94.2 | 0 | 47 / 43 | 2 | 1 |
+
+What it showed:
+
+- **All three providers accept the new tool definitions.** No chat failed. This was untested until this run.
+- **The date check corrects the dates the baselines found wrong.** No food was saved with a wrong date.
+- **Two foods were saved with no date.** `deepseek-flash` left the date out, and its date check passed both. This led to D16.
+- **`claude-haiku-5-5`'s checks ran and changed nothing.** It made 5.00 model calls for each chat with the switch off and 6.00 with it on, which is the two checks and then the third. Its records had no wrong date in this run or in any earlier report. Its content check accepted values the eval scores as wrong, such as corn at 140 kcal against 98.9.
+- **The content check did not improve two of the three models.** Fully correct chats fell by one chat on `gpt-6-luna` and two on `deepseek-flash` with the switch on. What counts as done asks for the opposite, so step 13 has to look at this again after D15.
+
+**What changed**
+
+- **D15.** `verifyFoodNutrition` is shown the conversation and the run's earlier tool calls beside the one food. Its prompt says a value the user stated is right however unusual it looks, that a record which differs from a stated value is rejected, and that plausibility is judged only for values the user did not state. The food's date is still not shown.
+- **D16.** `check_dates` adds every food with a missing or blank date to the foods the check named, with the reason "The record has no date." The correction must then give each of them a date, or the chat fails as D14 says. The check's own reason is kept for a food it named.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- A food with no date left to the check's answer: 5 tests failed, one of them through the real agent loop.
+- A blank date counted as a date.
+- The fixed reason replacing the check's own reason.
+- The content check not shown the conversation.
+- The content check not shown the earlier calls.
+- The content check not told that a stated value is right.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 986 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. The first run had one failure, in `AgentPersistenceIntegrationTest`: its "missing food" scenario sends a food with no fields, so D16 asked for a date correction, and the scripted worker had no answer for that request. `tests/support/persistence_worker.py` now answers it, and Java then rejects the food for its missing fields as before.
+- Not run: `npm run check`, because the frontend did not change, and no new eval run.
+
+**Left open**
+
+- #113's description and PR #117's description still say the content check is not shown the chat.
+- The nutrition-check-on results of the run above are out of date after D15, and its two foods with no date are fixed by D16. A new run is needed before step 13's comparison.
+- The content check now sends the conversation and the tool results once for each food. With a large file and many foods that is the cost D15's option B accepted.

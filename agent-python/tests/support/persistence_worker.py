@@ -20,7 +20,7 @@ from tyler_agent.provider import (
     responses_input,
 )
 from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
-from tyler_agent.tools.builtin.food_record.date_check import VERIFY_FOOD_DATES
+from tyler_agent.tools.builtin.food_record.date_check import CORRECT_FOOD_DATES, VERIFY_FOOD_DATES
 from tyler_agent.tools.builtin.food_record.name_check import VERIFY_FOOD_LIST
 from tyler_agent.worker import main
 
@@ -32,6 +32,15 @@ ALL_CLEAR = {
     VERIFY_FOOD_DATES.name: '{"wrong": []}',
     VERIFY_FOOD_NUTRITION.name: '{"valid": true, "reason": "Plausible."}',
 }
+
+
+# The date check never accepts a food with no date, so the scenario that leaves the date out
+# is asked for one. Every scenario's call holds one food, so the answer is for food 1.
+FIRST_FOOD_DATED = ToolCall(
+    CORRECT_FOOD_DATES.name,
+    CORRECT_FOOD_DATES.name,
+    '{"dates": [{"number": 1, "date": "2026-10-19"}]}',
+)
 
 
 def all_clear(tools: Sequence[ToolDefinition]) -> AssistantTurn | None:
@@ -116,6 +125,8 @@ class PersistenceProvider:
         if cleared is not None:
             # recordFood checks its foods first; pass them so Java services decide validity.
             return cleared
+        if [tool.name for tool in tools] == [CORRECT_FOOD_DATES.name]:
+            return AssistantTurn((FIRST_FOOD_DATED,), "")
         first = not any(isinstance(entry, ToolResult) for entry in transcript)
         if first:
             assert responses_input(transcript) == self.history + [

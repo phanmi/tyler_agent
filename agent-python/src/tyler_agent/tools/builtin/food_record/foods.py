@@ -82,6 +82,12 @@ def food_name(food: Message) -> str | None:
     return None if info is None else info["foodName"]
 
 
+def has_date(food: Message) -> bool:
+    """Whether the model gave a food a date at all. A missing or blank date is not a date."""
+    date = _info(food)["date"]
+    return date is not None and bool(date.strip())
+
+
 def record_text(food: Message) -> str:
     """One food's record as a check or a correction is shown it."""
     return pretty(food["food"])

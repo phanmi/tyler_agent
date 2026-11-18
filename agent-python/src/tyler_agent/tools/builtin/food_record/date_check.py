@@ -7,6 +7,8 @@ is judged on its own. It reads names and dates only.
 A wrong date is corrected by a second request, which gives a new date for exactly the foods
 the check named. Nothing else in a record changes.
 
+A food with no date is wrong whatever the check answers, so it always goes to the correction.
+
 The foods cannot be saved without this check, so an answer that cannot be used, from the
 check or from its correction, is asked again and then fails the run.
 """
@@ -27,6 +29,7 @@ from tyler_agent.tools.builtin.food_record.foods import (
     Finding,
     FoodList,
     food_name,
+    has_date,
     listed,
     with_date,
 )
@@ -87,6 +90,9 @@ CORRECT_FOOD_DATES = ToolDefinition(
         "additionalProperties": False,
     },
 )
+
+# The reason the correction is given for a food the chat model gave no date.
+NO_DATE = "The record has no date."
 
 # What both prompts say about how a date is worked out, so the check and its correction agree.
 DATE_RULE = (
@@ -203,13 +209,18 @@ def correction_question(
 async def check_dates(foods: FoodList, evidence: Evidence, context: ToolContext) -> FoodList:
     """Return the list with every wrong date corrected. A list with no foods is not checked.
 
+    A food with no date is corrected even when the check passes it: a missing date needs no
+    judgement, and a model has been seen to accept one.
+
     This requests no Java operation. Provider failures and cancellation propagate, and so
     does the failure of a check or correction that could not be answered, so nothing is saved
     after them.
     """
     if not foods.foods:
         return foods
-    wrong = await must_ask(context, dates_question(evidence, foods))
+    judged = await must_ask(context, dates_question(evidence, foods))
+    # The check's own reason is kept for a food it named.
+    wrong = {number: NO_DATE for number, food in foods.numbered() if not has_date(food)} | judged
     log.info("Food dates checked: wrong=%d", len(wrong))
     if not wrong:
         return foods

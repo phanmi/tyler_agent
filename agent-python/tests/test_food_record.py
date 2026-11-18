@@ -177,11 +177,9 @@ def test_a_food_from_a_file_the_chat_model_read_is_saved_and_no_check_sees_the_k
     _, java, provider = run(replies, Java(files={"meal-plan.md": plan}))
 
     assert java.saved() == [food_arguments(salmon)]
-    for index in (2, 3):
-        assert json.dumps(plan) in provider.prompt(index)
-    # The content check judges the food alone.
-    assert plan not in provider.prompt(4)
+    # Every check is shown the file, as JSON text: a value can be stated in it too.
     for index in (2, 3, 4):
+        assert json.dumps(plan) in provider.prompt(index)
         assert payload()["apiKey"] not in provider.prompt(index)
 
 
@@ -199,6 +197,23 @@ def test_a_second_call_in_the_same_response_is_shown_what_the_first_saved() -> N
     first_result = pretty({"recorded": [food_arguments(OATS)["food"]]})
     assert json.dumps(first_result) in provider.prompt(4)
     assert json.dumps(first_result) not in provider.prompt(1)
+
+
+def test_a_food_the_chat_model_gave_no_date_is_saved_with_one() -> None:
+    """In the first eval run of the new checks, `deepseek-flash` left the date out of two
+    foods, its date check passed them, and they were saved with no date."""
+    replies: list[AssistantTurn | Exception] = [
+        asked(chat(food_raw(date=None))),
+        clear(LIST),
+        clear(DATES),
+        answer(CORRECT_FOOD_DATES.name, '{"dates": [{"number": 1, "date": "2026-11-10"}]}'),
+        clear(NUTRITION),
+        DONE,
+    ]
+    _, java, provider = run(replies)
+
+    assert java.saved() == [food_arguments(CHICKEN)]
+    assert provider.checks() == [LIST, DATES, CORRECT_FOOD_DATES.name, NUTRITION]
 
 
 def test_with_the_nutrition_check_off_only_the_other_two_checks_run() -> None:

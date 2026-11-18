@@ -81,8 +81,8 @@ Before the checks, the tool reads what they judge the foods against, once for th
 | Check | Tools | What the model is shown | What it changes |
 |---|---|---|---|
 | Name and count, [`name_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/name_check.py) | `verifyFoodList` | The conversation, the earlier calls, and each food's number, name, amount and unit | It removes a record that is not one food the message asks to record: an invented food, a record for a whole meal, a food listed twice, or one an earlier `recordFood` call of the run already saved. It adds a food the message asks to record that has no record. It has the amount, unit and nutrition values written again for a food whose amount or unit differs from what the user said, as [above](#amounts-and-units). |
-| Date, [`date_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/date_check.py) | `verifyFoodDates`, then `correctFoodDates` | Today's date, the conversation, the earlier calls, and each food's number, name and date | It corrects the date of a food that is not recorded on the day the user ate it. Nothing else in the record changes. |
-| Content, [`content_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/content_check.py) | `verifyFoodNutrition` | One food's name, amount, unit and nutrition values, and nothing else | It has the nutrition values written again for a food whose values are implausible for that food and amount, judged against the [sources above](#estimated-nutrition-values). A small difference from those sources is not a reason to reject. |
+| Date, [`date_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/date_check.py) | `verifyFoodDates`, then `correctFoodDates` | Today's date, the conversation, the earlier calls, and each food's number, name and date | It corrects the date of a food that is not recorded on the day the user ate it. A food with no date is always corrected, whatever the check answers. Nothing else in the record changes. |
+| Content, [`content_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/content_check.py) | `verifyFoodNutrition` | The conversation, the earlier calls, and one food's name, amount, unit and nutrition values | It has the nutrition values written again for a food with a value that differs from one the user stated. For a value the user did not state, it does so when the value is implausible for that food and amount, judged against the [sources above](#estimated-nutrition-values). A small difference from those sources is not a reason to reject. |
 
 A check's answer points at a food by its number in the list it was shown.
 
@@ -94,7 +94,7 @@ A check's answer points at a food by its number in the list it was shown.
 
 Corrections for different foods are sent at the same time, and so are the content checks. A corrected value is saved without a second check.
 
-**Values the user stated.** The content check is not shown the conversation, so it can reject a stated value that looks unusual. Its correction is shown the conversation and keeps every value the user stated, and its answer is not checked again. So the stated value is the one saved.
+**Values the user stated.** A value the user stated is right, however unusual it looks. The user can state it in the conversation, or in a tool result the message points to, such as a file. The content check is shown both for that reason. It rejects a record with a value that differs from a stated one, never rejects a value for matching what the user said, and judges plausibility only for the values the user did not state. Its correction keeps every stated value too, and its answer is not checked again.
 
 **An answer that cannot be used.** A check's tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. So an answer can be a text reply, the wrong tool, several calls, or arguments that do not fit the tool. It is never read as "nothing is wrong":
 
@@ -103,7 +103,7 @@ Corrections for different foods are sent at the same time, and so are the conten
 
 **Saving.** No food is saved until every check has finished. A provider failure, a cancellation, or a required check that could not be answered ends the run with its usual code, and none of the call's foods is saved. The foods the checks leave are then saved one at a time: if Java rejects a later one, the earlier ones stay saved, as they do when any later step of a run fails. The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model not to record it again.
 
-**Cost.** A call with n foods costs one request for the name and count check, one for the date check and n for the content check, plus one for each correction. They all count against the run's existing deadline. Logs record only counts and attempts, never the conversation, a food or a reason.
+**Cost.** A call with n foods costs one request for the name and count check, one for the date check and n for the content check, plus one for each correction. Each request carries the conversation and the earlier calls, so the content check sends them once for each food. They all count against the run's existing deadline. Logs record only counts and attempts, never the conversation, a food or a reason.
 
 **The switch.** The name and count check and the date check always run. The content check runs when `RunSettings.check_nutrition` is on, which is the default. The run payload carries no run settings, so the runtime uses the default. Code that drives the agent directly, such as tests and the eval harness, can set it.
 

@@ -21,6 +21,7 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.tools.builtin.food_record.asking import REQUIRED_ATTEMPTS
 from tyler_agent.tools.builtin.food_record.date_check import (
     CORRECT_FOOD_DATES,
+    NO_DATE,
     VERIFY_FOOD_DATES,
     check_dates,
 )
@@ -117,6 +118,38 @@ def test_a_date_from_a_file_the_chat_model_read_reaches_the_check_as_data() -> N
     for prompt in model.prompts:
         assert json.dumps(log_text) in prompt and log_text not in prompt
         assert "A day can also come from a tool result" in prompt
+
+
+@pytest.mark.parametrize("missing", [None, "", "  "])
+def test_a_food_with_no_date_is_corrected_even_when_the_check_passes_it(
+    missing: str | None,
+) -> None:
+    """A missing date needs no judgement, and a model has been seen to accept one."""
+    result, model = check([judged(), dated((1, "2026-11-10"))], food_raw(date=missing))
+    assert result.foods == foods(CHICKEN).foods
+    found = Finding(VERIFY_FOOD_DATES.name, "Chicken breast", Change.DATE_CORRECTED, NO_DATE)
+    assert result.findings == (found,)
+    assert model.tools == [VERIFY, CORRECT]
+    assert json.dumps(NO_DATE) in model.prompts[1]
+
+
+def test_a_food_with_no_date_is_corrected_with_the_dates_the_check_names() -> None:
+    """One correction covers both, and the check's own reason is kept for a food it named."""
+    undated = food_raw(foodName="Oats", amount=50, calories=190, date=None)
+    replies = [
+        judged((1, "No day was given at all."), (2, "It was today.")),
+        dated((1, "2026-11-10"), (2, "2026-11-10"), (3, "2026-11-10")),
+    ]
+    result, model = check(replies, undated, RICE, undated)
+    today = food_raw(foodName="Oats", amount=50, calories=190, date="2026-11-10")
+    rice = food_raw(foodName="Cooked rice", amount=1, unit="cup", calories=205, date="2026-11-10")
+    assert result.foods == foods(today, rice, today).foods
+    assert [finding.reason for finding in result.findings] == [
+        "No day was given at all.",
+        "It was today.",
+        NO_DATE,
+    ]
+    assert model.tools == [VERIFY, CORRECT]
 
 
 def test_a_list_with_no_foods_is_not_checked() -> None:
