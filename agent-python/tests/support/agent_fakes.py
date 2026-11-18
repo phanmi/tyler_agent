@@ -15,9 +15,8 @@ from tyler_agent.provider import (
 )
 from tyler_agent.tools.contracts import Operation, Respond, RunSettings, ToolContext
 
-# Direct tool tests check parsing and output; verification tests turn it on explicitly.
-VERIFICATION_OFF = RunSettings(verify_food=False)
-VERIFICATION_ON = RunSettings(verify_food=True)
+# What the runtime gives every run: recordFood's nutrition check is on.
+DEFAULT_SETTINGS = RunSettings()
 
 
 async def no_model(
@@ -30,7 +29,7 @@ def fake_context(
     operation: Operation,
     respond: Respond = no_model,
     conversation: tuple[UserTurn | AssistantTurn, ...] = (UserTurn("current"),),
-    settings: RunSettings = VERIFICATION_OFF,
+    settings: RunSettings = DEFAULT_SETTINGS,
 ) -> ToolContext:
     """A run context for direct tool tests; its model fails the test unless one is supplied."""
     return ToolContext(operation, respond, conversation, settings)

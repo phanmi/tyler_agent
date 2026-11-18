@@ -6,16 +6,18 @@ This tracker covers the food verification overhaul in issue #113. The requiremen
 
 **Direction:** the current verification tool is split into separate tools. Decided by the maintainer on 2026-11-17. Which tools, and what each one checks, is left to the design.
 
-## Current verification tool
+## The verification tool before the overhaul
 
-| Area | Current state and source |
+This is the tool the overhaul replaces, as it was when the plan was set up. Step 6 removed it, so the names below are no longer in the code.
+
+| Area | How it worked |
 |---|---|
-| Where it runs | [`adapter.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) calls `verified_food` in [`verification.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/verification.py) before it requests `food.insert`. It runs when `RunSettings.verify_food` is on, which is the default; the `run` payload has no field for it, so only code such as the eval runner and tests turns it off. |
-| What one check covers | One model request judges the whole record through `submitFoodVerdict {valid, reason}`: the food, the amount and unit, the date, the values the user stated, and whether the values the user did not state are plausible. |
-| After a rejection | The model regenerates the record from the verdict's reason, and the new record is checked again. A record rejected `MAX_REJECTIONS` (2) times is refused: it is never sent to Java, and the chat model is told not to call `recordFood` for it again. Each item costs one to three model requests, one after another. |
-| What it sees | Today's date from Java, the conversation as text (saved history plus the current message), and the record. It sees no tool results. |
+| Where it runs | `recordFood`'s adapter called `verified_food` in `verification.py` before it requested `food.insert`. It ran when `RunSettings.verify_food` was on, which was the default; the `run` payload had no field for it, so only code such as the eval runner and tests turned it off. |
+| What one check covers | One model request judged the whole record through `submitFoodVerdict {valid, reason}`: the food, the amount and unit, the date, the values the user stated, and whether the values the user did not state are plausible. |
+| After a rejection | The model regenerated the record from the verdict's reason, and the new record was checked again. A record rejected `MAX_REJECTIONS` (2) times was refused: it was never sent to Java, and the chat model was told not to call `recordFood` for it again. Each item cost one to three model requests, one after another. |
+| What it sees | Today's date from Java, the conversation as text (saved history plus the current message), and the record. It saw no tool results. |
 | Which model | The run's own provider and model, through `ToolContext.respond`. |
-| How evals count it | [`runner.py`](../agent-python/evals/runner.py) and [`report.py`](../agent-python/evals/report.py) count verification outcomes from the model calls inside each `recordFood` call. |
+| How evals count it | `evals/runner.py` and `evals/report.py` counted verification outcomes from the model calls inside each `recordFood` call. |
 
 ## Baseline eval runs
 
@@ -227,7 +229,7 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Done | See the execution record for 2026-11-17, step 3. |
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Done | See the execution record for 2026-11-17, step 4. |
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Done | See the execution record for 2026-11-17, step 5. |
-| 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Not started | |
+| 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Done | See the execution record for 2026-11-17, step 6. |
 | 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). `FakeJava` answers the new save operation. | Not started | |
 | 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
 | 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it. The new failure code gets its own message for the user (D10). | Not started | |
@@ -381,3 +383,47 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 
 - Whether the check judges nutrition values well is the model's work, and only the eval run in step 13 measures it.
 - `test_a_value_the_user_stated_survives_a_rejection` scripts a correction that keeps the user's 1900 kcal. It proves the correction is shown the conversation, is told to keep stated values, and is not checked again. Whether a real model then keeps the value is for the eval's `stated-nutrition` cases.
+
+### 2026-11-17 Step 6: recordFood uses the checks
+
+**What changed**
+
+- A new module, `checks.py`, runs the name and count check, the date check and the content check in that order (P1), each on the list the one before it leaves. `recordFood` saves the list they leave, and saves nothing until the last check has finished.
+- The old verifier is removed: `verification.py`, `submitFoodVerdict`, `RunSettings.verify_food` and `tests/test_food_verification.py`.
+- The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model not to record it again. The old result told the chat model to tell the user why a food was refused; a removed record is now often a duplicate or a whole-meal record whose foods were saved, so the note no longer asks for that.
+- The name and count check and the date check now run in every chat. `RunSettings.check_nutrition` switches only the content check (D3).
+- The eval runner sets `check_nutrition` for its two modes and counts the records a call lists as not recorded. Its report still says "verification off and on"; step 7 rewrites the report.
+- `docs/AGENT_OPERATIONS.md` has a rewritten "Food verification" section that describes the checks, and `docs/DEVELOPMENT.md` and `agent-python/README.md` describe `recordFood` as it now works. Step 11 still covers the switch, the protocol and the eval README.
+- The fakes that pass every check take their answers from `tests/support/persistence_worker.py`. That file is the worker the Java integration tests start as a script, so it can import only `tyler_agent`, and keeping the answers there means one copy.
+
+**Tests.** `tests/test_food_record.py` has 23 tests through the real agent loop, tool registry and `recordFood`, each real provider class against an in-memory server, and the production runtime:
+
+- The checks run in order and nothing is saved before the last one. One chat has a whole-meal record replaced by its food, an invented date corrected and an implausible value rewritten.
+- A food from a file the chat model read is saved (#100), and no check prompt holds the API key.
+- A second `recordFood` call in the same model response is shown what the first saved (P3).
+- With the nutrition check off, only the other two checks run.
+- A provider failure during any check, or a required check that cannot be answered, saves nothing (#101).
+- Cancelling during the name, date or content check, through the runtime, saves nothing.
+- OpenAI, Claude and DeepSeek each carry all five tools.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- The date check run before the name and count check: 10 tests failed.
+- The foods the chat model gave saved, not the list the checks leave.
+- Each food saved before the checks run: 13 tests failed.
+- The removed records not reported.
+- The checks not shown the run's earlier calls.
+- A failed check skipped and the foods saved anyway: 10 tests failed.
+- The content check left out: 10 tests failed.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 977 passed and 1 skipped (the owner-only file mode test, which Windows cannot run). The count is lower than after step 5 because the old verifier's 48 tests are gone and 23 were added.
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. `AgentPersistenceIntegrationTest` drives the real worker, which now runs every check on each food.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- The foods are still saved with one `food.insert` each. If Java rejects a later food, the earlier ones stay saved, until step 9 adds the one-transaction save (D9).
+- A required check that cannot be answered fails the chat as a provider failure, which the user sees as "Internal server error". Step 8 adds a failure code of its own (D10).
+- The eval report's wording and its verification rows describe the old verifier until step 7.

@@ -5,11 +5,12 @@ import json
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import replace
 
-from support.agent_fakes import VERIFICATION_OFF, fake_context
+from support.agent_fakes import DEFAULT_SETTINGS, fake_context
+from support.persistence_worker import all_clear
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.asking import Evidence, evidence
 from tyler_agent.tools.builtin.food_record.foods import FoodList
-from tyler_agent.tools.contracts import CompletedCall, RunSettings, ToolContext
+from tyler_agent.tools.contracts import CompletedCall, Operation, RunSettings, ToolContext
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
     AssistantTurn,
@@ -61,19 +62,23 @@ def foods_raw(*foods: str) -> str:
 
 
 class Java:
-    """Record operation requests; answer the clock and echo saved food like the service does.
+    """Record operation requests; answer the clock, read the workspace files it is given, and
+    echo saved food like the service does.
 
     `clocks` gives each clock request its own text, so a test can tell which one a prompt used.
     """
 
-    def __init__(self, clocks: Sequence[str] = ()) -> None:
+    def __init__(self, clocks: Sequence[str] = (), files: dict[str, str] | None = None) -> None:
         self.requests: list[tuple[str, Message]] = []
         self.clocks = list(clocks)
+        self.files = files or {}
 
     async def __call__(self, name: str, value: Message) -> Message:
         self.requests.append((name, value))
         if name == "time.current":
             return {"text": self.clocks.pop(0) if self.clocks else TODAY}
+        if name == "file.read":
+            return {"content": self.files[value["path"]]}
         assert name == "food.insert"
         return {"food": value["food"]}
 
@@ -124,7 +129,7 @@ def check_context(
     model: Model,
     earlier: Sequence[CompletedCall] = (),
     conversation: tuple[UserTurn | AssistantTurn, ...] = CONVERSATION,
-    settings: RunSettings = VERIFICATION_OFF,
+    settings: RunSettings = DEFAULT_SETTINGS,
 ) -> ToolContext:
     """A run context whose model is the scripted one, with these earlier tool calls."""
     context = fake_context(model.java, model, conversation, settings)
@@ -137,7 +142,7 @@ def run_check(
     *raws: str,
     earlier: Sequence[CompletedCall] = (),
     conversation: tuple[UserTurn | AssistantTurn, ...] = CONVERSATION,
-    settings: RunSettings = VERIFICATION_OFF,
+    settings: RunSettings = DEFAULT_SETTINGS,
 ) -> tuple[FoodList, Model]:
     """Run one check on these foods with a scripted model."""
     model = Model(Java(), list(replies))
@@ -147,3 +152,24 @@ def run_check(
         return await check(food_list(*raws), await evidence(context), context)
 
     return asyncio.run(scenario()), model
+
+
+async def passing(
+    transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+) -> AssistantTurn:
+    """A model that finds nothing wrong with any food, and is asked nothing else."""
+    cleared = all_clear(tools)
+    assert cleared is not None, "A tool made a model request this test does not expect"
+    return cleared
+
+
+def food_context(operation: Operation, settings: RunSettings = DEFAULT_SETTINGS) -> ToolContext:
+    """A run context for tests of recordFood's parsing and output: every check passes, and the
+    clock the checks read is answered here, so `operation` sees only what the test is about."""
+
+    async def with_clock(name: str, value: Message) -> Message:
+        if name == "time.current":
+            return {"text": TODAY}
+        return await operation(name, value)
+
+    return fake_context(with_clock, passing, settings=settings)

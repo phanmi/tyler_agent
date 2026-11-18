@@ -313,8 +313,9 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
     for label, shown in [
         ("Chats run", ["2", "2", "+0"]),
         ("Fully correct chats (%)", ["100.0", "100.0", "+0.0"]),
-        ("Model calls per chat", ["2.00", "3.00", "+1.00"]),
-        ("Input tokens per chat", ["200", "300", "+100"]),
+        # The name and count check and the date check run in both modes.
+        ("Model calls per chat", ["4.00", "5.00", "+1.00"]),
+        ("Input tokens per chat", ["400", "500", "+100"]),
         ("Cost per chat (USD)", ["-", "-", "-"]),
     ]:
         assert row(output, label) == shown, label

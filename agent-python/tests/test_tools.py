@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from conftest import FIXTURES, sequence_message
 from support.agent_fakes import fake_context
+from support.food_fakes import food_context
 
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message
@@ -54,10 +55,12 @@ def test_all_six_adapters_use_private_operations(prefix: str, name: str, field: 
         seen.append((operation_name, value))
         return result
 
-    raw = model_json(request["input"])
+    raw, context = model_json(request["input"]), fake_context(operation)
     if prefix == "food":
         raw = '{"foods":[' + model_json(request["input"]["food"]) + "]}"
-    output = asyncio.run(ToolAdapters(fake_context(operation)).execute(name, raw))
+        # recordFood checks its foods first; here every check passes.
+        context = food_context(operation)
+    output = asyncio.run(ToolAdapters(context).execute(name, raw))
     assert seen == [(request["operation"], request["input"])]
     if prefix in {"food", "plan"}:
         saved = json.loads(output, parse_float=Decimal)
@@ -140,14 +143,15 @@ def replaced(value: Message, path: Path, replacement: object) -> Message:
 
 
 def recorded(result: Message | None = None) -> tuple[ToolAdapters, list[tuple[str, Message]]]:
-    """Adapters whose Java operation only records requests, so no request means no effect."""
+    """Adapters whose Java operation only records requests, so no request means no effect.
+    recordFood's checks pass, and the clock they read is not among the requests."""
     seen: list[tuple[str, Message]] = []
 
     async def operation(name: str, value: Message) -> Message:
         seen.append((name, value))
         return result or {"content": "", "path": "", "food": {}, "plan": {}}
 
-    return ToolAdapters(fake_context(operation), CATALOG), seen
+    return ToolAdapters(food_context(operation), CATALOG), seen
 
 
 def rejected(name: str, raw: str) -> None:
@@ -317,7 +321,7 @@ def test_every_food_of_a_call_is_saved_in_the_models_order() -> None:
         seen.append(value["food"]["genericInfo"]["foodName"])
         return value
 
-    tools = ToolAdapters(fake_context(operation), CATALOG)
+    tools = ToolAdapters(food_context(operation), CATALOG)
     output = asyncio.run(tools.execute("recordFood", json.dumps({"foods": foods})))
     assert seen == names
     assert [food["genericInfo"]["foodName"] for food in json.loads(output)["recorded"]] == names
@@ -436,7 +440,7 @@ def test_java_storage_and_domain_failures_still_end_the_run(
         raise OperationFailure(error)
 
     with pytest.raises(OperationFailure) as caught:
-        asyncio.run(ToolAdapters(fake_context(operation)).execute(name, json.dumps(VALID[name])))
+        asyncio.run(ToolAdapters(food_context(operation)).execute(name, json.dumps(VALID[name])))
     assert caught.value.error == error
 
 

@@ -4,7 +4,7 @@ import asyncio
 from copy import deepcopy
 
 import pytest
-from support.agent_fakes import VERIFICATION_ON, FakeProvider, call, fake_context, payload
+from support.agent_fakes import FakeProvider, call, fake_context, payload
 
 from tyler_agent.agent import run_agent, tool_context
 from tyler_agent.failures import AgentFailure, OperationFailure
@@ -17,6 +17,7 @@ from tyler_agent.provider import (
     parse_response,
 )
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.contracts import RunSettings
 from tyler_agent.tools.registry import MALFORMED_CALL_RESULT
 
 
@@ -62,8 +63,9 @@ def test_tool_context_lends_the_run_model_operations_and_text_conversation() -> 
         {"role": "assistant", "content": "reply"},
     ]
     provider = FakeProvider([AssistantTurn((), "answer")])
-    context = tool_context(data, provider, clock_operation, VERIFICATION_ON)
-    assert context.settings == VERIFICATION_ON
+    settings = RunSettings(check_nutrition=False)
+    context = tool_context(data, provider, clock_operation, settings)
+    assert context.settings == settings
     assert context.conversation == (
         UserTurn("old"),
         AssistantTurn((), "reply"),

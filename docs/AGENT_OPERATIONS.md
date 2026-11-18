@@ -48,7 +48,7 @@ Discovery reads only the trusted bundled namespace, never a model-supplied modul
 
 | Python adapter | Parsing behavior before the service operation | Model-visible result |
 |---|---|---|
-| [recordFood](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) | Requires a `foods` list holding every food of the message, with at least one food object; a missing, null or empty list is rejected. Enforces the advertised schema's types and fields for each food: text fields must be JSON strings and nutrition fields JSON numbers, so booleans, numbers as names/units, and quoted numbers are rejected, as are unknown properties at any level. Missing or null record components/fields still pass as null to the shared food validator. Every food's types are checked before any number is encoded. Valid numbers are encoded exactly as plain decimal strings; a number beyond the two-billion protocol bound fails the run as `INVALID_ARGUMENT`. Every parsed food is then [verified](#food-verification) before the first `food.insert`, and each accepted food is saved with its own `food.insert`. | Pretty JSON with a `recorded` list of the saved foods, each in the compatible food format with numeric values, excluding the generated ID. Foods that verification refuses are listed under `notRecorded` with the name the model gave and the verifier's `reason`, beside an `error` saying they were not saved. |
+| [recordFood](../agent-python/src/tyler_agent/tools/builtin/food_record/adapter.py) | Requires a `foods` list holding every food of the message, with at least one food object; a missing, null or empty list is rejected. Enforces the advertised schema's types and fields for each food: text fields must be JSON strings and nutrition fields JSON numbers, so booleans, numbers as names/units, and quoted numbers are rejected, as are unknown properties at any level. Missing or null record components/fields still pass as null to the shared food validator. Every food's types are checked before any number is encoded. Valid numbers are encoded exactly as plain decimal strings; a number beyond the two-billion protocol bound fails the run as `INVALID_ARGUMENT`. The parsed foods then go through the [food checks](#food-verification) before the first `food.insert`, and each food the checks leave is saved with its own `food.insert`. | Pretty JSON with a `recorded` list of the saved foods, each in the compatible food format with numeric values, excluding the generated ID. A record the checks removed is listed under `notRecorded` with the name the model gave and the `reason`, beside a `note` that it should not be recorded again. |
 | [generateWorkoutPlan](../agent-python/src/tyler_agent/tools/builtin/workout_plan/adapter.py) | Requires a JSON object with only start date/goal/equipment; any other property, including `preview`, is rejected. Each supplied non-null field must be a string. Missing/null fields and enum values pass to service validation. | Pretty plan JSON with numeric weights, nullable activities, and empty rest-day workout arrays. |
 | [GetUserInfo](../agent-python/src/tyler_agent/tools/builtin/user_info/adapter.py) | Ignores arguments. The service owns profile loading, normalization, and existing missing/unreadable-file fallback. A null top-level stored profile fails; the bridge does not invent a profile. Nullable components are retained. | Java-record-style `UserInfo[user=User[...], other=Other[...]]`, with component order and null/string rendering specified in the protocol guide. |
 | [readFile](../agent-python/src/tyler_agent/tools/builtin/file_read/adapter.py) | Requires an object whose only property is a string `path`; a missing, null, or non-string path or any other property is rejected. Blank, unsafe, and protected paths are sandbox rules: the bridge rejects them as `INVALID_ARGUMENT`. | Raw file contents. |
@@ -61,7 +61,7 @@ No-argument tools send `{}` to Java after their adapter parsing. Public tool nam
 
 When the user gives an amount, `recordFood`'s [definition](../agent-python/src/tyler_agent/tools/builtin/food_record/definition.json) tells the chat model to save that amount and the user's own word for its unit: cup, slice, oz, scoop, can, "medium", and so on, even when the unit is uncommon. The model does not convert the amount to grams or millilitres, and does not add a conversion to the unit, such as `cup (240 ml)`. When the user gives two units for one food, such as "one 2 oz bar", either is saved. Nutrition values are for that amount in that unit. When the user gives no amount, the model estimates one.
 
-Java's food validation accepts any non-blank unit, and the Python adapter passes the unit through unchanged. Daily totals add up nutrition values, never amounts, so units need no conversion for them. [Verification](#food-verification) rejects a converted or annotated unit.
+Java's food validation accepts any non-blank unit, and the Python adapter passes the unit through unchanged. Daily totals add up nutrition values, never amounts, so units need no conversion for them. The [name and count check](#food-verification) has a converted or annotated unit written again in the user's unit.
 
 ### Estimated nutrition values
 
@@ -70,34 +70,47 @@ Java's food validation accepts any non-blank unit, and the Python adapter passes
 - **A packaged or restaurant food:** the brand's published nutrition for that product and amount.
 - **Any other food, or a brand whose values the model does not know:** USDA FoodData Central values for that food, or for the closest generic food in FoodData Central.
 
-Nutrition values the user states are saved exactly as stated, whatever these sources say. The agent does not look values up: it relies on what the model knows of these sources. [Verification](#food-verification) judges and re-estimates values against the same sources.
+Nutrition values the user states are saved exactly as stated, whatever these sources say. The agent does not look values up: it relies on what the model knows of these sources. The [content check](#food-verification) judges values against the same sources, and its correction estimates from them too.
 
 ### Food verification
 
-[`verification.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/verification.py) checks every food of a `recordFood` call with the run's provider and model before `food.insert` is requested for any of them, so the chat model cannot skip it. Each food, called an item below, goes through these steps on its own:
+`recordFood` checks the foods of a call with the run's provider and model before it requests `food.insert` for any of them. The chat model is offered only `recordFood`. Each check and each correction is its own model request with a tool of its own, so the chat model cannot skip one. [`checks.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/checks.py) runs the checks in the order below, each on the list the one before it leaves.
 
-1. Read today's date once per item through `time.current`.
-2. **Verify.** Send one user turn containing the conversation (saved history plus the current message, as JSON text without tool results or thinking), today's date, and the item as the chat model gave it. The only tool offered is `submitFoodVerdict {valid, reason}`. The verifier checks the food, amount and unit, date, and the nutrition values. The amount and unit must be the ones the user gave, as [above](#amounts-and-units): a unit converted from the user's, such as 240 ml for 1 cup, or one with a conversion added, such as `cup (240 ml)`, does not match. Nutrition values the user stated always win: the record must match them, and they are never rejected for looking unusual. Values the user did not state must be plausible for the food and amount, judged against the [sources above](#estimated-nutrition-values), and consistent with the other values. A small difference from those sources is not a reason to reject.
-3. **Regenerate** a rejected item. Send the same facts, the rejected item and the reason. The only tool offered is `recordFood` taking one food: its own description, with the schema of one entry of its `foods` list. The answer goes through the same argument parser, then is verified again. That second check also sees the rejected arguments, and rejects a correction that is about a different food. The regenerator keeps every value the user stated, including nutrition values, keeps the user's amount in the user's word for its unit, and estimates only the values the user did not give. It learns the sources from that definition, not from the prompt.
-4. An item is refused at its second rejection (`MAX_REJECTIONS`). The tool result lists it as not recorded with the reason, beside the items that were saved, and tells the chat model to tell the user instead of retrying.
+Before the checks, the tool reads what they judge the foods against, once for the call: today's date through `time.current`, the conversation (saved history plus the current message), and the tool calls the run finished earlier, each with its arguments and result. The conversation and the calls go into a prompt as JSON text. So a message or a tool result, such as the contents of a file, stays data and cannot change what a check is asked to do.
 
-Each of these counts as one rejection:
+| Check | Tools | What the model is shown | What it changes |
+|---|---|---|---|
+| Name and count, [`name_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/name_check.py) | `verifyFoodList` | The conversation, the earlier calls, and each food's number, name, amount and unit | It removes a record that is not one food the message asks to record: an invented food, a record for a whole meal, a food listed twice, or one an earlier `recordFood` call of the run already saved. It adds a food the message asks to record that has no record. It has the amount, unit and nutrition values written again for a food whose amount or unit differs from what the user said, as [above](#amounts-and-units). |
+| Date, [`date_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/date_check.py) | `verifyFoodDates`, then `correctFoodDates` | Today's date, the conversation, the earlier calls, and each food's number, name and date | It corrects the date of a food that is not recorded on the day the user ate it. Nothing else in the record changes. |
+| Content, [`content_check.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/content_check.py) | `verifyFoodNutrition` | One food's name, amount, unit and nutrition values, and nothing else | It has the nutrition values written again for a food whose values are implausible for that food and amount, judged against the [sources above](#estimated-nutrition-values). A small difference from those sources is not a reason to reject. |
 
-- a verdict with `valid: false`;
-- an unusable verdict: a text reply, the wrong tool, several calls, arguments other than a boolean `valid` and a text `reason`, or a rejection with a blank reason. The verdict tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. After an unusable verdict the same item is checked again; it is not regenerated, because there is no reason to correct;
-- a regeneration that is not one `recordFood` call for one food that Java could be sent, including arguments that don't match one food's parameters and a number beyond the protocol bound.
+A check's answer points at a food by its number in the list it was shown.
 
-An unusable verdict never accepts an item.
+**Corrections.** A missing food, a wrong amount and implausible nutrition values are each corrected by one `correctFood` request for each food ([`correction.py`](../agent-python/src/tyler_agent/tools/builtin/food_record/correction.py)). The request is shown the conversation, the earlier calls and today's date, and writes one whole record under `recordFood`'s own rules for units and nutrition values. Python keeps only the fields that correction may change:
 
-Each item costs one to three extra model requests, within the run's existing deadline. Provider failures and cancellation during a check end the run with their usual codes, and none of the call's items is saved. Logs record only the outcome and rejection count, never the conversation, the item or the reason.
+- for a missing food, the whole record;
+- for a wrong amount or unit, the amount, the unit and the nutrition values, because the values belong to the amount;
+- for implausible nutrition values, the nutrition values.
 
-Limits of the check:
+Corrections for different foods are sent at the same time, and so are the content checks. A corrected value is saved without a second check.
 
-- The model checks its own output, so it catches mismatches with the conversation better than errors in its own nutrition estimates.
-- The verifier sees no tool results. An item whose facts came from one, such as a meal read from a workspace file, is likely to be refused.
-- Every item of a call is checked before the first is saved, so a check that fails the run saves none of them. The accepted items are then saved one at a time: if Java rejects a later one, the earlier ones stay saved, as they do when any later step of a run fails. A chat model that spreads a message's foods over several `recordFood` calls gets this for each call on its own.
+**Values the user stated.** The content check is not shown the conversation, so it can reject a stated value that looks unusual. Its correction is shown the conversation and keeps every value the user stated, and its answer is not checked again. So the stated value is the one saved.
 
-Verification is on for every chat. The worker reads it from `RunSettings.verify_food` in the tool context; the run payload carries no run settings, so the runtime uses the default, which is on. Code that drives the agent directly, such as tests, can set it.
+**An answer that cannot be used.** A check's tool is offered but not forced, because Claude cannot force a tool call while adaptive thinking is on and DeepSeek's tool calls are not strict. So an answer can be a text reply, the wrong tool, several calls, or arguments that do not fit the tool. It is never read as "nothing is wrong":
+
+- For the name and count check, the date check and their corrections, the question is asked again, four requests in all (`REQUIRED_ATTEMPTS`). Then the run fails as `provider/PROVIDER_FAILURE`, and nothing is saved.
+- For the content check and its correction, the question is asked once more (`OPTIONAL_ATTEMPTS`). Then the food goes on with the values it has.
+
+**Saving.** No food is saved until every check has finished. A provider failure, a cancellation, or a required check that could not be answered ends the run with its usual code, and none of the call's foods is saved. The foods the checks leave are then saved one at a time: if Java rejects a later one, the earlier ones stay saved, as they do when any later step of a run fails. The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model not to record it again.
+
+**Cost.** A call with n foods costs one request for the name and count check, one for the date check and n for the content check, plus one for each correction. They all count against the run's existing deadline. Logs record only counts and attempts, never the conversation, a food or a reason.
+
+**The switch.** The name and count check and the date check always run. The content check runs when `RunSettings.check_nutrition` is on, which is the default. The run payload carries no run settings, so the runtime uses the default. Code that drives the agent directly, such as tests and the eval harness, can set it.
+
+Limits of the checks:
+
+- The model checks its own output. How often a check finds the right foods, dates and values is measured by the [eval harness](../agent-python/evals/README.md), not by the unit tests, which script the model's answers.
+- A chat model that spreads a message's foods over several `recordFood` calls has each call checked and saved on its own. The name and count check of a later call sees what the earlier ones saved.
 
 ## Persistence, failures, and file access
 

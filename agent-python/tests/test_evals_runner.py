@@ -5,18 +5,22 @@ import asyncio
 import pytest
 from support.agent_fakes import FakeProvider, call
 from support.eval_fakes import (
+    ALWAYS,
     KEY,
     NOW,
     USAGE,
+    WITH_NUTRITION,
     case,
     chat,
+    cleared,
     corrected_food,
     expected,
     food_call,
+    list_without,
+    nutrition_rejected,
     record,
     session,
     turn,
-    verdict,
 )
 
 from evals.java import FakeJava
@@ -30,35 +34,35 @@ def run(provider: FakeProvider, verify: bool) -> ChatResult:
     return asyncio.run(run_chat(chat(verify), session(provider.open)))
 
 
-def test_verification_off_saves_through_the_real_tool_with_no_extra_model_calls() -> None:
-    provider = FakeProvider([turn(food_call()), turn(text="Recorded.")])
+def test_with_the_nutrition_check_off_the_other_two_checks_still_run() -> None:
+    provider = FakeProvider([turn(food_call()), *cleared(ALWAYS), turn(text="Recorded.")])
 
     result = run(provider, verify=False)
 
     assert result.error is None
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(0, 0),)
-    assert [call.usage for call in result.calls] == [USAGE, USAGE]
+    assert result.checks == (FoodCheck(2, 0),)
+    assert [call.usage for call in result.calls] == [USAGE] * 4
 
 
-def test_verification_calls_are_metered_with_the_chats_own_calls() -> None:
-    provider = FakeProvider([turn(food_call()), turn(verdict(True)), turn(text="Recorded.")])
+def test_check_requests_are_metered_with_the_chats_own_calls() -> None:
+    provider = FakeProvider([turn(food_call()), *cleared(WITH_NUTRITION), turn(text="Recorded.")])
 
     result = run(provider, verify=True)
 
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(1, 0),)
-    # The chat's first round, the verification inside recordFood, and the closing round.
-    assert result.calls == (ModelCall(USAGE, 1.0),) * 3
+    assert result.checks == (FoodCheck(3, 0),)
+    # The chat's first round, the three checks inside recordFood, and the closing round.
+    assert result.calls == (ModelCall(USAGE, 1.0),) * 5
 
 
-def test_a_regenerated_item_counts_its_verification_and_regeneration_calls() -> None:
+def test_a_corrected_food_counts_its_check_and_correction_requests() -> None:
     provider = FakeProvider(
         [
-            turn(food_call(amount=20)),
-            turn(verdict(False, "The user said 200 g.")),
-            turn(corrected_food(amount=200)),
-            turn(verdict(True)),
+            turn(food_call(calories=3020)),
+            *cleared(ALWAYS),
+            turn(nutrition_rejected("3020 kcal is ten times too high.")),
+            turn(corrected_food()),
             turn(text="Recorded."),
         ]
     )
@@ -66,25 +70,24 @@ def test_a_regenerated_item_counts_its_verification_and_regeneration_calls() -> 
     result = run(provider, verify=True)
 
     assert result.saved == (record(),)
-    assert result.checks == (FoodCheck(3, 0),)
-    assert len(result.calls) == 5
+    assert result.checks == (FoodCheck(4, 0),)
+    assert len(result.calls) == 6
 
 
-def test_a_refused_item_is_not_saved_and_is_reported_as_refused() -> None:
+def test_a_record_the_checks_leave_out_is_not_saved_and_is_counted() -> None:
     provider = FakeProvider(
         [
-            turn(food_call(amount=20)),
-            turn(verdict(False, "The user said 200 g.")),
-            turn(corrected_food(amount=30)),
-            turn(verdict(False, "Still not 200 g.")),
-            turn(text="I could not record it."),
+            turn(food_call()),
+            turn(list_without(1, "The user did not eat it.")),
+            turn(text="I did not record it."),
         ]
     )
 
     result = run(provider, verify=True)
 
     assert result.error is None and result.saved == ()
-    assert result.checks == (FoodCheck(3, 1),)
+    # With no food left in the list, the date check and the nutrition check ask nothing.
+    assert result.checks == (FoodCheck(1, 1),)
 
 
 def test_rejected_arguments_are_a_food_check_with_no_model_calls() -> None:
@@ -95,12 +98,12 @@ def test_rejected_arguments_are_a_food_check_with_no_model_calls() -> None:
     assert result.saved == () and result.checks == (FoodCheck(0, 0),)
 
 
-def test_the_cases_fixed_time_answers_the_time_tool_and_the_verification() -> None:
+def test_the_cases_fixed_time_answers_the_time_tool_and_the_date_check() -> None:
     provider = FakeProvider(
         [
             turn(call("getCurrentTime")),
             turn(food_call()),
-            turn(verdict(True)),
+            *cleared(WITH_NUTRITION),
             turn(text="Recorded."),
         ]
     )
@@ -109,8 +112,8 @@ def test_the_cases_fixed_time_answers_the_time_tool_and_the_verification() -> No
 
     time_result = provider.requests[1]["transcript"][-1]
     assert time_result == ToolResult("call-1", NOW)
-    verification = provider.requests[2]["transcript"][0]
-    assert isinstance(verification, UserTurn) and NOW in verification.text
+    date_check = provider.requests[3]["transcript"][0]
+    assert isinstance(date_check, UserTurn) and NOW in date_check.text
 
 
 def test_the_run_payload_is_one_java_could_send() -> None:
@@ -186,12 +189,13 @@ def test_an_operation_without_a_stand_in_ends_the_chat_as_a_named_error() -> Non
 
 
 def test_a_provider_failure_is_an_error_that_keeps_what_was_saved() -> None:
-    provider = FakeProvider([turn(food_call()), AgentFailure("provider", "PROVIDER_FAILURE")])
+    failure = AgentFailure("provider", "PROVIDER_FAILURE")
+    provider = FakeProvider([turn(food_call()), *cleared(ALWAYS), failure])
 
     result = run(provider, verify=False)
 
     assert result.error == "provider/PROVIDER_FAILURE"
-    assert result.saved == (record(),) and len(result.calls) == 1
+    assert result.saved == (record(),) and len(result.calls) == 3
 
 
 def test_an_unexpected_exception_is_an_error_without_its_text() -> None:

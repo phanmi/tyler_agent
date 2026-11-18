@@ -3,41 +3,39 @@
 from collections.abc import Sequence
 
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.tools.builtin.food_record.foods import food_name
-from tyler_agent.tools.builtin.food_record.verification import NOT_RECORDED, Refused, verified_food
+from tyler_agent.tools.builtin.food_record.checks import checked_foods
+from tyler_agent.tools.builtin.food_record.foods import Removed, food_name
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import foods_arguments
 from tyler_agent.tools.rendering import pretty
+
+# Said beside the records the checks left out, so the chat model does not record them again.
+NOT_RECORDED = (
+    "The records under notRecorded were left out of the diary, each for the reason given. "
+    "Do not call recordFood for them again unless the user gives more detail."
+)
 
 
 async def execute(raw: str, context: ToolContext) -> str:
     """Reject arguments that do not match the definition; domain rules remain in Java.
 
-    One call carries every food of the message. With verification on, each food is checked
-    before the first one is saved, so a failed model request saves none of them. A food is
-    saved only after the run's model accepts it, possibly in a regenerated form; a refused
-    food is never sent to Java and is reported beside the saved ones.
+    One call carries every food of the message. The checks run on all of them before the
+    first one is saved, so a check that fails the run saves none of them. What is saved is
+    the list the checks leave: a food they added or corrected is saved in that form, and a
+    record they removed is never sent to Java and is reported beside the saved ones.
     """
-    foods = foods_arguments(raw)
-    accepted: list[Message] = []
-    refused: list[tuple[Message, Refused]] = []
-    for food in foods:
-        checked = await verified_food(food, context) if context.settings.verify_food else food
-        if isinstance(checked, Refused):
-            refused.append((food, checked))
-        else:
-            accepted.append(checked)
-    saved = [(await context.operation("food.insert", food))["food"] for food in accepted]
-    return recorded(saved, refused)
+    checked = await checked_foods(foods_arguments(raw), context)
+    saved = [(await context.operation("food.insert", food))["food"] for food in checked.foods]
+    return recorded(saved, checked.removed)
 
 
-def recorded(saved: Sequence[Message], refused: Sequence[tuple[Message, Refused]]) -> str:
-    """The model-facing result: the foods Java saved, in order, then any refused food with
-    the reason it was refused and what to tell the user."""
+def recorded(saved: Sequence[Message], removed: Sequence[Removed]) -> str:
+    """The model-facing result: the foods Java saved, in order, then any record the checks
+    left out with the reason, and a note that it should not be recorded again."""
     result: Message = {"recorded": list(saved)}
-    if refused:
+    if removed:
         result["notRecorded"] = [
-            {"foodName": food_name(food), "reason": refusal.reason} for food, refusal in refused
+            {"foodName": food_name(entry.food), "reason": entry.reason} for entry in removed
         ]
-        result["error"] = NOT_RECORDED
+        result["note"] = NOT_RECORDED
     return pretty(result)

@@ -18,7 +18,6 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.provider import open_provider
 from tyler_agent.tools import ToolAdapters
-from tyler_agent.tools.builtin.food_record.verification import NOT_RECORDED
 from tyler_agent.tools.contracts import RunSettings, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.registry import ToolCatalog
@@ -47,7 +46,8 @@ class Target:
 
 @dataclass(frozen=True)
 class Chat:
-    """One planned chat: a case on a target, with verification on or off, and which repeat."""
+    """One planned chat: a case on a target, with recordFood's nutrition check on or off,
+    and which repeat. The name and count check and the date check run in both."""
 
     case: Case
     target: Target
@@ -70,8 +70,8 @@ class ModelCall:
 
 @dataclass(frozen=True)
 class FoodCheck:
-    """One recordFood call: the model requests made inside it, and how many of its foods
-    verification refused. A call can carry several foods, so the requests are not split
+    """One recordFood call: the model requests made inside it, and how many of its records
+    the checks left out. A call can carry several foods, so the requests are not split
     between them."""
 
     model_calls: int
@@ -125,7 +125,7 @@ class MeteredProvider:
 
 class RecordedTools(ToolAdapters):
     """The chat's real tools, noting for each recordFood call how many model requests ran
-    inside it and how many of its foods verification refused.
+    inside it and how many of its records the checks left out.
 
     `checks` starts empty and grows by one for each recordFood call the model makes,
     including calls whose arguments were rejected. One instance belongs to one chat.
@@ -145,15 +145,14 @@ class RecordedTools(ToolAdapters):
 
 
 def refused_foods(result: str) -> int:
-    """How many foods a recordFood result reports as refused by verification; none for a
-    call whose arguments were rejected, which has another result."""
+    """How many records a recordFood result lists as left out by the checks; none for a call
+    whose arguments were rejected, which has another result."""
     try:
         value = json.loads(result)
     except ValueError:
         return 0
-    if not isinstance(value, dict) or value.get("error") != NOT_RECORDED:
-        return 0
-    return len(value["notRecorded"])
+    left_out = value.get("notRecorded") if isinstance(value, dict) else None
+    return len(left_out) if isinstance(left_out, list) else 0
 
 
 def run_payload(chat: Chat, api_key: str) -> Message:
@@ -183,7 +182,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
         async with asyncio.timeout(CHAT_TIMEOUT_MS / 1000):
             async with session.opener(payload) as provider:
                 meter = MeteredProvider(provider, session.clock)
-                settings = RunSettings(verify_food=chat.verify)
+                settings = RunSettings(check_nutrition=chat.verify)
                 context = tool_context(payload, meter, java.operation, settings)
                 tools = RecordedTools(context, session.catalog, meter)
                 await run_agent(payload, meter, tools)
