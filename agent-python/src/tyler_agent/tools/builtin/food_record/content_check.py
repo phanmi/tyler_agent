@@ -28,7 +28,10 @@ from tyler_agent.tools.builtin.food_record.asking import (
 )
 from tyler_agent.tools.builtin.food_record.correction import food_correction
 from tyler_agent.tools.builtin.food_record.foods import (
+    Change,
+    Finding,
     FoodList,
+    food_name,
     nutrition_text,
     record_text,
     with_nutrition,
@@ -85,6 +88,9 @@ The food record to check:
 
 Call {tool} exactly once."""
 
+# The reason recorded for a food whose check gave no answer that could be used.
+UNANSWERED = "The check gave no usable answer."
+
 # What the correct food tool is asked to write; `reason` is a JSON string.
 NUTRITION_TASK = (
     "The nutrition values of the record below look implausible for that food and amount: "
@@ -127,18 +133,28 @@ async def check_content(foods: FoodList, evidence: Evidence, context: ToolContex
     if not context.settings.check_nutrition:
         return foods
     checked = await together(_checked(food, evidence, context) for food in foods.foods)
-    corrected = sum(new is not old for new, old in zip(checked, foods.foods, strict=True))
+    findings = [finding for _, finding in checked if finding is not None]
+    corrected = sum(finding.change is Change.NUTRITION_CORRECTED for finding in findings)
     log.info("Food nutrition checked: foods=%d corrected=%d", len(checked), corrected)
-    return FoodList(tuple(checked), foods.removed)
+    return FoodList(tuple(food for food, _ in checked), (*foods.findings, *findings))
 
 
-async def _checked(food: Message, evidence: Evidence, context: ToolContext) -> Message:
-    """One food after its check: the same food when it passed, when the check could not be
-    answered, or when its correction could not be; otherwise with corrected nutrition values."""
+async def _checked(
+    food: Message, evidence: Evidence, context: ToolContext
+) -> tuple[Message, Finding | None]:
+    """One food after its check, and what the check did. The food comes back as it was when
+    it passed, when the check could not be answered, or when its correction could not be;
+    otherwise it has corrected nutrition values. A food that passed has no finding."""
+    check, name = VERIFY_FOOD_NUTRITION.name, food_name(food)
     verdict = await ask(context, nutrition_question(food), OPTIONAL_ATTEMPTS)
-    if verdict is None or verdict.valid:
-        return food
+    if verdict is None:
+        return food, Finding(check, name, Change.NUTRITION_NOT_CHECKED, UNANSWERED)
+    if verdict.valid:
+        return food, None
     task = NUTRITION_TASK.format(reason=json.dumps(verdict.reason, ensure_ascii=False))
     correction = food_correction(evidence, task, record_text(food))
     corrected = await ask(context, correction, OPTIONAL_ATTEMPTS)
-    return food if corrected is None else with_nutrition(food, corrected)
+    if corrected is None:
+        return food, Finding(check, name, Change.NUTRITION_NOT_CORRECTED, verdict.reason)
+    finding = Finding(check, name, Change.NUTRITION_CORRECTED, verdict.reason)
+    return with_nutrition(food, corrected), finding

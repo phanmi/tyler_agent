@@ -138,7 +138,7 @@ This is how steps 3 to 6 are built.
 
 | Module | What it holds | Step |
 |---|---|---|
-| `foods.py` | `FoodList`: the foods of one `recordFood` call, held in memory while the checks run. It never changes in place: removing a food, adding one, or setting a date, an amount or nutrition values returns a new list. It also keeps each removed food with the reason, for the tool result. | 3 |
+| `foods.py` | `FoodList`: the foods of one `recordFood` call, held in memory while the checks run. It never changes in place: removing a food, adding one, or setting a date, an amount or nutrition values returns a new list. It also keeps a finding for each thing a check did, with the reason, for the tool result and the eval report. | 3, 7 |
 | `asking.py` | `ask`: one model request that offers one tool, and returns the arguments of exactly one call of that tool, or nothing. `must_ask` fails the chat when no answer can be used, and `together` sends several requests at the same time. Also `Evidence`: what a check judges the foods against, read once for the call: today's date, the conversation, and the run's earlier tool calls. | 3 |
 | `correction.py` | The correct food tool: one request that writes one food record. It uses `recordFood`'s own schema for one food and the existing parser. | 3 |
 | `name_check.py` | The verify food name and count tool, and what it does with the answer. | 3 |
@@ -230,9 +230,9 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Done | See the execution record for 2026-11-17, step 4. |
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Done | See the execution record for 2026-11-17, step 5. |
 | 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Done | See the execution record for 2026-11-17, step 6. |
-| 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). `FakeJava` answers the new save operation. | Not started | |
+| 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). | Done | See the execution record for 2026-11-17, step 7. |
 | 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
-| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it. The new failure code gets its own message for the user (D10). | Not started | |
+| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it, and the eval's `FakeJava` answers it. The new failure code gets its own message for the user (D10). | Not started | |
 | 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
 | 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
 | 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
@@ -427,3 +427,42 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 - The foods are still saved with one `food.insert` each. If Java rejects a later food, the earlier ones stay saved, until step 9 adds the one-transaction save (D9).
 - A required check that cannot be answered fails the chat as a provider failure, which the user sees as "Internal server error". Step 8 adds a failure code of its own (D10).
 - The eval report's wording and its verification rows describe the old verifier until step 7.
+
+### 2026-11-17 Step 7: the eval report shows what the checks changed
+
+**What changed**
+
+- Each check now records a finding for everything it does: the check's tool, the food, the change and the reason. `FoodList.findings` replaces the list of removed foods from step 3. The changes are: removed, added, amount corrected, date corrected, nutrition corrected, and two for a nutrition check that could not be settled, when the check or its correction gave no usable answer.
+- `recordFood`'s adapter is split into two steps, `record_foods`, which checks and saves, and `rendered`, which writes the tool result. The tool result is unchanged: it lists only the removed records under `notRecorded`.
+- The eval runner stands in for `recordFood`'s handler in each chat. It calls those same two steps, keeps the findings, and returns what the real handler returns, so the chat sees the same result. This replaces counting refusals from the result text.
+- The report has six new rows that count the changes, and a new table for each model, "What the checks changed", with one row for each finding and its reason. This answers #113's first design question: why a record was rejected is no longer a guess.
+- The two modes are now named for what they switch: the nutrition check off and on. The name and count check and the date check run in both. The progress line says `nutrition-check=off` in place of `verification=off`.
+- The eval README explains the new rows, and that reports made before the split are not directly comparable: in those, "off" meant no check at all.
+
+**A defect found on the way.** A food with no name was shown as `\-` in the new table, because the harness's own placeholder was escaped like model text. It is now shown as `-`, and a test covers it.
+
+**Moved to step 9.** `FakeJava` answering the new save operation was listed under this step. That operation does not exist until step 9, so it moved there.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- The name and count check recording no finding: 7 tests failed.
+- The date check recording no finding.
+- A nutrition check without an answer leaving no finding: 10 tests failed.
+- The tool result listing every finding as not recorded.
+- The eval runner keeping no findings.
+- The eval's stand-in giving the chat a different result from the real handler.
+- The report without the list of what the checks changed.
+- A food with no name shown as an escaped dash.
+- The change counts including chats that failed.
+- A model's reason put into the report as written, without escaping.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 980 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run. A sample report was rendered from scripted chats and read.
+
+**Left open**
+
+- A check that changes nothing leaves no row, so the report does not show what a check was asked about a food it accepted.
+- The report's rows and the new table are untested against a real model until the eval run in step 13.

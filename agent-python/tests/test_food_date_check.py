@@ -24,7 +24,7 @@ from tyler_agent.tools.builtin.food_record.date_check import (
     VERIFY_FOOD_DATES,
     check_dates,
 )
-from tyler_agent.tools.builtin.food_record.foods import FoodList
+from tyler_agent.tools.builtin.food_record.foods import Change, Finding, FoodList
 from tyler_agent.tools.contracts import CompletedCall
 from tyler_agent.transcript import AssistantTurn
 
@@ -83,7 +83,10 @@ def test_the_check_is_shown_names_dates_and_today_but_no_amounts_or_nutrition() 
 def test_an_invented_date_is_corrected_and_nothing_else_in_the_record_changes() -> None:
     reason = "The user gave no day, so it is today."
     result, model = check([judged((1, reason)), dated((1, "2026-11-10"))], OATS)
-    assert result == foods(food_raw(foodName="Oats", amount=50, calories=190, date="2026-11-10"))
+    today = food_raw(foodName="Oats", amount=50, calories=190, date="2026-11-10")
+    assert result.foods == foods(today).foods
+    found = Finding(VERIFY_FOOD_DATES.name, "Oats", Change.DATE_CORRECTED, reason)
+    assert result.findings == (found,)
     assert model.tools == [VERIFY, CORRECT]
     correction = model.prompts[1]
     assert json.dumps(reason) in correction and INVENTED in correction and TODAY in correction
@@ -96,7 +99,7 @@ def test_foods_on_different_days_keep_their_own_dates() -> None:
         [judged((3, "It was today.")), dated((3, "2026-11-10"))], CHICKEN, RICE, OATS
     )
     corrected = food_raw(foodName="Oats", amount=50, calories=190, date="2026-11-10")
-    assert result == foods(CHICKEN, RICE, corrected)
+    assert result.foods == foods(CHICKEN, RICE, corrected).foods
     assert "Oats" in model.prompts[1]
     assert "Chicken breast" not in model.prompts[1] and "Cooked rice" not in model.prompts[1]
 
@@ -109,9 +112,8 @@ def test_a_date_from_a_file_the_chat_model_read_reaches_the_check_as_data() -> N
     earlier = [CompletedCall("readFile", '{"path": "food-log.md"}', log_text)]
     replies = [judged((1, "The log says 2026-11-08.")), dated((1, "2026-11-08"))]
     result, model = check(replies, RICE, earlier=earlier)
-    assert result == foods(
-        food_raw(foodName="Cooked rice", amount=1, unit="cup", calories=205, date="2026-11-08")
-    )
+    logged = food_raw(foodName="Cooked rice", amount=1, unit="cup", calories=205, date="2026-11-08")
+    assert result.foods == foods(logged).foods
     for prompt in model.prompts:
         assert json.dumps(log_text) in prompt and log_text not in prompt
         assert "A day can also come from a tool result" in prompt
@@ -173,7 +175,7 @@ def test_an_unusable_correction_is_asked_again_then_fails_the_run(unusable: Assi
     fixed = dated((1, "2026-11-10"), (3, "2026-11-10"))
     result, model = check([wrong, unusable, fixed], OATS, RICE, OATS)
     today = food_raw(foodName="Oats", amount=50, calories=190, date="2026-11-10")
-    assert result == foods(today, RICE, today)
+    assert result.foods == foods(today, RICE, today).foods
     assert model.tools == [VERIFY, CORRECT, CORRECT]
 
     with pytest.raises(AgentFailure) as caught:

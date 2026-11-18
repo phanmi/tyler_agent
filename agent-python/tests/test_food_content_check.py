@@ -21,11 +21,18 @@ from support.food_fakes import food_list as foods
 
 from tyler_agent.tools.builtin.food_record.asking import OPTIONAL_ATTEMPTS, evidence
 from tyler_agent.tools.builtin.food_record.content_check import (
+    UNANSWERED,
     VERIFY_FOOD_NUTRITION,
     check_content,
 )
 from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD
-from tyler_agent.tools.builtin.food_record.foods import FoodList, nutrition_text, record_text
+from tyler_agent.tools.builtin.food_record.foods import (
+    Change,
+    Finding,
+    FoodList,
+    nutrition_text,
+    record_text,
+)
 from tyler_agent.tools.contracts import CompletedCall, RunSettings
 from tyler_agent.tools.parsing import food_arguments
 from tyler_agent.transcript import (
@@ -46,6 +53,11 @@ UNUSABLE_TEXT = AssistantTurn((), "The values look fine.")
 REJECTED = "3300 kcal is ten times too high."
 # The nutrition check is on unless the user switches it off.
 SWITCH_ON = RunSettings()
+
+
+def found(change: Change, reason: str) -> Finding:
+    """What the check records for the default food, chicken breast."""
+    return Finding(VERIFY_FOOD_NUTRITION.name, "Chicken breast", change, reason)
 
 
 def judged(valid: bool, reason: str = "Plausible.") -> AssistantTurn:
@@ -108,7 +120,8 @@ def test_an_implausible_estimate_is_corrected_and_only_its_nutrition_changes() -
         macros=LEAN, foodName="Other", amount=1, unit="kg", calories=330, date="2026-01-01"
     )
     result, model = check([judged(False, REJECTED), written(rewritten)], TOO_HIGH)
-    assert result == foods(food_raw(macros=LEAN, calories=330))
+    assert result.foods == foods(food_raw(macros=LEAN, calories=330)).foods
+    assert result.findings == (found(Change.NUTRITION_CORRECTED, REJECTED),)
     assert model.tools == [VERIFY, CORRECT]
     correction = model.prompts[1]
     assert json.dumps(REJECTED) in correction
@@ -126,7 +139,7 @@ def test_a_value_the_user_stated_survives_a_rejection() -> None:
     kept = food_raw(macros=carbs, foodName="Banana", amount=1, unit="medium", calories=1900)
     replies = [judged(False, "1900 kcal is far too high for a banana."), written(kept)]
     result, model = check(replies, banana, conversation=(UserTurn(said),))
-    assert result == foods(kept)
+    assert result.foods == foods(kept).foods
     assert model.tools == [VERIFY, CORRECT]
     assert said not in model.prompts[0]
     correction = model.prompts[1]
@@ -166,14 +179,15 @@ def test_an_unusable_answer_is_asked_once_more_then_the_food_goes_on_unchanged(
     """The foods can be saved without this check, so it never fails the run, and an unusable
     answer is read neither as a pass nor as a rejection."""
     result, model = check([unusable, unusable], TOO_HIGH)
-    assert result == foods(TOO_HIGH)
+    assert result.foods == foods(TOO_HIGH).foods
+    assert result.findings == (found(Change.NUTRITION_NOT_CHECKED, UNANSWERED),)
     assert model.tools == [VERIFY] * OPTIONAL_ATTEMPTS == [VERIFY, VERIFY]
 
 
 def test_a_usable_answer_after_an_unusable_one_is_acted_on() -> None:
     replies = [UNUSABLE_TEXT, judged(False, REJECTED), written(CHICKEN)]
     result, model = check(replies, TOO_HIGH)
-    assert result == foods(CHICKEN)
+    assert result.foods == foods(CHICKEN).foods
     assert model.tools == [VERIFY, VERIFY, CORRECT]
 
 
@@ -192,11 +206,12 @@ def test_an_unusable_correction_is_asked_once_more_then_the_values_stay(
     unusable: AssistantTurn,
 ) -> None:
     result, model = check([judged(False, REJECTED), unusable, written(CHICKEN)], TOO_HIGH)
-    assert result == foods(CHICKEN)
+    assert result.foods == foods(CHICKEN).foods
     assert model.tools == [VERIFY, CORRECT, CORRECT]
 
     result, model = check([judged(False, REJECTED), unusable, unusable], TOO_HIGH)
-    assert result == foods(TOO_HIGH)
+    assert result.foods == foods(TOO_HIGH).foods
+    assert result.findings == (found(Change.NUTRITION_NOT_CORRECTED, REJECTED),)
     assert model.tools == [VERIFY, CORRECT, CORRECT]
 
 
@@ -236,7 +251,7 @@ def test_every_food_is_checked_at_the_same_time_and_the_order_is_kept() -> None:
         check = check_content(foods(CHICKEN, RICE, OATS), await evidence(context), context)
         return await asyncio.wait_for(check, 3)
 
-    assert asyncio.run(scenario()) == foods(CHICKEN, fixed, OATS)
+    assert asyncio.run(scenario()).foods == foods(CHICKEN, fixed, OATS).foods
     assert model.waiting == 3
 
 

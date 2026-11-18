@@ -1,10 +1,10 @@
 """Adapt recordFood arguments and results through the Java operation boundary."""
 
-from collections.abc import Sequence
+from dataclasses import dataclass
 
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.checks import checked_foods
-from tyler_agent.tools.builtin.food_record.foods import Removed, food_name
+from tyler_agent.tools.builtin.food_record.foods import Change, Finding
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import foods_arguments
 from tyler_agent.tools.rendering import pretty
@@ -16,26 +16,41 @@ NOT_RECORDED = (
 )
 
 
+@dataclass(frozen=True)
+class Recorded:
+    """What one recordFood call did: the foods Java saved, in order, and what the checks
+    found on the way."""
+
+    saved: tuple[Message, ...]
+    findings: tuple[Finding, ...]
+
+
 async def execute(raw: str, context: ToolContext) -> str:
-    """Reject arguments that do not match the definition; domain rules remain in Java.
+    """Reject arguments that do not match the definition; domain rules remain in Java."""
+    return rendered(await record_foods(raw, context))
+
+
+async def record_foods(raw: str, context: ToolContext) -> Recorded:
+    """Check the foods of one call and save the ones the checks leave.
 
     One call carries every food of the message. The checks run on all of them before the
     first one is saved, so a check that fails the run saves none of them. What is saved is
     the list the checks leave: a food they added or corrected is saved in that form, and a
-    record they removed is never sent to Java and is reported beside the saved ones.
+    record they removed is never sent to Java.
     """
     checked = await checked_foods(foods_arguments(raw), context)
     saved = [(await context.operation("food.insert", food))["food"] for food in checked.foods]
-    return recorded(saved, checked.removed)
+    return Recorded(tuple(saved), checked.findings)
 
 
-def recorded(saved: Sequence[Message], removed: Sequence[Removed]) -> str:
+def rendered(recorded: Recorded) -> str:
     """The model-facing result: the foods Java saved, in order, then any record the checks
     left out with the reason, and a note that it should not be recorded again."""
-    result: Message = {"recorded": list(saved)}
-    if removed:
+    result: Message = {"recorded": list(recorded.saved)}
+    left_out = [finding for finding in recorded.findings if finding.change is Change.REMOVED]
+    if left_out:
         result["notRecorded"] = [
-            {"foodName": food_name(entry.food), "reason": entry.reason} for entry in removed
+            {"foodName": finding.food, "reason": finding.reason} for finding in left_out
         ]
         result["note"] = NOT_RECORDED
     return pretty(result)

@@ -22,7 +22,14 @@ from tyler_agent.tools.builtin.food_record.asking import (
     flagged_foods,
     must_ask,
 )
-from tyler_agent.tools.builtin.food_record.foods import FoodList, listed, with_date
+from tyler_agent.tools.builtin.food_record.foods import (
+    Change,
+    Finding,
+    FoodList,
+    food_name,
+    listed,
+    with_date,
+)
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import ArgumentsRejected, arguments, object_value, text_value
 from tyler_agent.tools.rendering import pretty
@@ -207,10 +214,12 @@ async def check_dates(foods: FoodList, evidence: Evidence, context: ToolContext)
     if not wrong:
         return foods
     dates = await must_ask(context, correction_question(evidence, foods, wrong))
+    corrected = {number: food for number, food in foods.numbered() if number in dates}
+    check = VERIFY_FOOD_DATES.name
     return foods.revised(
-        replaced={
-            number: with_date(food, dates[number])
-            for number, food in foods.numbered()
-            if number in dates
-        }
+        replaced={number: with_date(food, dates[number]) for number, food in corrected.items()},
+        findings=[
+            Finding(check, food_name(food), Change.DATE_CORRECTED, wrong[number])
+            for number, food in corrected.items()
+        ],
     )

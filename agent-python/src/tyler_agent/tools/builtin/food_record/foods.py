@@ -5,8 +5,9 @@ with numbers as exact decimal text. Either part can be None when the chat model 
 Java still decides whether such a record can be saved.
 """
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from enum import Enum
 
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.parsing import GENERIC_INFO_FIELDS, MACRO_FIELDS
@@ -16,24 +17,42 @@ from tyler_agent.tools.rendering import pretty
 PORTION_FIELDS = ("foodName", "amount", "unit")
 
 
-@dataclass(frozen=True)
-class Removed:
-    """A food a check took out of the list, and why, for the tool result."""
+class Change(Enum):
+    """What a check did to a food, or could not do."""
 
-    food: Message
+    REMOVED = "removed"
+    ADDED = "added"
+    AMOUNT_CORRECTED = "amount corrected"
+    DATE_CORRECTED = "date corrected"
+    NUTRITION_CORRECTED = "nutrition corrected"
+    # The content check gave no usable answer, so the food went on unchecked.
+    NUTRITION_NOT_CHECKED = "nutrition not checked"
+    # The content check rejected the food, and its correction gave no usable answer.
+    NUTRITION_NOT_CORRECTED = "nutrition not corrected"
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One thing a check did to the list, and why. `check` is the name of the check's tool,
+    and `food` the name the food has in the list, which is None when the model gave none.
+    For a food a check added, `reason` is the food as the user described it."""
+
+    check: str
+    food: str | None
+    change: Change
     reason: str
 
 
 @dataclass(frozen=True)
 class FoodList:
-    """The foods a recordFood call would save, in order, and the foods the checks removed.
+    """The foods a recordFood call would save, in order, and what the checks have found.
 
     A list never changes in place: `revised` returns a new one. A check points at a food by
     its number, which is its place in `foods` counted from 1, as the model is shown it.
     """
 
     foods: tuple[Message, ...]
-    removed: tuple[Removed, ...] = ()
+    findings: tuple[Finding, ...] = ()
 
     def numbered(self) -> Iterator[tuple[int, Message]]:
         return enumerate(self.foods, start=1)
@@ -42,20 +61,19 @@ class FoodList:
         self,
         *,
         replaced: Mapping[int, Message] | None = None,
-        removed: Mapping[int, str] | None = None,
+        removed: Collection[int] = (),
         added: Sequence[Message] = (),
+        findings: Sequence[Finding] = (),
     ) -> "FoodList":
-        """Apply one check's findings, each keyed by a food's number in this list: `replaced`
-        gives a food's new record and `removed` the reason a food is taken out. A food that
-        is both is taken out. `added` foods follow the ones that stay, in the order given."""
-        replaced, removed = replaced or {}, removed or {}
+        """Apply one check's result. `replaced` gives a food's new record and `removed` the
+        foods taken out, both by a food's number in this list; a food that is both is taken
+        out. `added` foods follow the ones that stay, in the order given. `findings` say what
+        the check did and why, and follow the findings of the checks before it."""
+        replaced = replaced or {}
         kept = [
             replaced.get(number, food) for number, food in self.numbered() if number not in removed
         ]
-        dropped = [
-            Removed(food, removed[number]) for number, food in self.numbered() if number in removed
-        ]
-        return FoodList((*kept, *added), (*self.removed, *dropped))
+        return FoodList((*kept, *added), (*self.findings, *findings))
 
 
 def food_name(food: Message) -> str | None:

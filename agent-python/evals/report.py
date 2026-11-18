@@ -1,11 +1,11 @@
 """Aggregate scored chats and write them up as one Markdown report.
 
-Every measurement covers one target (a provider and model) in one mode (verification off or
-on). A chat is measured only when it finished and the chat for the same case and repeat in
-the other mode finished too, so both modes are measured over the same chats and their totals
-can be compared. A failed chat adds to the error count and to no measurement; the list of
-problems still shows what it saved. Each measurement is one entry in METRICS, so adding one
-changes no other code.
+Every measurement covers one target (a provider and model) in one mode (recordFood's
+nutrition check off or on). A chat is measured only when it finished and the chat for the
+same case and repeat in the other mode finished too, so both modes are measured over the same
+chats and their totals can be compared. A failed chat adds to the error count and to no
+measurement; the list of problems still shows what it saved. Each measurement is one entry in
+METRICS, so adding one changes no other code.
 """
 
 import math
@@ -19,9 +19,10 @@ from decimal import Decimal
 from enum import Enum
 
 from evals.pricing import Price, PriceTable, cost
-from evals.runner import ChatResult, FoodCheck, ModelCall, Target
+from evals.runner import ChatResult, ModelCall, Target
 from evals.scoring import ItemScore, expected_value, fully_correct, saved_value
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.food_record.foods import Change, Finding
 from tyler_agent.transcript import Usage
 
 LATENCY_PERCENTILE = 95
@@ -56,8 +57,14 @@ class Group:
     def items(self) -> list[ItemScore]:
         return [item for chat in self.compared for item in chat.scores]
 
-    def checks(self) -> list[FoodCheck]:
-        return [check for chat in self.compared for check in chat.result.checks]
+    def findings(self) -> list[Finding]:
+        """What recordFood's checks found in the compared chats."""
+        return [
+            finding
+            for chat in self.compared
+            for call in chat.result.food_calls
+            for finding in call.findings
+        ]
 
     def calls(self) -> list[ModelCall]:
         return [call for chat in self.compared for call in chat.result.calls]
@@ -123,6 +130,11 @@ def _seconds(group: Group) -> list[float]:
     return [chat.result.seconds for chat in group.compared]
 
 
+def _changes(*changes: Change) -> Callable[[Group], float | None]:
+    """How many times recordFood's checks made one of these changes."""
+    return lambda group: float(sum(finding.change in changes for finding in group.findings()))
+
+
 METRICS: tuple[Metric, ...] = (
     Metric("chats", "Chats run", 0, lambda group: float(len(group.chats))),
     Metric("errors", "Chats that failed", 0, lambda group: float(group.failed())),
@@ -131,7 +143,19 @@ METRICS: tuple[Metric, ...] = (
     Metric("wrongSaves", "Wrong saves", 0, lambda g: float(sum(i.wrong_save for i in g.items()))),
     Metric("missedItems", "Missed items", 0, lambda g: float(sum(i.missed for i in g.items()))),
     Metric("medianCalorieErrorPercent", "Median calorie error (%)", 1, _median_calorie_error),
-    Metric("refused", "Items refused", 0, lambda g: float(sum(c.refused for c in g.checks()))),
+    Metric("recordsRemoved", "Records the checks removed", 0, _changes(Change.REMOVED)),
+    Metric("foodsAdded", "Foods the checks added", 0, _changes(Change.ADDED)),
+    Metric("amountsCorrected", "Amounts corrected", 0, _changes(Change.AMOUNT_CORRECTED)),
+    Metric("datesCorrected", "Dates corrected", 0, _changes(Change.DATE_CORRECTED)),
+    Metric(
+        "nutritionCorrected", "Nutrition values corrected", 0, _changes(Change.NUTRITION_CORRECTED)
+    ),
+    Metric(
+        "nutritionUnanswered",
+        "Nutrition checks without a usable answer",
+        0,
+        _changes(Change.NUTRITION_NOT_CHECKED, Change.NUTRITION_NOT_CORRECTED),
+    ),
     Metric(
         "modelCallsPerChat",
         "Model calls per chat",
@@ -176,7 +200,7 @@ METRICS: tuple[Metric, ...] = (
 
 @dataclass(frozen=True)
 class Row:
-    """One metric for one target: verification off, on, and on minus off."""
+    """One metric for one target: the nutrition check off, on, and on minus off."""
 
     metric: Metric
     off: float | None
@@ -209,9 +233,10 @@ def summarize(scored: Sequence[Scored], prices: PriceTable) -> tuple[Summary, ..
             tuple(
                 chat
                 for chat in scored
-                if chat.result.chat.target == target and chat.result.chat.verify is verify
+                if chat.result.chat.target == target
+                and chat.result.chat.check_nutrition is check_nutrition
             )
-            for verify in (False, True)
+            for check_nutrition in (False, True)
         ]
         finished_in_both = set.intersection(
             *({_pair(chat) for chat in chats if chat.result.error is None} for chats in modes)
@@ -263,7 +288,7 @@ class RunInfo:
 
     @property
     def chats_per_target(self) -> int:
-        """Each case runs once per repeat with verification off and once with it on."""
+        """Each case runs once per repeat with the nutrition check off and once with it on."""
         return self.cases * self.repeats * 2
 
 
@@ -360,6 +385,25 @@ def _problems(chats: Sequence[Scored]) -> list[list[str]]:
     return rows
 
 
+def _findings(chats: Sequence[Scored]) -> list[list[str]]:
+    """A row for each thing a check did in these chats, in run order, with the check's reason.
+    The food and the reason are the model's words."""
+    return [
+        [
+            chat.result.chat.case.id,
+            chat.result.chat.mode,
+            str(chat.result.chat.repeat),
+            finding.check,
+            MISSING if finding.food is None else markdown_text(finding.food),
+            finding.change.value,
+            markdown_text(finding.reason),
+        ]
+        for chat in chats
+        for call in chat.result.food_calls
+        for finding in call.findings
+    ]
+
+
 def _stopped(chats: Sequence[Scored], run: RunInfo) -> list[str]:
     """A sentence for a target stopped at the failure limit; none for any other target.
     `chats` are all one target's."""
@@ -381,9 +425,16 @@ def _target_section(
     )
     problems = _problems(chats)
     detail = (
-        markdown_table(["Case", "Verification", "Repeat", "Problem"], problems, numbers_from=4)
+        markdown_table(["Case", "Nutrition check", "Repeat", "Problem"], problems, numbers_from=4)
         if problems
         else "Every chat finished and was fully correct."
+    )
+    findings = _findings(chats)
+    headers = ["Case", "Nutrition check", "Repeat", "Check", "Food", "Change", "Reason"]
+    changed = (
+        markdown_table(headers, findings, numbers_from=len(headers))
+        if findings
+        else "The checks changed nothing."
     )
     return "\n\n".join(
         [
@@ -393,6 +444,8 @@ def _target_section(
             _summary_table(summary),
             "### Chats that failed or were not fully correct",
             detail,
+            "### What the checks changed",
+            changed,
         ]
     )
 
@@ -423,12 +476,13 @@ def report(scored: Sequence[Scored], prices: PriceTable, run: RunInfo) -> str:
             "",
             f"- **Tyler version:** {run.version}",
             f"- **Run started:** {run.started:%Y-%m-%d %H:%M} UTC",
-            f"- **Cases:** {run.cases}, each run {_times(run.repeats)} with food verification "
+            f"- **Cases:** {run.cases}, each run {_times(run.repeats)} with the nutrition check "
             "off and on",
             f"- **Status:** {_progress(run, len(scored))}",
             "",
-            "Each model's table compares verification off and on over the chats that finished "
-            "in both modes. `agent-python/evals/README.md` explains every row.",
+            "Each model's table compares recordFood's nutrition check off and on over the chats "
+            "that finished in both modes. The name and count check and the date check run in "
+            "both. `agent-python/evals/README.md` explains every row.",
         ]
     )
     sections = [

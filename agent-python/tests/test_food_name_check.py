@@ -27,8 +27,9 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.tools.builtin.food_record.asking import REQUIRED_ATTEMPTS, evidence
 from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD, correct_food_tool
 from tyler_agent.tools.builtin.food_record.foods import (
+    Change,
+    Finding,
     FoodList,
-    Removed,
     portions_text,
     record_text,
 )
@@ -61,6 +62,11 @@ def listed(
     """A verifyFoodList answer."""
     value = dict(missing=list(missing), incorrect=flags(incorrect), wrongAmount=flags(wrong_amount))
     return answer(VERIFY_FOOD_LIST.name, json.dumps(value))
+
+
+def found(food: str, change: Change, reason: str) -> Finding:
+    """What the name and count check records for one food."""
+    return Finding(VERIFY_FOOD_LIST.name, food, change, reason)
 
 
 def written(raw: str = CHICKEN) -> AssistantTurn:
@@ -105,7 +111,11 @@ def test_a_whole_meal_record_is_replaced_by_its_foods() -> None:
     ]
     result, model = check(replies, DINNER)
     assert result.foods == foods(CHICKEN, RICE).foods
-    assert result.removed == (Removed(food_arguments(DINNER), reason),)
+    assert result.findings == (
+        found("Dinner", Change.REMOVED, reason),
+        found("Chicken breast", Change.ADDED, "200 g of chicken breast"),
+        found("Cooked rice", Change.ADDED, "1 cup of rice"),
+    )
     assert model.tools == [VERIFY, CORRECT, CORRECT]
     assert json.dumps("200 g of chicken breast") in model.prompts[1]
     assert json.dumps("1 cup of rice") in model.prompts[2]
@@ -130,7 +140,9 @@ def test_a_wrong_amount_brings_its_nutrition_and_the_name_and_date_stay() -> Non
         calories=220,
         date="2026-11-09",
     )
-    assert result == foods(expected)
+    assert result.foods == foods(expected).foods
+    corrected = found("Caffe latte", Change.AMOUNT_CORRECTED, "The user said a grande.")
+    assert result.findings == (corrected,)
     assert model.tools == [VERIFY, CORRECT]
     correction = model.prompts[1]
     assert record_text(food_arguments(LATTE)) in correction
@@ -246,7 +258,7 @@ def test_the_check_is_asked_three_more_times_before_the_run_fails() -> None:
 def test_an_unusable_correction_is_asked_again_then_fails_the_run(unusable: AssistantTurn) -> None:
     """A missing food has no values to fall back on, so its correction must be answered."""
     result, model = check([listed(missing=["1 cup of rice"]), unusable, written(RICE)], CHICKEN)
-    assert result == foods(CHICKEN, RICE)
+    assert result.foods == foods(CHICKEN, RICE).foods
     assert model.tools == [VERIFY, CORRECT, CORRECT]
 
     with pytest.raises(AgentFailure) as caught:
@@ -311,7 +323,7 @@ VERDICT = listed(missing=["oats", "rice"], wrong_amount=[(1, "It was 250 g.")])
 def test_corrections_are_sent_at_the_same_time_and_kept_in_order() -> None:
     model = HeldCorrections(VERDICT, [food_raw(amount=250, calories=412), OATS, RICE])
     result = held(model, CHICKEN)
-    assert result == foods(food_raw(amount=250, calories=412), OATS, RICE)
+    assert result.foods == foods(food_raw(amount=250, calories=412), OATS, RICE).foods
     assert model.waiting == 3 and model.cancelled == 0
 
 

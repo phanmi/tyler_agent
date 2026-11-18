@@ -23,9 +23,10 @@ from evals.report import (
     report,
     summarize,
 )
-from evals.runner import Chat, ChatResult, FoodCheck, ModelCall, Target
+from evals.runner import Chat, ChatResult, FoodCall, ModelCall, Target
 from evals.scoring import score
 from tyler_agent.protocol.protocol import Message
+from tyler_agent.tools.builtin.food_record.foods import Change, Finding
 from tyler_agent.transcript import Usage
 
 PRICE = Price(Decimal(2), Decimal("0.2"), Decimal("2.5"), Decimal(10))
@@ -43,19 +44,30 @@ PRICED_MODELS = {
 }
 
 
+def found(change: Change, food: str | None = "Rice", reason: str = "Why.") -> Finding:
+    """One thing a check did in a chat."""
+    return Finding("verifyFoodList", food, change, reason)
+
+
 def scored(
-    verify: bool,
+    check_nutrition: bool,
     saved: tuple[Message, ...] = (),
     calls: int = 2,
-    checks: tuple[FoodCheck, ...] = (),
+    findings: tuple[Finding, ...] = (),
     error: str | None = None,
     seconds: float = 1.0,
     repeat: int = 1,
     usage: Usage | None = USAGE,
 ) -> Scored:
-    subject = chat(verify, repeat)
-    result = ChatResult(subject, error, saved, checks, (ModelCall(usage, 0.5),) * calls, seconds)
+    """One chat that made a single recordFood call, in which the checks found `findings`."""
+    subject = chat(check_nutrition, repeat)
+    made = (ModelCall(usage, 0.5),) * calls
+    result = ChatResult(subject, error, saved, (FoodCall(0, findings),), made, seconds)
     return Scored(result, score(subject.case, saved))
+
+
+# Two removals and one of every other change a check can make.
+EVERY_CHANGE = (found(Change.REMOVED), *(found(change) for change in Change))
 
 
 def values(summary: Summary) -> dict[str, tuple[float | None, float | None, float | None]]:
@@ -119,11 +131,11 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
     wrong = record(calories="900")
     chats = [
         # Off: one correct chat and one wrong save, over two repeats.
-        scored(False, (record(),), calls=2, checks=(FoodCheck(0, 0),), seconds=2.0),
-        scored(False, (wrong,), calls=2, checks=(FoodCheck(0, 0),), seconds=4.0, repeat=2),
-        # On: one call that saved its food, and one call that had two foods refused.
-        scored(True, (record(),), calls=5, checks=(FoodCheck(3, 0),), seconds=6.0),
-        scored(True, (), calls=5, checks=(FoodCheck(3, 2),), seconds=10.0, repeat=2),
+        scored(False, (record(),), calls=2, seconds=2.0),
+        scored(False, (wrong,), calls=2, seconds=4.0, repeat=2),
+        # On: one chat the checks changed nothing in, and one where they made every change.
+        scored(True, (record(),), calls=5, seconds=6.0),
+        scored(True, (), calls=5, findings=EVERY_CHANGE, seconds=10.0, repeat=2),
     ]
 
     (summary,) = summarize(chats, PRICES)
@@ -136,7 +148,13 @@ def test_each_metric_is_reported_off_on_and_as_the_difference() -> None:
     assert result["fullyCorrectPercent"] == (50, 50, 0)
     assert result["wrongSaves"] == (1, 0, -1)
     assert result["missedItems"] == (0, 1, 1)
-    assert result["refused"] == (0, 2, 2)
+    assert result["recordsRemoved"] == (0, 2, 2)
+    assert result["foodsAdded"] == (0, 1, 1)
+    assert result["amountsCorrected"] == (0, 1, 1)
+    assert result["datesCorrected"] == (0, 1, 1)
+    assert result["nutritionCorrected"] == (0, 1, 1)
+    # A check that gave no usable answer, and a correction that gave none.
+    assert result["nutritionUnanswered"] == (0, 2, 2)
     assert result["modelCallsPerChat"] == (2, 5, 3)
     assert result["inputTokensPerChat"] == (200, 500, 300)
     assert result["cachedInputTokensPerChat"] == (80, 200, 120)
@@ -173,7 +191,7 @@ def test_a_failed_chat_counts_as_an_error_and_in_nothing_else() -> None:
             False,
             (record(calories="900"),),
             calls=9,
-            checks=(FoodCheck(3, 1),),
+            findings=(found(Change.REMOVED),),
             error="provider/PROVIDER_FAILURE",
             seconds=99.0,
             repeat=2,
@@ -186,7 +204,7 @@ def test_a_failed_chat_counts_as_an_error_and_in_nothing_else() -> None:
 
     assert result["chats"] == (2, 2, 0) and result["errors"] == (1, 0, -1)
     assert result["fullyCorrectPercent"][0] == 100
-    assert result["wrongSaves"][0] == 0 and result["refused"][0] == 0
+    assert result["wrongSaves"][0] == 0 and result["recordsRemoved"][0] == 0
     assert result["modelCallsPerChat"][0] == 2
     assert result["latencyP95Seconds"][0] == 1.0
 
@@ -198,7 +216,7 @@ def test_both_modes_are_measured_over_the_chats_that_finished_in_both() -> None:
         scored(False, (wrong,), repeat=2),
         scored(False, (wrong,), repeat=3),
         scored(True, (wrong,), calls=3),
-        # Verification makes more calls, so it fails more often on a rate limit.
+        # The nutrition check makes more calls, so it fails more often on a rate limit.
         scored(True, (), calls=1, error="provider/PROVIDER_FAILURE", repeat=2),
         scored(True, (), calls=1, error="timeout", repeat=3),
     ]
@@ -318,7 +336,7 @@ def test_the_report_is_markdown_with_the_run_and_a_table_for_each_model() -> Non
         "",
         "- **Tyler version:** 0.2.1",
         "- **Run started:** 2026-11-11 20:15 UTC",
-        "- **Cases:** 1, each run 2 times with food verification off and on",
+        "- **Cases:** 1, each run 2 times with the nutrition check off and on",
         "- **Status:** All 2 chats ran.",
     ]
     assert "## openai / configured-model" in lines and "Prices checked 2026-11-11." in lines
@@ -360,6 +378,48 @@ def test_the_report_lists_each_chat_that_failed_or_was_not_fully_correct() -> No
         ["chicken", "on", "2", "Failed: provider/PROVIDER_FAILURE"],
         ["chicken", "on", "3", "chicken breast: unit nothing (expected g or gram or grams)"],
     ]
+
+
+def changes_table(text: str) -> list[list[str]]:
+    """The body rows of the table that lists what the checks changed."""
+    lines = text.splitlines()
+    start = next(index for index, line in enumerate(lines) if "| Check " in line)
+    return [cells(line) for line in lines[start + 2 :] if line.startswith("|")]
+
+
+def test_the_report_lists_what_each_check_changed_with_its_reason() -> None:
+    """Why a food was removed, added or corrected was a guess before (#113). The food and the
+    reason are the model's words, so nothing in them is read as Markdown."""
+    removed = Finding(
+        "verifyFoodList", "Dinner | <b>", Change.REMOVED, "A whole meal,\nnot a food."
+    )
+    dated = Finding("verifyFoodDates", None, Change.DATE_CORRECTED, "No day was given.")
+    chats = [
+        scored(False, (record(),), findings=(removed,)),
+        scored(True, (record(),), findings=(dated,), repeat=2),
+        scored(True, (record(),)),
+    ]
+
+    text = report(chats, PRICES, replace(RUN, planned=3))
+
+    assert "### What the checks changed" in text.splitlines()
+    assert changes_table(text) == [
+        [
+            "chicken",
+            "off",
+            "1",
+            "verifyFoodList",
+            "Dinner \\| \\<b\\>",
+            "removed",
+            "A whole meal\\, not a food\\.",
+        ],
+        ["chicken", "on", "2", "verifyFoodDates", "-", "date corrected", "No day was given\\."],
+    ]
+
+
+def test_a_model_whose_checks_changed_nothing_says_so() -> None:
+    chats = [scored(False, (record(),)), scored(True, (record(),))]
+    assert "The checks changed nothing." in report(chats, PRICES, RUN).splitlines()
 
 
 def test_a_failed_chat_also_lists_what_it_saved_wrong_or_missed() -> None:
@@ -440,7 +500,7 @@ def test_a_difference_that_rounds_to_zero_is_shown_without_a_minus_sign() -> Non
 def test_a_single_repeat_is_described_as_once() -> None:
     text = report([], PRICES, replace(RUN, repeats=1))
 
-    assert "- **Cases:** 1, each run once with food verification off and on" in text.splitlines()
+    assert "- **Cases:** 1, each run once with the nutrition check off and on" in text.splitlines()
 
 
 def test_the_report_says_how_far_an_unfinished_run_got() -> None:

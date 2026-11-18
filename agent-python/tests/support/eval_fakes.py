@@ -62,8 +62,8 @@ def case(*expects: Expected, case_id: str = "chicken", history: tuple[Message, .
     return Case(case_id, "test", NOW, history, "I ate 200 g of grilled chicken breast.", expects)
 
 
-def chat(verify: bool, repeat: int = 1, subject: Case | None = None) -> Chat:
-    return Chat(subject or case(expected()), TARGET, verify, repeat)
+def chat(check_nutrition: bool, repeat: int = 1, subject: Case | None = None) -> Chat:
+    return Chat(subject or case(expected()), TARGET, check_nutrition, repeat)
 
 
 SAVED_FIELDS: dict[str, object] = dict(

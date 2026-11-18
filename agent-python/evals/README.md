@@ -2,7 +2,7 @@
 
 [Python development guide](../README.md) · [Food verification](../../docs/AGENT_OPERATIONS.md#food-verification)
 
-This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood` verification, then compares the saved records with the expected ones. Each case runs with food verification off and on, so the report shows what the check changes.
+This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The name and count check and the date check run in both modes, because the app has no switch for them.
 
 **A run makes paid API calls on your own provider account.** It is not part of the worker wheel or the Windows bundle, and CI never runs it. CI runs only its tests, which use a fake model.
 
@@ -76,7 +76,7 @@ To change the cheap models, edit the `llm.models.<provider>.cheap` entries in th
 | `--results DIRECTORY` | Where the Markdown report goes. The default is `evals/results/`, which git ignores. |
 | `--keys DIRECTORY` | Where saved keys are read from and written to. The default is `Documents\.tylerTest`. |
 
-A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus one to three more for each food item when verification is on. Chats run one at a time, and each prints one progress line.
+A full run makes `cases × repeats × 2` chats for each model: 402 chats with the 67 shipped cases and the default 3 repeats. With all three keys, `--all-models` is seven models, so 2,814 chats, and `--cheap-models` is three, so 1,206 chats. A chat is two or more model calls, plus two for the name and count check and the date check, one for each correction they ask for, and, with the nutrition check on, one more for each food. Chats run one at a time, and each prints one progress line.
 
 The report file is created before the first call and replaced after every chat, in one step, so it always holds a whole report. If it cannot be updated, for example while another program has it open, the run says so and goes on; the next chat writes it again. If you stop a run with Ctrl-C, the chats that finished are kept and reported.
 
@@ -105,11 +105,14 @@ A run removes the lock when it ends, also after Ctrl-C. A run that is killed out
 
 A run writes one Markdown file, named after the time it started, and prints the same text when it ends. It is the only file a run leaves; the lock and a temporary copy of the report exist only while it runs.
 
-The report starts with the Tyler version, the start time, the number of cases and repeats, and how far the run got. Each model then has a table, followed by a list of the chats that failed or were not fully correct, with the saved and expected values that differ. A failed chat is listed with its failure and with any record it got wrong before it failed.
+The report starts with the Tyler version, the start time, the number of cases and repeats, and how far the run got. Each model then has a table, followed by two lists:
+
+- **Chats that failed or were not fully correct**, with the saved and expected values that differ. A failed chat is listed with its failure and with any record it got wrong before it failed.
+- **What the checks changed**: one row for each thing a check did in a chat, with the check's tool, the food, the change and the check's reason. This is where to look for why a food was removed, added or corrected.
 
 Saved values come from the model, so the report escapes every punctuation mark in them: they show as written, and nothing in them can act as a link, an image, HTML or a table border. In the Markdown source and the terminal they appear with backslashes, such as `2026\-11\-11`.
 
-Each table row shows the value with verification off, with it on, and the change.
+Each table row shows the value with the nutrition check off, with it on, and the change.
 
 Every case and repeat runs once in each mode. A chat is measured only when it finished in both modes, so both columns cover the same chats and their totals can be compared.
 
@@ -119,14 +122,21 @@ Every case and repeat runs once in each mode. A chat is measured only when it fi
 | Chats compared | Chats that finished in both modes. Every row below is measured over these. |
 | Fully correct chats (%) | Chats where every expected record was saved correctly and nothing else was saved. |
 | Wrong saves | Saved records with a field outside tolerance, plus records that should not have been saved. |
-| Missed items | Expected records that were not saved, including ones verification refused. |
+| Missed items | Expected records that were not saved, including ones the checks removed. |
 | Median calorie error (%) | Over saved records that matched an expected one. Calories the user stated are left out. |
-| Items refused | Records verification rejected twice, so nothing was saved. |
-| Model calls, tokens, cost | Averages per chat. They include the verification and regeneration calls inside `recordFood`. |
+| Records the checks removed | Records the name and count check took out of a call's list, so they were not saved. |
+| Foods the checks added | Foods the name and count check found missing and had written. |
+| Amounts corrected | Foods whose amount or unit the name and count check had written again. |
+| Dates corrected | Foods whose date the date check corrected. |
+| Nutrition values corrected | Foods whose nutrition values the nutrition check rejected and had written again. |
+| Nutrition checks without a usable answer | Foods the nutrition check could not settle: the check, or the correction after it, gave no answer that could be used twice in a row. The food was saved with the values it had. |
+| Model calls, tokens, cost | Averages per chat. They include the check and correction requests inside `recordFood`. |
 | Latency | Wall time per chat: the median and the 95th percentile. |
 | Model calls that reported no usage | Calls whose response carried no token counts. Their tokens and cost are missing from the rows above. |
 
-Wrong saves should fall with verification on. Missed items and cost will rise. Whether the check pays for itself is the comparison between those.
+Wrong saves should fall with the nutrition check on, and cost will rise. Whether the check pays for itself is the comparison between those.
+
+Reports made before the checks were split (issue #113) are not directly comparable. In those, "off" meant no check at all and "on" meant one check of the whole record. Now the name and count check and the date check run in both modes.
 
 ## How records are scored
 
@@ -211,7 +221,7 @@ Before a run starts, `prices.json` is checked against [prices.schema.json](price
 
 - **Java's rules are not applied.** A stand-in answers the Java operations and keeps whatever `recordFood` sends. A record Java would reject, such as an impossible date, is scored as a wrong save.
 - **Other tools are not answered.** Only the time, food and profile operations have a stand-in. A chat that reads or writes a file, or saves a workout plan, ends as a failed chat that names the operation.
-- **Only refusals are counted.** The harness reads the foods a `recordFood` result lists as not recorded. One call can carry several foods, so the report does not show a food that verification rejected once and then accepted.
+- **A check that changes nothing leaves no row.** The report lists what the checks changed and why. A food every check passed is not listed, so the report does not show what a check was asked about a food it accepted.
 - **Chats run one at a time**, including across providers, so a full run of several models takes a long time.
 - **A fallback model is priced as the requested one.** Claude can serve a declined request with another model. Food messages should not trigger it.
 - **Prices are the standard tier.** Long-prompt rates are noted in `prices.json` and not applied.

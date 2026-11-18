@@ -10,6 +10,7 @@ check or from one of its corrections, is asked again and then fails the run.
 
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
 
@@ -24,7 +25,10 @@ from tyler_agent.tools.builtin.food_record.asking import (
 )
 from tyler_agent.tools.builtin.food_record.correction import food_correction
 from tyler_agent.tools.builtin.food_record.foods import (
+    Change,
+    Finding,
     FoodList,
+    food_name,
     portions_text,
     record_text,
     with_portion,
@@ -187,9 +191,32 @@ async def check_names(foods: FoodList, evidence: Evidence, context: ToolContext)
             number: with_portion(food, answer)
             for (number, food), answer in zip(amounts.items(), corrected, strict=True)
         },
-        removed=verdict.incorrect,
+        removed=verdict.incorrect.keys(),
         added=added,
+        findings=_findings(foods, verdict, amounts, added),
     )
+
+
+def _findings(
+    foods: FoodList, verdict: ListVerdict, amounts: dict[int, Message], added: Sequence[Message]
+) -> list[Finding]:
+    """What the check did: each record it removed and each amount it corrected, with the
+    check's reason, then each food it added, with the user's description of it."""
+    check = VERIFY_FOOD_LIST.name
+    removed = [
+        Finding(check, food_name(food), Change.REMOVED, verdict.incorrect[number])
+        for number, food in foods.numbered()
+        if number in verdict.incorrect
+    ]
+    corrected = [
+        Finding(check, food_name(food), Change.AMOUNT_CORRECTED, verdict.wrong_amount[number])
+        for number, food in amounts.items()
+    ]
+    new = [
+        Finding(check, food_name(food), Change.ADDED, described)
+        for food, described in zip(added, verdict.missing, strict=True)
+    ]
+    return [*removed, *corrected, *new]
 
 
 def _amount_question(evidence: Evidence, food: Message, reason: str) -> Question[Message]:
