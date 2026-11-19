@@ -200,6 +200,12 @@ def test_an_unusable_answer_is_asked_again_and_never_read_as_every_date_right(
         dates_raw(
             '[{"number": 1, "date": "2026-11-10", "x": 1}, {"number": 3, "date": "2026-11-10"}]'
         ),
+        # A date must be a real day written as YYYY-MM-DD: Java rejects any other when the
+        # food is saved, which would fail the chat.
+        dated((1, "2026-11-10"), (3, "yesterday")),
+        dated((1, "2026-11-10"), (3, "11/10/2026")),
+        dated((1, "2026-11-10"), (3, "20261110")),
+        dated((1, "2026-11-10"), (3, "2026-02-30")),
     ],
 )
 def test_an_unusable_correction_is_asked_again_then_fails_the_run(unusable: AssistantTurn) -> None:

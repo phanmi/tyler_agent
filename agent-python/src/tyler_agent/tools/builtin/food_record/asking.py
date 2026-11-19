@@ -11,7 +11,7 @@ again.
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Container, Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -29,6 +29,19 @@ log = logging.getLogger(__name__)
 # first ask and one more.
 REQUIRED_ATTEMPTS = 4
 OPTIONAL_ATTEMPTS = 2
+
+# How many of a check's questions are being asked at the same time. One recordFood call can
+# carry any number of foods, and the providers do not retry, so without a limit a long list
+# would send every question at once and one rate-limit error would fail the run.
+MAX_QUESTIONS_TOGETHER = 8
+
+# How every prompt shows the model the conversation and the run's earlier tool calls.
+EVIDENCE_TEXT = """\
+The conversation, oldest message first. The last message is the user's latest:
+{conversation}
+
+The tool calls already made in this chat, oldest first, with their results:
+{earlier_calls}"""
 
 
 @dataclass(frozen=True)
@@ -54,6 +67,14 @@ class Evidence:
     today: str
     conversation: str
     earlier_calls: str
+
+    @property
+    def text(self) -> str:
+        """The conversation and the earlier calls as a prompt shows them. Today's date is
+        not part of it, because the name and count check is not shown the date."""
+        return EVIDENCE_TEXT.format(
+            conversation=self.conversation, earlier_calls=self.earlier_calls
+        )
 
 
 def conversation_text(context: ToolContext) -> str:
@@ -126,13 +147,21 @@ async def must_ask[T](context: ToolContext, question: Question[T]) -> T:
     return answer
 
 
-async def together[T](requests: Iterable[Awaitable[T]]) -> list[T]:
-    """Run model requests at the same time and return their answers in the order given.
+async def together[S, T](answer_for: Callable[[S], Awaitable[T]], items: Iterable[S]) -> list[T]:
+    """Ask about each item at the same time, at most MAX_QUESTIONS_TOGETHER at once, and
+    return the answers in the items' order. An item beyond the limit is asked about when an
+    earlier one has its answer.
 
     If one fails, or the run is cancelled, the others are cancelled and awaited before the
     failure propagates, so no request outlives the check that sent it.
     """
-    tasks = [asyncio.ensure_future(request) for request in requests]
+    free = asyncio.Semaphore(MAX_QUESTIONS_TOGETHER)
+
+    async def in_turn(item: S) -> T:
+        async with free:
+            return await answer_for(item)
+
+    tasks = [asyncio.ensure_future(in_turn(item)) for item in items]
     try:
         return await asyncio.gather(*tasks)
     except BaseException:
@@ -142,11 +171,17 @@ async def together[T](requests: Iterable[Awaitable[T]]) -> list[T]:
         raise
 
 
+# The schema of the number that points an entry of an answer at a food.
+FOOD_NUMBER: dict[str, Any] = {
+    "type": "integer",
+    "description": "The record's number in the list.",
+}
+
 # The schema of one entry in a check's answer that points at a food and says what is wrong.
 FLAGGED_FOOD: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "number": {"type": "integer", "description": "The record's number in the list."},
+        "number": FOOD_NUMBER,
         "reason": {
             "type": "string",
             "description": "One or two sentences: what is wrong and what it should be.",
@@ -157,24 +192,29 @@ FLAGGED_FOOD: dict[str, Any] = {
 }
 
 
-def flagged_foods(value: Any, count: int) -> dict[int, str]:
-    """Read a list of `{number, reason}` from a check's answer as reasons keyed by food number.
+def numbered_texts(value: Any, field: str, allowed: Container[int]) -> dict[int, str]:
+    """Read a list of `{number, <field>}` entries from an answer as texts keyed by food number.
 
-    Each number must be a whole number from 1 to `count`, the size of the list the model was
-    shown, and must not repeat; each reason must have text. Anything else is rejected.
+    Each number must be one of `allowed` and must not repeat, and each text must not be
+    blank. Anything else is rejected.
     """
     if not isinstance(value, list):
         raise ArgumentsRejected
-    flagged: dict[int, str] = {}
+    texts: dict[int, str] = {}
     for item in value:
-        entry = object_value(item, ("number", "reason"))
-        number, reason = entry.get("number"), text_value(entry.get("reason"))
-        # The range is checked first, so a huge exponent is never expanded into digits.
-        if not isinstance(number, Decimal) or not 1 <= number <= count:
+        entry = object_value(item, ("number", field))
+        number, text = entry.get("number"), text_value(entry.get(field))
+        # Only a JSON number equal to an allowed one passes: true is not read as 1, 1.5 is
+        # not rounded to it, and a huge exponent is never expanded into digits.
+        if not isinstance(number, Decimal) or number not in allowed or int(number) in texts:
             raise ArgumentsRejected
-        if number != number.to_integral_value() or int(number) in flagged:
+        if text is None or not text.strip():
             raise ArgumentsRejected
-        if reason is None or not reason.strip():
-            raise ArgumentsRejected
-        flagged[int(number)] = reason
-    return flagged
+        texts[int(number)] = text
+    return texts
+
+
+def flagged_foods(value: Any, count: int) -> dict[int, str]:
+    """Read a list of `{number, reason}` from a check's answer as reasons keyed by food
+    number, for a list of `count` foods: the numbers the model was shown are 1 to `count`."""
+    return numbered_texts(value, "reason", range(1, count + 1))

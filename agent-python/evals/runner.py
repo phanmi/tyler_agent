@@ -22,7 +22,6 @@ from tyler_agent.tools.builtin.food_record.adapter import record_foods, rendered
 from tyler_agent.tools.builtin.food_record.foods import Finding
 from tyler_agent.tools.contracts import RunSettings, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
-from tyler_agent.tools.parsing import ArgumentsRejected
 from tyler_agent.tools.registry import ToolCatalog
 from tyler_agent.transcript import AssistantTurn, Provider, ToolDefinition, TranscriptEntry, Usage
 
@@ -73,23 +72,15 @@ class ModelCall:
 
 
 @dataclass(frozen=True)
-class FoodCall:
-    """One recordFood call: the model requests made inside it, and what its checks found.
-    A call whose arguments were rejected made no request and has no finding."""
-
-    model_calls: int
-    findings: tuple[Finding, ...]
-
-
-@dataclass(frozen=True)
 class ChatResult:
     """What one chat did. `error` is None for a chat that finished; a failed chat keeps what
-    it had recorded up to the failure, and the report leaves it out of every measurement."""
+    it had recorded up to the failure, and the report leaves it out of every measurement.
+    `findings` is what recordFood's checks found, in the order of the chat's calls."""
 
     chat: Chat
     error: str | None
     saved: tuple[Message, ...]
-    food_calls: tuple[FoodCall, ...]
+    findings: tuple[Finding, ...]
     calls: tuple[ModelCall, ...]
     seconds: float
 
@@ -128,26 +119,20 @@ class MeteredProvider:
 
 class RecordedFood:
     """Stands in for recordFood's handler in one chat's catalog. It runs the tool's own two
-    steps, checking and saving the foods and then writing the result, and notes for each call
-    how many model requests ran inside it and what the checks found.
+    steps, checking and saving the foods and then writing the result, and keeps what the
+    checks found.
 
-    `calls` starts empty and grows by one for each recordFood call the model makes, including
-    a call whose arguments were rejected. A call that fails the chat adds nothing. One
-    instance belongs to one chat.
+    `findings` starts empty and grows with each recordFood call that saves its foods. A call
+    whose arguments were rejected, or that fails the chat, adds nothing. One instance belongs
+    to one chat.
     """
 
-    def __init__(self, meter: MeteredProvider) -> None:
-        self._meter = meter
-        self.calls: list[FoodCall] = []
+    def __init__(self) -> None:
+        self.findings: list[Finding] = []
 
     async def execute(self, raw: str, context: ToolContext) -> str:
-        before = len(self._meter.calls)
-        try:
-            recorded = await record_foods(raw, context)
-        except ArgumentsRejected:
-            self.calls.append(FoodCall(0, ()))
-            raise
-        self.calls.append(FoodCall(len(self._meter.calls) - before, recorded.findings))
+        recorded = await record_foods(raw, context)
+        self.findings.extend(recorded.findings)
         return rendered(recorded)
 
 
@@ -186,7 +171,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
         async with asyncio.timeout(CHAT_TIMEOUT_MS / 1000):
             async with session.opener(payload) as provider:
                 meter = MeteredProvider(provider, session.clock)
-                food = RecordedFood(meter)
+                food = RecordedFood()
                 settings = RunSettings(check_nutrition=chat.check_nutrition)
                 context = tool_context(payload, meter, java.operation, settings)
                 tools = ToolAdapters(context, chat_catalog(session.tools, food))
@@ -205,7 +190,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
         chat,
         error,
         tuple(java.saved),
-        tuple(food.calls) if food else (),
+        tuple(food.findings) if food else (),
         tuple(meter.calls) if meter else (),
         session.clock() - started,
     )

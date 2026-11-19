@@ -101,11 +101,7 @@ with a conversion added, such as "cup (240 ml)". When the user gave two units fo
 such as "one 2 oz bar", either matches. When the user gave no amount, a reasonable estimate \
 matches.
 
-The conversation, oldest message first. The last message is the user's latest:
-{conversation}
-
-The tool calls already made in this chat, oldest first, with their results:
-{earlier_calls}
+{evidence}
 
 The records to check, numbered:
 {foods}
@@ -153,8 +149,7 @@ def list_verdict(count: int, raw: str) -> ListVerdict:
 
 def list_question(evidence: Evidence, foods: FoodList) -> Question[ListVerdict]:
     prompt = VERIFY_PROMPT.format(
-        conversation=evidence.conversation,
-        earlier_calls=evidence.earlier_calls,
+        evidence=evidence.text,
         foods=portions_text(foods),
         tool=VERIFY_FOOD_LIST.name,
     )
@@ -166,8 +161,8 @@ async def check_names(foods: FoodList, evidence: Evidence, context: ToolContext)
     and missing foods added at the end.
 
     With the check switched off (`RunSettings.check_names`), the list comes back as it is
-    and no request is made. Every correction is its own request, and they run at the same
-    time. This requests no Java operation. Provider failures and cancellation propagate, and
+    and no request is made. Every correction is its own request, and several run at the
+    same time. This requests no Java operation. Provider failures and cancellation propagate, and
     so does the failure of a check or correction that could not be answered, so nothing is
     saved after them.
     """
@@ -184,7 +179,7 @@ async def check_names(foods: FoodList, evidence: Evidence, context: ToolContext)
         *(_amount_question(evidence, food, verdict.wrong_amount[n]) for n, food in amounts.items()),
         *(_missing_question(evidence, food) for food in verdict.missing),
     ]
-    answers = await together(must_ask(context, question) for question in questions)
+    answers = await together(partial(must_ask, context), questions)
     corrected, added = answers[: len(amounts)], answers[len(amounts) :]
     log.info(
         "Food list checked: missing=%d incorrect=%d wrongAmount=%d",

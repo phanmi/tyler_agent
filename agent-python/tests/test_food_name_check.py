@@ -26,7 +26,11 @@ from support.food_fakes import food_list as foods
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.tools.builtin.food_record.asking import REQUIRED_ATTEMPTS, evidence
-from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD, correct_food_tool
+from tyler_agent.tools.builtin.food_record.correction import (
+    CORRECT_FOOD,
+    ONE_FOOD_RULES_START,
+    correct_food_tool,
+)
 from tyler_agent.tools.builtin.food_record.foods import (
     Change,
     Finding,
@@ -373,8 +377,10 @@ def test_logs_record_counts_and_attempts_but_no_food_reason_or_conversation(
 
 def test_the_check_and_the_correction_keep_recordfoods_unit_and_source_rules() -> None:
     """The check rejects a converted unit with the examples recordFood's description gives the
-    chat model (#104), and a correction is given recordFood's whole description, so it
-    estimates from the same sources (#105) and keeps what the user stated."""
+    chat model (#104). A correction is given the part of that description that says how one
+    food is written, so it keeps the same units, estimates from the same sources (#105) and
+    keeps what the user stated. It is not given the part about the `foods` list, which its
+    own arguments do not have."""
     _, model = check([listed(missing=["toast"]), written()], CHICKEN)
     verify, correct = model.prompts
     (record_food,) = [
@@ -385,9 +391,12 @@ def test_the_check_and_the_correction_keep_recordfoods_unit_and_source_rules() -
         assert phrase in record_food["description"], phrase
         assert phrase in verify, phrase
     tool = correct_food_tool()
-    assert record_food["description"] in tool.description
-    for phrase in SOURCE_PHRASES:
-        assert phrase in tool.description, phrase
+    rules = tool.description[tool.description.index(ONE_FOOD_RULES_START) :]
+    assert record_food["description"].endswith(rules)
+    assert "foods" in record_food["description"] and "foods" not in tool.description
+    assert "Save every nutrition value the user states exactly as stated." in rules
+    for phrase in (*UNIT_PHRASES, *SOURCE_PHRASES):
+        assert phrase in rules, phrase
     assert tool.parameters == record_food["parameters"]["properties"]["foods"]["items"]
     assert "Keep every value the user stated, including nutrition values" in correct
     assert "Keep the amount the user gave in the user's own word for its unit" in correct

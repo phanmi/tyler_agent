@@ -19,7 +19,11 @@ from support.food_fakes import (
 )
 from support.food_fakes import food_list as foods
 
-from tyler_agent.tools.builtin.food_record.asking import OPTIONAL_ATTEMPTS, evidence
+from tyler_agent.tools.builtin.food_record.asking import (
+    MAX_QUESTIONS_TOGETHER,
+    OPTIONAL_ATTEMPTS,
+    evidence,
+)
 from tyler_agent.tools.builtin.food_record.content_check import (
     UNANSWERED,
     VERIFY_FOOD_NUTRITION,
@@ -220,6 +224,12 @@ def test_a_usable_answer_after_an_unusable_one_is_acted_on() -> None:
         written('{"genericInfo": {"foodName": "Chicken breast", "amount": 200, "unit": "g"}}'),
         # Matches the schema but exceeds the protocol's two-billion bound.
         written(food_raw(calories=3000000000)),
+        # DeepSeek's tool calls are not strict, so a correction can leave a value out or
+        # give null. Copying that gap would turn a food that can be saved into one Java
+        # rejects, and so would a negative number.
+        written(food_raw(macros=dict(protein=60, carbs=0, fat=6))),
+        written(food_raw(calories=None)),
+        written(food_raw(macros=dict(protein=-5, carbs=0, fat=6, fiber=0))),
     ],
 )
 def test_an_unusable_correction_is_asked_once_more_then_the_values_stay(
@@ -273,6 +283,40 @@ def test_every_food_is_checked_at_the_same_time_and_the_order_is_kept() -> None:
 
     assert asyncio.run(scenario()).foods == foods(CHICKEN, fixed, OATS).foods
     assert model.waiting == 3
+
+
+class CountedChecks:
+    """Pass every food, and note the most checks that waited for an answer at the same time.
+    An answer takes one turn of the event loop, so every check that may start has started
+    before the first one ends."""
+
+    def __init__(self) -> None:
+        self.java = Java()
+        self.waiting = 0
+        self.most = 0
+
+    async def __call__(
+        self, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
+    ) -> AssistantTurn:
+        self.waiting += 1
+        self.most = max(self.most, self.waiting)
+        await asyncio.sleep(0)
+        self.waiting -= 1
+        return judged(True)
+
+
+def test_a_long_list_is_checked_a_limited_number_of_foods_at_a_time() -> None:
+    """One call can carry any number of foods, and the providers do not retry, so sending
+    every check at once would let one rate-limit error fail the run."""
+    many = [food_raw(foodName=f"Food {number}") for number in range(MAX_QUESTIONS_TOGETHER + 3)]
+    model = CountedChecks()
+    context = fake_context(model.java, model, CONVERSATION, SWITCH_ON)
+
+    async def scenario() -> FoodList:
+        return await check_content(foods(*many), await evidence(context), context)
+
+    assert asyncio.run(scenario()).foods == foods(*many).foods
+    assert model.most == MAX_QUESTIONS_TOGETHER == 8
 
 
 def test_logs_record_counts_but_no_food_or_reason(caplog: pytest.LogCaptureFixture) -> None:

@@ -23,7 +23,7 @@ from support.eval_fakes import (
 )
 
 from evals.java import FakeJava
-from evals.runner import ChatResult, FoodCall, ModelCall, run_chat, run_payload
+from evals.runner import ChatResult, ModelCall, run_chat, run_payload
 from tyler_agent.agent import tool_context
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.validation import MessageValidator
@@ -45,7 +45,7 @@ def test_with_the_nutrition_check_off_the_date_check_still_runs() -> None:
 
     assert result.error is None
     assert result.saved == (record(),)
-    assert result.food_calls == (FoodCall(1, ()),)
+    assert result.findings == ()
     assert [call.usage for call in result.calls] == [USAGE] * 3
 
 
@@ -55,12 +55,12 @@ def test_check_requests_are_metered_with_the_chats_own_calls() -> None:
     result = run(provider, check_nutrition=True)
 
     assert result.saved == (record(),)
-    assert result.food_calls == (FoodCall(2, ()),)
+    assert result.findings == ()
     # The chat's first round, the two checks inside recordFood, and the closing round.
     assert result.calls == (ModelCall(USAGE, 1.0),) * 4
 
 
-def test_a_corrected_food_counts_its_check_and_correction_requests() -> None:
+def test_what_a_check_found_is_kept_and_its_requests_are_metered() -> None:
     provider = FakeProvider(
         [
             turn(food_call(calories=3020)),
@@ -80,7 +80,8 @@ def test_a_corrected_food_counts_its_check_and_correction_requests() -> None:
         Change.NUTRITION_CORRECTED,
         "3020 kcal is ten times too high.",
     )
-    assert result.food_calls == (FoodCall(3, (corrected,)),)
+    assert result.findings == (corrected,)
+    # The chat's two rounds, the two checks and the correction.
     assert len(result.calls) == 5
 
 
@@ -100,12 +101,13 @@ def test_the_chat_model_is_given_the_result_the_real_tool_gives() -> None:
     assert given == ToolResult("food", expected)
 
 
-def test_rejected_arguments_are_a_food_call_with_no_model_calls() -> None:
+def test_rejected_arguments_go_back_to_the_model_and_the_chat_goes_on() -> None:
     provider = FakeProvider([turn(call("recordFood", "not json")), turn(text="Sorry.")])
 
     result = run(provider, check_nutrition=True)
 
-    assert result.saved == () and result.food_calls == (FoodCall(0, ()),)
+    assert result.error is None and len(result.calls) == 2
+    assert result.saved == () and result.findings == ()
 
 
 def test_the_cases_fixed_time_answers_the_time_tool_and_the_date_check() -> None:
@@ -214,7 +216,7 @@ def test_an_unexpected_exception_is_an_error_without_its_text() -> None:
     result = run(provider, check_nutrition=True)
 
     assert result.error == "internal: RuntimeError"
-    assert result.calls == () and result.food_calls == ()
+    assert result.calls == () and result.findings == ()
 
 
 def test_a_chat_that_exceeds_its_deadline_is_a_timeout_error(

@@ -23,7 +23,7 @@ from evals.report import (
     report,
     summarize,
 )
-from evals.runner import Chat, ChatResult, FoodCall, ModelCall, Target
+from evals.runner import Chat, ChatResult, ModelCall, Target
 from evals.scoring import score
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.foods import Change, Finding
@@ -62,7 +62,7 @@ def scored(
     """One chat that made a single recordFood call, in which the checks found `findings`."""
     subject = chat(check_nutrition, repeat)
     made = (ModelCall(usage, 0.5),) * calls
-    result = ChatResult(subject, error, saved, (FoodCall(0, findings),), made, seconds)
+    result = ChatResult(subject, error, saved, findings, made, seconds)
     return Scored(result, score(subject.case, saved))
 
 

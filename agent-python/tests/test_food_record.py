@@ -180,12 +180,19 @@ def test_the_checks_run_in_order_and_nothing_is_saved_before_the_last_one() -> N
     assert java.saved() == saved
     # Every request inside recordFood came before the first save.
     assert provider.saved_at_request == [0] * 8 + [2]
+    # Each of them is shown the conversation and the earlier calls in the same words.
+    for request in range(1, 8):
+        prompt = provider.prompt(request)
+        assert "The last message is the user's latest:\n[{" in prompt, request
+        assert "The tool calls already made in this chat, oldest first" in prompt, request
     expected = {
         "recorded": [food["food"] for food in saved],
         "notRecorded": [{"foodName": "Dinner", "reason": whole}],
         "note": NOT_RECORDED,
     }
     assert provider.tool_result() == pretty(expected)
+    # A check can be wrong to leave a record out, so the reply has to say it did.
+    assert "Tell the user which records were not recorded and why." in provider.tool_result()
 
 
 def test_a_food_from_a_file_the_chat_model_read_is_saved_and_no_check_sees_the_key() -> None:

@@ -9,10 +9,13 @@ from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import foods_arguments
 from tyler_agent.tools.rendering import pretty
 
-# Said beside the records the checks left out, so the chat model does not record them again.
+# Said beside the records the checks left out, so the chat model tells the user about them
+# and does not record them again. A check can be wrong to leave a record out, and the user
+# can put that right only when the reply says so.
 NOT_RECORDED = (
     "The records under notRecorded were left out of the diary, each for the reason given. "
-    "Do not call recordFood for them again unless the user gives more detail."
+    "Tell the user which records were not recorded and why. Do not call recordFood for them "
+    "again unless the user gives more detail."
 )
 
 
@@ -45,7 +48,7 @@ async def record_foods(raw: str, context: ToolContext) -> Recorded:
 
 def rendered(recorded: Recorded) -> str:
     """The model-facing result: the foods Java saved, in order, then any record the checks
-    left out with the reason, and a note that it should not be recorded again."""
+    left out with the reason, and a note to tell the user and not to record it again."""
     result: Message = {"recorded": list(recorded.saved)}
     left_out = [finding for finding in recorded.findings if finding.change is Change.REMOVED]
     if left_out:

@@ -1,8 +1,8 @@
 """The content check: are a food's nutrition values plausible for that food and amount?
 
-It runs once for each food of a recordFood call, all at the same time, after the name and
-count check and the date check. It is shown one food, without its date, beside the
-conversation and the run's earlier tool calls.
+It runs once for each food of a recordFood call, several foods at the same time, after the
+name and count check and the date check. It is shown one food, without its date, beside
+the conversation and the run's earlier tool calls.
 
 It is shown those so it can tell a value the user stated from an estimate. A stated value is
 right however unusual it looks: the check rejects a record that differs from it, and never
@@ -17,6 +17,7 @@ cannot be used is asked once more and then the food goes on with the values it h
 import json
 import logging
 from dataclasses import dataclass
+from functools import partial
 
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools.builtin.food_record.asking import (
@@ -88,11 +89,7 @@ food and that amount in its unit, or inconsistent with the other values. Judge i
 
 Do not judge the food's name, amount or unit: take them as given.
 
-The conversation, oldest message first. The last message is the user's latest:
-{conversation}
-
-The tool calls already made in this chat, oldest first, with their results:
-{earlier_calls}
+{evidence}
 
 The food record to check:
 {record}
@@ -130,8 +127,7 @@ def nutrition_verdict(raw: str) -> NutritionVerdict:
 def nutrition_question(evidence: Evidence, food: Message) -> Question[NutritionVerdict]:
     prompt = VERIFY_PROMPT.format(
         sources=NUTRITION_SOURCES,
-        conversation=evidence.conversation,
-        earlier_calls=evidence.earlier_calls,
+        evidence=evidence.text,
         record=nutrition_text(food),
         tool=VERIFY_FOOD_NUTRITION.name,
     )
@@ -147,7 +143,7 @@ async def check_content(foods: FoodList, evidence: Evidence, context: ToolContex
     """
     if not context.settings.check_nutrition:
         return foods
-    checked = await together(_checked(food, evidence, context) for food in foods.foods)
+    checked = await together(partial(_checked, evidence, context), foods.foods)
     findings = [finding for _, finding in checked if finding is not None]
     corrected = sum(finding.change is Change.NUTRITION_CORRECTED for finding in findings)
     log.info("Food nutrition checked: foods=%d corrected=%d", len(checked), corrected)
@@ -155,7 +151,7 @@ async def check_content(foods: FoodList, evidence: Evidence, context: ToolContex
 
 
 async def _checked(
-    food: Message, evidence: Evidence, context: ToolContext
+    evidence: Evidence, context: ToolContext, food: Message
 ) -> tuple[Message, Finding | None]:
     """One food after its check, and what the check did. The food comes back as it was when
     it passed, when the check could not be answered, or when its correction could not be;

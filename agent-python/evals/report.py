@@ -59,12 +59,7 @@ class Group:
 
     def findings(self) -> list[Finding]:
         """What recordFood's checks found in the compared chats."""
-        return [
-            finding
-            for chat in self.compared
-            for call in chat.result.food_calls
-            for finding in call.findings
-        ]
+        return [finding for chat in self.compared for finding in chat.result.findings]
 
     def calls(self) -> list[ModelCall]:
         return [call for chat in self.compared for call in chat.result.calls]
@@ -399,8 +394,7 @@ def _findings(chats: Sequence[Scored]) -> list[list[str]]:
             markdown_text(finding.reason),
         ]
         for chat in chats
-        for call in chat.result.food_calls
-        for finding in call.findings
+        for finding in chat.result.findings
     ]
 
 

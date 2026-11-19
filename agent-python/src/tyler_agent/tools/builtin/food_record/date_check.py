@@ -5,7 +5,8 @@ settled which foods are in the list. One message can cover several days, so each
 is judged on its own. It reads names and dates only.
 
 A wrong date is corrected by a second request, which gives a new date for exactly the foods
-the check named. Nothing else in a record changes.
+the check named. Nothing else in a record changes. A corrected date must be a real day
+written as YYYY-MM-DD.
 
 A food with no date is wrong whatever the check answers, so it always goes to the correction.
 
@@ -13,16 +14,19 @@ The foods cannot be saved without this check, so an answer that cannot be used, 
 check or from its correction, is asked again and then fails the run.
 """
 
+import datetime
 import logging
-from decimal import Decimal
+import re
 from functools import partial
 
 from tyler_agent.tools.builtin.food_record.asking import (
     FLAGGED_FOOD,
+    FOOD_NUMBER,
     Evidence,
     Question,
     flagged_foods,
     must_ask,
+    numbered_texts,
 )
 from tyler_agent.tools.builtin.food_record.foods import (
     Change,
@@ -34,7 +38,7 @@ from tyler_agent.tools.builtin.food_record.foods import (
     with_date,
 )
 from tyler_agent.tools.contracts import ToolContext
-from tyler_agent.tools.parsing import ArgumentsRejected, arguments, object_value, text_value
+from tyler_agent.tools.parsing import ArgumentsRejected, arguments, object_value
 from tyler_agent.tools.rendering import pretty
 from tyler_agent.transcript import ToolDefinition
 
@@ -72,10 +76,7 @@ CORRECT_FOOD_DATES = ToolDefinition(
                 "items": {
                     "type": "object",
                     "properties": {
-                        "number": {
-                            "type": "integer",
-                            "description": "The record's number in the list.",
-                        },
+                        "number": FOOD_NUMBER,
                         "date": {
                             "type": "string",
                             "description": "The day the user ate the food, in YYYY-MM-DD format.",
@@ -90,6 +91,9 @@ CORRECT_FOOD_DATES = ToolDefinition(
         "additionalProperties": False,
     },
 )
+
+# The shape correctFoodDates is told to write a date in. ASCII digits only.
+DATE_SHAPE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 # The reason the correction is given for a food the chat model gave no date.
 NO_DATE = "The record has no date."
@@ -112,11 +116,7 @@ Report wrong: each record whose date is not the day the user ate that food.
 
 Today's date and time: {today}
 
-The conversation, oldest message first. The last message is the user's latest:
-{conversation}
-
-The tool calls already made in this chat, oldest first, with their results:
-{earlier_calls}
+{evidence}
 
 The records to check, numbered:
 {foods}
@@ -131,11 +131,7 @@ wrong date, with the reason. Give the right date for each one, in YYYY-MM-DD for
 
 Today's date and time: {today}
 
-The conversation, oldest message first. The last message is the user's latest:
-{conversation}
-
-The tool calls already made in this chat, oldest first, with their results:
-{earlier_calls}
+{evidence}
 
 The records to correct, with their numbers:
 {foods}
@@ -149,28 +145,35 @@ def wrong_dates(count: int, raw: str) -> dict[int, str]:
     return flagged_foods(object_value(arguments(raw), ("wrong",)).get("wrong"), count)
 
 
+def is_calendar_date(text: str) -> bool:
+    """Whether `text` is a real day written as YYYY-MM-DD.
+
+    The shape is checked first, because `date.fromisoformat` also reads other ISO forms,
+    such as 20261110.
+    """
+    if DATE_SHAPE.fullmatch(text) is None:
+        return False
+    try:
+        datetime.date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
 def corrected_dates(wrong: frozenset[int], raw: str) -> dict[int, str]:
     """Read correctFoodDates' arguments as dates keyed by food number.
 
     The answer must give one date for each food the check named and for no other, so a food
-    is never left with a date the check called wrong, and no other food's date changes. Java
-    decides whether a date is a real one when the food is saved.
+    is never left with a date the check called wrong, and no other food's date changes.
+
+    Each date must be a real day written as YYYY-MM-DD. Java has that rule too, and applies
+    it when the food is saved. It is repeated here because this date is the model's answer
+    to this check's own tool: one that breaks the rule is asked for again, where Java's
+    rejection would fail the chat.
     """
     entries = object_value(arguments(raw), ("dates",)).get("dates")
-    if not isinstance(entries, list):
-        raise ArgumentsRejected
-    dates: dict[int, str] = {}
-    for item in entries:
-        entry = object_value(item, ("number", "date"))
-        number, date = entry.get("number"), text_value(entry.get("date"))
-        # Only a number the check named passes, so true is not read as 1, and 1.5 is not
-        # rounded to it.
-        if not isinstance(number, Decimal) or number not in wrong or int(number) in dates:
-            raise ArgumentsRejected
-        if date is None or not date.strip():
-            raise ArgumentsRejected
-        dates[int(number)] = date
-    if dates.keys() != wrong:
+    dates = numbered_texts(entries, "date", wrong)
+    if dates.keys() != wrong or not all(map(is_calendar_date, dates.values())):
         raise ArgumentsRejected
     return dates
 
@@ -179,8 +182,7 @@ def dates_question(evidence: Evidence, foods: FoodList) -> Question[dict[int, st
     prompt = VERIFY_PROMPT.format(
         rule=DATE_RULE,
         today=evidence.today,
-        conversation=evidence.conversation,
-        earlier_calls=evidence.earlier_calls,
+        evidence=evidence.text,
         foods=pretty(listed(foods, DATE_FIELDS)),
         tool=VERIFY_FOOD_DATES.name,
     )
@@ -198,8 +200,7 @@ def correction_question(
     prompt = CORRECT_PROMPT.format(
         rule=DATE_RULE,
         today=evidence.today,
-        conversation=evidence.conversation,
-        earlier_calls=evidence.earlier_calls,
+        evidence=evidence.text,
         foods=pretty(to_correct),
         tool=CORRECT_FOOD_DATES.name,
     )
