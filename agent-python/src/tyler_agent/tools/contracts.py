@@ -26,8 +26,23 @@ class RunSettings:
     drives the agent directly, such as tests, can choose other values.
     """
 
-    # recordFood saves an item only after the run's model accepts it.
-    verify_food: bool = True
+    # recordFood's content check judges each food's nutrition values, and has the ones it
+    # rejects written again. The date check has no switch.
+    check_nutrition: bool = True
+    # recordFood's name and count check compares the list of foods with what the user said.
+    # It costs a model request for every call, and no eval has shown what it is worth, so it
+    # is off in every run. Tests switch it on to keep it working.
+    check_names: bool = False
+
+
+@dataclass(frozen=True)
+class CompletedCall:
+    """One tool call this run has finished: what the model asked for, and the result it was
+    given. The result is whatever the tool returned, so treat it as untrusted text."""
+
+    name: str
+    arguments: str
+    result: str
 
 
 @dataclass(frozen=True)
@@ -38,12 +53,17 @@ class ToolContext:
     catalog never holds one, so a tool cannot reach another run's model, conversation or Java
     operations. `conversation` is the run's saved history plus the current user message, as
     text only: no tool results, thinking, or provider-native content.
+
+    `earlier_calls` is every tool call the run finished before this one, oldest first, whatever
+    the tool. The registry fills it in for each call, so a tool needs no wiring of its own to
+    see what the chat model was given, such as a file it read.
     """
 
     operation: Operation
     respond: Respond
     conversation: tuple[UserTurn | AssistantTurn, ...]
     settings: RunSettings
+    earlier_calls: tuple[CompletedCall, ...] = ()
 
 
 type Handler = Callable[[str, ToolContext], Awaitable[str]]

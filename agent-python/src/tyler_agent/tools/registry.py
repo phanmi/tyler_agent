@@ -13,7 +13,7 @@ from jsonschema.exceptions import SchemaError
 
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import MAX_FRAME_BYTES, Message
-from tyler_agent.tools.contracts import Handler, Tool, ToolContext
+from tyler_agent.tools.contracts import CompletedCall, Handler, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import ArgumentsRejected
 
@@ -59,7 +59,13 @@ class ToolCatalog:
 
 
 class ToolAdapters:
-    """Bind the current run's tool context to a catalog without storing it in handlers."""
+    """Bind the current run's tool context to a catalog without storing it in handlers.
+
+    One instance belongs to one run. `_completed` starts empty and grows by one, in order, for
+    each call whose result goes back to the model, including a call answered with
+    MALFORMED_CALL_RESULT. A call that raises ends the run and adds nothing. Each handler gets
+    a snapshot of the calls completed before its own, as its context's `earlier_calls`.
+    """
 
     def __init__(
         self, context: ToolContext, tools: Iterable[Tool] | ToolCatalog | None = None
@@ -70,15 +76,22 @@ class ToolAdapters:
             if isinstance(tools, ToolCatalog)
             else ToolCatalog(discover_tools() if tools is None else tools)
         )
+        self._completed: list[CompletedCall] = []
 
     def definitions(self) -> list[Message]:
         return self._catalog.definitions()
 
     async def execute(self, name: str, raw: str) -> str:
-        """Run one model call. An unknown tool, or arguments that do not match the tool's
-        declared parameters, go back to the model before any operation is requested. Domain
-        rejections from Java still end the run with their own category.
+        """Run one model call and note it for the calls that follow in this run. An unknown
+        tool, or arguments that do not match the tool's declared parameters, go back to the
+        model before any operation is requested. Domain rejections from Java still end the
+        run with their own category.
         """
+        result = await self._result(name, raw)
+        self._completed.append(CompletedCall(name, raw, result))
+        return result
+
+    async def _result(self, name: str, raw: str) -> str:
         if name not in self._catalog:
             log.warning("Tool call rejected: unknown tool name")
             return MALFORMED_CALL_RESULT
@@ -89,10 +102,9 @@ class ToolAdapters:
             requested = True
             return await self._context.operation(operation, value)
 
+        context = replace(self._context, operation=tracked, earlier_calls=tuple(self._completed))
         try:
-            result = await self._catalog.handler(name)(
-                raw, replace(self._context, operation=tracked)
-            )
+            result = await self._catalog.handler(name)(raw, context)
         except ArgumentsRejected as error:
             if requested:
                 # "No action was taken" would be false, and the model might repeat a write.

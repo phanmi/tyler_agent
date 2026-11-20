@@ -28,7 +28,8 @@ class AgentPersistenceIntegrationTest {
     @Test
     void equalFoodEntriesAppendHaveStableIdsAndSupportCalendarDeletion() throws Exception {
         try (var app = new PersistenceTestApplication(workspace)) {
-            JsonNode output = JSON.readTree(reply(app.chat("food", 200)).path("outputs").get(0).asText());
+            JsonNode output = JSON.readTree(reply(app.chat("food", 200)).path("outputs").get(0).asText())
+                    .path("recorded").get(0);
             JsonNode first = app.get(FOOD_DATE).get(0);
             assertEquals(first.path("food"), output);
             app.chat("food", 200);

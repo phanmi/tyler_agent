@@ -1,0 +1,688 @@
+# Food verification overhaul
+
+[Issue #113](https://github.com/phanmi/tyler_agent/issues/113) | [Agent operations](AGENT_OPERATIONS.md#food-verification) | [Python agent standards](PYTHON_AGENT_STANDARDS.md) | [Eval harness](../agent-python/evals/README.md)
+
+This tracker covers the food verification overhaul in issue #113. The requirements and acceptance criteria are in #113, including those folded in from #98, #100 and #101. This document records the design, the decisions, the eval runs and the progress, so the work can resume one step at a time.
+
+**Direction:** the current verification tool is split into separate tools. Decided by the maintainer on 2026-11-17. Which tools, and what each one checks, is left to the design.
+
+## The verification tool before the overhaul
+
+This is the tool the overhaul replaces, as it was when the plan was set up. Step 6 removed it, so the names below are no longer in the code.
+
+| Area | How it worked |
+|---|---|
+| Where it runs | `recordFood`'s adapter called `verified_food` in `verification.py` before it requested `food.insert`. It ran when `RunSettings.verify_food` was on, which was the default; the `run` payload had no field for it, so only code such as the eval runner and tests turned it off. |
+| What one check covers | One model request judged the whole record through `submitFoodVerdict {valid, reason}`: the food, the amount and unit, the date, the values the user stated, and whether the values the user did not state are plausible. |
+| After a rejection | The model regenerated the record from the verdict's reason, and the new record was checked again. A record rejected `MAX_REJECTIONS` (2) times was refused: it was never sent to Java, and the chat model was told not to call `recordFood` for it again. Each item cost one to three model requests, one after another. |
+| What it sees | Today's date from Java, the conversation as text (saved history plus the current message), and the record. It saw no tool results. |
+| Which model | The run's own provider and model, through `ToolContext.respond`. |
+| How evals count it | `evals/runner.py` and `evals/report.py` counted verification outcomes from the model calls inside each `recordFood` call. |
+
+## Baseline eval runs
+
+The overhaul is compared with these runs.
+
+| Date | Run | Write-up |
+|---|---|---|
+| 2026-11-16 | `--cheap-models --category many-items`, verification off and on | [Many-items eval](evals/many-items/2026-11-16-many-items.md) |
+| 2026-11-17 | #104's units categories, default and low-cost models, verification off and on | [Units eval](evals/units/2026-11-17-units.md) |
+
+## Design
+
+Instead of one big verifictaion tool that ask model to regenerate the whole input when asked. The verification should go like this.
+```
+chat -> model: model returning an initial json. If the json was not returned, the original record food tool ask model to regenerate.
+python -> memory: saves json inside memory in a data class (since there will be case where multiple food needed to be recorded, make it a list of food).
+python -> model: trigger verification tool #1, verify date, python asks the model to compare the chat with the date returns true or falce (accept or reject).
+model -> python: if it is reject, asks the model to regenerate a date using a correction tool. only changing the date value inside memory.
+python -> model: python list out a a set of names that was saved, get back to model with the original chat., (only food name and the chat is passed in, sometimes uses readfile tools to read whatever is inside for example mealplan.md). asks the model if the name and the count of the food is correct. model returns a set of missing food, a set of incorrect food(that would mean food created by hallucination or wrong names)
+model -> python: if there is missing food or incorrect food, regenerate the missing food(done by model), remove the incorecct food through a correction tool (done by python).
+python -> model: get a list of current food ask model to verify one by one, model only thinks if the content of the nutrition makes sense against USDA or other data.(it doesn't input the chat itself, just whats inside the python memory) if returned true, its good(definitely needs an on or off toggle).
+python -> model: regenerate the one that is false.
+```
+
+### The split
+
+split the big tool into:
+```
+verify date tool
+correct date tool
+verify food name and count tool
+verify food content tool
+correct food tool
+```
+### What counts as done
+
+Stated by the maintainer on 2026-11-17:
+
+1. Every check tool in the split is implemented, and the content check can be turned off from the Settings page.
+2. Every #113 acceptance criterion is met.
+3. An eval run shows that the cheap models improve.
+4. The name and count check and the date check always run, so the eval shows no wrong or missing date and no missing food.
+5. With the content check on, the results are better than with it off.
+
+The eval results are read against items 3 to 5 as follows (agreed on 2026-11-17):
+
+- **Item 3.** For each cheap model, "Fully correct chats (%)" with the switch on is higher than that model's verification-off result in the baseline run of the same cases. The baseline's off results beat its on results for every model, so beating "off" shows the new checks do better than having none.
+- **Item 4.** In both runs of step 13, for every cheap model, with the switch off and on: the report's "Missed items" is 0, and no chat lists a wrong or missing date. Chats that failed are left out, as the report already does when it compares chats. A chat where the chat model calls `recordFood` for no food counts too, although no check runs in it.
+- **Item 5.** For each cheap model, in each run, "Fully correct chats (%)" is higher with the switch on than with it off.
+
+Since D17 (2026-11-18) the name and count check is off in every run. Until [#118](https://github.com/phanmi/tyler_agent/issues/118) decides otherwise, item 4's "no missing food" rests on the chat model and on `recordFood` taking a list, with no check behind them.
+
+The requirements that rest on this check count as partially met: the check is implemented and tested, and it is not switched on. Proving that it works comes before switching it on. That needs complex eval cases designed for it, which the maintainer decided on 2026-11-18 is out of scope for #113. [#118](https://github.com/phanmi/tyler_agent/issues/118) holds that work.
+
+### How the design meets #113
+
+This table checks the scope of #113. The [acceptance criteria](#how-the-acceptance-criteria-are-met) are checked below the proposals.
+
+| #113 asks for | How the design meets it | Met? |
+|---|---|---|
+| Each rejection's reason in the eval report | The report lists each check's verdict and reason (P7) | Yes |
+| A check that does not judge one food against a message that lists many | The name and count check sees every food of the message at once. The content check sees one food and no chat. | Yes |
+| No record that holds the whole meal | A record named after a meal, such as "dinner", is an incorrect name: it is removed and the foods it stood for are added as missing | Partially met: implemented and tested with the name check on, and off in every run since D17. The full run of 2026-11-18 had no such record. |
+| A refusal does not drop a food the user listed | A failed check is corrected, not refused, and each correction runs once (D5). Only a food the name check calls incorrect is removed. | Yes |
+| Cost and wait | One name check and one date check per message, one content check per food, and at most one correction each (D5). The content checks run at the same time (P6), at most 8 at once (D20). | Measured in step 13 |
+| One tool that checks only the date | Verify date, then correct date, on each food's date (P2), after the name check has added any missing food (P1) | Yes |
+| Some checks in code instead of a model | Python removes incorrect foods when the name check is on, and sends a food with no date to the date correction (D16) | Yes |
+| A converted unit is not accepted (from #104) | The name check compares each food's amount and unit with the message, and the correction restores the user's unit (D4) | Partially met: implemented and tested with the name check on, and off in every run since D17 |
+| Whether the date and unit checks run with the switch off | The date check always runs; the switch turns off only the content check (D3). The unit check is part of the name check, which is off in every run since D17. | Dates: yes. Units: partially met, as the row above |
+| User-stated values always win (#96) | The content check is shown the conversation and the tool results, and treats a stated value as right (D15). Its correction keeps every stated value too (D1). | Yes |
+| A Settings switch, saved, sent in the `run` payload, protocol version 3 (#98) | The switch turns off the content check (D3). It is saved as the first agent setting (D7) and sent in the `run` payload of protocol version 3, moved from version 2 (D8). | Yes |
+| With the switch off, no content check or food correction runs (#98, reworded) | With the switch off, the date check still runs (D3). The name check is off in every run since D17. | Yes |
+| Checks see the tool results a record was based on (#100) | Every check and every correction gets this run's tool results (D6, P9, D15) | Yes |
+| Tool results cannot change what a check is asked to do (#100) | Tool results stay inside the JSON the checks read (P8) | Yes |
+| A failed check saves nothing from the message (#101) | No food is saved until every check has run, and the whole list is saved in one Java transaction (D9) | Yes |
+| One list of foods per message | `recordFood` takes every food of the message in one call (D2) | Yes |
+| What result on the baseline runs counts as done | Stated under [What counts as done](#what-counts-as-done) | Yes |
+
+### Design decisions
+
+D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. D15 and D16 came from the first eval run of the new checks, and D17 from the full run of 2026-11-18. D18 to D22 are the maintainer's answers of 2026-11-18 to review findings on PR #117. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
+
+| | Question | Recommended | Other options | Steps | Answer               |
+|---|---|---|---|---|----------------------|
+| D1 | How are values the user stated kept? | The content check stays without the chat. The food correction sees the chat and keeps every value the user stated, and a corrected food is saved without a second content check. | `recordFood` marks which values the user stated, and the content check skips them. Or the content check also sees the user's message. | 5, 6 | recommended, then replaced by D15 |
+| D2 | Where does the list of foods come from? | `recordFood` takes every food of the message in one call, as a `foods` list. | Python collects all `recordFood` calls in one model response, which changes the agent loop. | 2 | recommended          |
+| D3 | What does the Settings switch turn off? | Only the content check, as the design's note reads. The date and name checks always run, and #98's "no extra model calls when off" is reworded. | Every check, as #98 says. Or one switch per check. | 5, 8, 9, 10 | recommended          |
+| D4 | Does "count" mean how many foods, or how much of each? Where are amount and unit checked? | The name check also gets each food's amount and unit, and reports those that differ from the message, including a converted unit. The correction changes only those two fields. | A separate amount-and-unit check. | 3 | recommended          |
+| D5 | How often does a check run? | Each check runs once per message, and each correction once. Corrected values are saved without another check, and an unusable correction keeps the values it was meant to fix. Only the name check removes a food. | Check corrections again up to a limit, then save or refuse. | 3, 4, 5 | recommended          |
+| D6 | How do checks see tool results? | The name check and every correction that sees the chat also get this run's tool results, so they judge what the chat model actually read. These also show the foods an earlier `recordFood` call in the run saved. | As the design says: the name check calls `readFile` itself. | 2, 3 | recommended          |
+| D7 | Where is the switch saved? | As the first agent setting from #82, with its own model, service, controller and file, so agent behavior stays out of the provider settings. | A field in `LlmSettings`: about half the code, but "Reset provider settings" would also reset it. | 9, 10 | recommended          |
+| D8 | How is the contract version kept? | Move `contracts/agent/v2/` to `v3/` with `git mv` and edit it in place, so the PR shows only the real changes. Version 2 stays in git history, and the rule in `docs/AGENT_PROTOCOL.md` changes. | Keep a full copy: about 5,000 lines of fixtures. | 8 | recommended          |
+| D9 | How is the list saved? | A new Java operation saves every food of the message in one transaction, added in protocol version 3. | Save one food at a time, and when Java rejects one, tell the user which were saved. | 8, 9 | recommended          |
+| D10 | What happens when a check's answer cannot be used: a text reply, the wrong tool, several calls, or arguments that do not fit? D5 does not say. | Ask once more. If the second answer is also unusable, the check changes nothing, the foods go on to the next check, and a warning is logged without any food or chat text. The check tools are offered, not forced, so this happens now and then, and the baseline showed that dropping foods does more harm than leaving them unchecked. | Fail the chat. Or treat every food as rejected. | 3, 4, 5 | Content check: recommended. Name check and date check: ask again up to 3 times, then fail the chat with an error that says the model could not complete the check. |
+| D11 | D4 says an amount correction changes only the amount and unit. But a food's nutrition values were estimated for the amount it had. If "2 eggs" was saved as 3, changing only the amount leaves the nutrition of 3 eggs, and with the content check switched off nothing fixes it. | The amount correction rewrites the amount, the unit and the nutrition values, keeping any value the user stated. The name and date stay. | Only the amount and unit, as D4 reads, leaving the nutrition to the content check. | 3 | recommended |
+| D12 | Is a correction one request for each food, or one for all the foods a check flagged? | One request for each food, all sent at the same time. Each answer is one food record, so it cannot be matched to the wrong food. | One request for all of them: fewer requests, but each answer has to be matched back to its food. | 3, 5 | recommended |
+| D13 | `verifyFoodList`, `verifyFoodDates` and `correctFoodDates` are each sent every food of the message at once, and their answer names only some of them, such as the one whole-meal record to remove. How does the answer say which food it means? The other two tools handle one food at a time, so the question does not come up for them. | By the food's number. Python numbers the foods when it lists them for the model, and the answer gives the number. Two foods can share a name, such as eggs at breakfast and at lunch, and the model may not repeat a name exactly. | By the food's name, which Python then has to find in the list. | 3, 4 | recommended |
+| D15 | D1 kept the conversation from the content check. Should the check see what the user said? | Decided by the maintainer on 2026-11-17, after the first eval run, in place of D1's answer: the content check is shown the whole conversation and the run's tool results, the same as the other checks, because a user can state calories and nutrition values, in a message or in a file. The check must respect whatever the user gives. | Only the latest user message. Or the conversation without the tool results. | 5 | decided |
+| D16 | What does the date check do with a food that has no date? | Decided by the maintainer on 2026-11-17, after the first eval run: the date check never accepts one. Python sends a food with a missing or blank date to the date correction, whatever the check answers. | Leave it to the check's answer. | 4 | decided |
+| D14 | D10 covers the verify tools. What happens when a correction's answer cannot be used? D5 says the food keeps its old values, but a missing food has none, so it would stay missing without anyone being told. | A correction follows the rule of its check. For the name check and the date check: ask again up to 3 times, then fail the chat. For the content check: ask once more, then keep the food's values. | Every correction keeps the old values, as D5 reads. | 3, 4, 5 | recommended |
+| D17 | In the full run of 2026-11-18 the name and count check changed a record in 4 of 1,206 chats, for one model request in every `recordFood` call. Should it run? | Decided by the maintainer on 2026-11-18: no. It is switched off in every run (`RunSettings.check_names`, off by default) and then makes no request. Its code and tests are kept, so the requirements that rest on it count as partially met. It is switched on only after it is proved to work. Proving that needs complex eval cases designed for it, which the maintainer decided is out of scope for #113; [#118](https://github.com/phanmi/tyler_agent/issues/118) holds that work. | Keep it running. Or remove its code. | 3, 6 | decided |
+| D18 | A `correctFood` answer can leave a field out, give null, or give a negative number, because DeepSeek's tool calls are not strict. Python copied the gap over a value that could be saved, and Java then rejected the food (review finding F1). What makes a correction unusable? | An answer with a field missing or null is unusable, and is asked again as D10 and D14 say. A negative number stays Java's rule. | Also treat a negative number as unusable, which repeats one of Java's rules in Python. Or leave it. | 3, 5 | Decided by the maintainer on 2026-11-18: also treat a negative number as unusable. |
+| D19 | `correctFoodDates` accepted any text as a date, such as "yesterday", and Java then rejected the food (F2). What must a corrected date be? | Check only its shape, `YYYY-MM-DD`. Whether that day exists stays Java's rule. | Also check in Python that it is a real calendar date, which repeats Java's rule. Or leave it to Java. | 4 | Decided by the maintainer on 2026-11-18: also check that it is a real calendar date. |
+| D20 | The `foods` list has no size limit, so a long list sent every content check, or every correction, at the same moment. The providers do not retry, so one rate-limit error failed the run (F4). | At most 8 of a check's questions are asked at the same time, as a named constant. The rest wait their turn. | Leave it until an eval run shows a rate limit. Or limit how many foods one call may carry. | 3, 5 | recommended |
+| D21 | The tool result told the chat model not to record a left-out record again, and no longer to tell the user. A check that wrongly removes a real food then goes unnoticed (F6). | Restore the instruction: tell the user which records were left out and why. A duplicate or a whole-meal record is then mentioned too. | Keep the note as it was. Or also list the foods whose nutrition values could not be corrected. | 6 | recommended |
+| D22 | The date check and the content check do not depend on each other. Should they run at the same time (F7)? | Keep them one after the other, and decide with the measured time of a multi-food message. | Run both after the name and count check, and merge the dates from one with the nutrition values from the other. | 6 | recommended. The maintainer added: "having tools running at the same time should be put later in the design." |
+
+### Proposed additions
+
+Unless you object, the implementation also does these.
+
+| | Proposal | Why | Steps | Answer |
+|---|---|---|---|-------|
+| P1 | The name check runs first, then the date check, then the content check. | A food the name check adds also has its date checked. | 6 | accept |
+| P2 | The date check judges each food's date. The date correction changes only the dates of the foods it names. | One message can cover several days. | 4 | accept |
+| P3 | The name check looks for the foods the current message asks to record. A food that an earlier message, or an earlier `recordFood` call in this run, already recorded is not missing. | A food is not saved twice. | 3 | accept |
+| P4 | The food correction changes only nutrition values. The name, amount, unit and date stay. | A correction cannot undo what the earlier checks fixed. | 5 | accept |
+| P5 | The five check tools are offered only to the check requests. The chat model sees only `recordFood`. | The chat model cannot skip a check. | 3, 4, 5 | accept |
+| P6 | The content checks of different foods run at the same time. | A multi-food message takes less time. | 5 | accept |
+| P7 | The eval report lists each check's verdict and reason for every food it rejected. | #113 asks for rejection reasons. | 7 | accept |
+| P8 | Tool results stay inside the JSON the checks read, as untrusted text. | A file's text cannot change what a check is asked to do (#100). | 2, 3 | accept |
+| P9 | The date check also gets this run's tool results. | D6 gives them only to the name check and the corrections. A date can come from a file, such as a food log with dated entries, and without the file the date check would reject that date and the correction would replace it with a guess. | 4 | agree |
+| P10 | The switch is named for what it turns off: "Check nutrition values" in Settings, and `checkNutrition` in the `run` payload in place of #113's `verifyFood`. | After D3 it no longer turns off all verification, so `verifyFood` would mislead. | 8, 9, 10 | agree |
+
+### Code design for the checks
+
+This is how steps 3 to 6 are built.
+
+**Modules.** All of them sit in `tools/builtin/food_record/`, beside `recordFood`'s adapter. Nothing outside that package changes.
+
+| Module | What it holds | Step |
+|---|---|---|
+| `foods.py` | `FoodList`: the foods of one `recordFood` call, held in memory while the checks run. It never changes in place: removing a food, adding one, or setting a date, an amount or nutrition values returns a new list. It also keeps a finding for each thing a check did, with the reason, for the tool result and the eval report. | 3, 7 |
+| `asking.py` | `ask`: one model request that offers one tool, and returns the arguments of exactly one call of that tool, or nothing. `must_ask` fails the chat when no answer can be used, and `together` asks several questions at the same time, at most 8 at once (D20). Also `Evidence`: what a check judges the foods against, read once for the call: today's date, the conversation, and the run's earlier tool calls. It writes the conversation and the calls into every prompt in the same words. Also `numbered_texts`, which reads the entries of an answer that point at foods by number. | 3 |
+| `correction.py` | The correct food tool: one request that writes one food record. It uses `recordFood`'s own schema for one food, the existing parser, and the part of `recordFood`'s description that says how one food is written. | 3 |
+| `name_check.py` | The verify food name and count tool, and what it does with the answer. | 3 |
+| `date_check.py` | The verify date and correct date tools. | 4 |
+| `content_check.py` | The verify food content tool, run for each food, at most 8 at the same time. | 5 |
+| `checks.py` | Runs the checks in P1's order and returns the final list. | 6 |
+| `verification.py` | The current verifier. Removed. | 6 |
+
+**The five tools.** Each is offered only to its own request (P5).
+
+| Tool | What the model is shown | What it answers |
+|---|---|---|
+| `verifyFoodList` | The conversation, the earlier tool calls, and each food's number, name, amount and unit | `missing`: foods the message asks to record that are not in the list, each as the user described it. `incorrect`: the numbers of foods the message does not ask to record, such as an invented food, a whole meal, a food listed twice or one an earlier call already saved, each with a reason. `wrongAmount`: the numbers of foods whose amount or unit differs from what the user said, each with a reason. |
+| `correctFood` | The conversation, the earlier tool calls, today's date, what to write, and the record being corrected, if there is one | One food record, with every field given and no negative number (D18) |
+| `verifyFoodDates` | The conversation, the earlier tool calls, today's date, and each food's number, name and date | `wrong`: the numbers of foods whose date is wrong, each with a reason. Python adds every food with no date (D16). |
+| `correctFoodDates` | The same, with those reasons | The corrected date for each of those numbers, a real day written as `YYYY-MM-DD` (D19) |
+| `verifyFoodNutrition` | The conversation, the earlier tool calls, and one food record without its date (D15) | Whether its nutrition values match what the user stated and are otherwise plausible, with a reason |
+
+**What Python keeps from a `correctFood` answer.** The model writes a whole record each time, and Python takes only the fields that correction may change.
+
+| The correction is for | Python keeps |
+|---|---|
+| A missing food | The whole record. Its date is checked next (P1). |
+| A wrong amount or unit | The amount, the unit and the nutrition values (D11) |
+| Implausible nutrition values | The nutrition values (P4) |
+
+**Model requests for a message with n foods.**
+
+| Check | Requests | Extra requests |
+|---|---|---|
+| Name and count | 1 | 1 for each missing food and each wrong amount |
+| Date | 1 | 1 if any date is wrong |
+| Content, with the switch on | n, at most 8 at the same time (D20) | 1 for each food it rejects |
+
+**An answer that cannot be used.** This is a text reply, the wrong tool, several calls, or arguments that do not fit the tool (D10, D14). It is also a `correctFood` record with a field missing or null or with a negative number (D18), and a `correctFoodDates` date that is not a real day written as `YYYY-MM-DD` (D19).
+
+| Request | What happens |
+|---|---|
+| `verifyFoodList`, `verifyFoodDates`, and their corrections | Asked again, up to 3 more times. Then the chat fails with an error that says the model could not complete the check, and nothing is saved. |
+| `verifyFoodNutrition` and its correction | Asked once more. Then the food goes on with the values it has. |
+
+The error needs a failure code of its own, and the contract allows a new code only in a new protocol version. So it is added with version 3 in step 8, and until then the chat fails with the existing provider failure.
+
+**Tests.** Steps 3 to 5 test each check on its own, with a real tool context and a scripted model, as the current verifier's tests do. Step 6 puts the checks into `recordFood` and adds the tests through the real agent loop, registry and runtime.
+
+**Adding another check** takes one new module, with its tool and its prompt, and one line in the ordered list in `checks.py`. The registry, the agent loop, `ToolContext` and the other checks do not change.
+
+### How the acceptance criteria are met
+
+#113's criteria were reworded on 2026-11-17 to match D1 to D9 and P1 to P10. **Planned** means a step meets the criterion as #113 now words it.
+
+| #113 criterion | How it is met | Steps | Status |
+|---|---|---|---|
+| A design is approved before code. It says what counts as done on the baseline run, and how it meets #98, #100, #101 and #104's eval. | This plan: [What counts as done](#what-counts-as-done), the scope table above, D1 to D9 and P1 to P10. | 1 | Met on 2026-11-17 |
+| A `--cheap-models --category many-items` run is reported beside the baseline. | The eval's "off" mode now means the switch is off, which still runs the name and date checks (D3). So the baseline's no-check numbers come only from the 2026-11-16 report. | 7, 13 | Planned |
+| No food is saved until every check that is switched on has run on it. A corrected value is saved without a second check. | The list is saved in one operation after the last check (D9), and each correction runs once (D5). | 6, 9 | Planned |
+| Python tests drive the new behavior through the real agent loop, tool registry and `recordFood`. | Each check's tests run through them. | 3 to 6 | Planned |
+| One tool checks only that a record's date is correct, with an invented date tested. | Verify date and correct date (P2). | 4 | Planned |
+| A unit converted from the user's is not accepted, with the grande latte tested. | The name check reports 16 fl oz, and the correction restores "grande" (D4). | 3 | Partially met: implemented and tested with the name check on, and off in every run since D17. |
+| A `--cheap-models` run of #104's four categories is reported beside #116's run. | Wrong-date chats, and the unit `deepseek-flash` saves for `starbucks-latte`. | 13 | Planned |
+| Settings shows a nutrition check switch, "Check nutrition values", that is on when nothing has been saved, and it persists across a restart. | The first agent setting (D7) and the Settings page (P10). | 9, 10 | Planned |
+| With the switch off, no content check or food correction runs. The name and date checks still run. | `RunSettings` built from the `run` payload switches the content check (D3). Since D17 the name check runs in neither position. | 5, 8 | Planned |
+| A change applies to the next chat, and Java tests prove the `run` payload carries the saved value. | `PythonAgentService` reads the setting when a chat leaves the queue. | 9 | Planned |
+| A missing or non-boolean value gets HTTP 400 naming the field, and the frontend shows it. | The settings controller and the Settings page. | 9, 10 | Planned |
+| The model's file tools refuse the file that stores the switch. | The setting's service implements `IApplicationOwnedFiles`. | 9 | Planned |
+| The version 3 schema and fixtures reject a `run` without `checkNutrition` or with a non-boolean, the fixture tests agree, and a version 2 peer fails with `UNSUPPORTED_VERSION`. | Version 2 moved to version 3 and edited in place (D8). | 8 | Planned |
+| Frontend tests cover the default, a save and a failed save. | Settings page tests. | 10 | Planned |
+| A food recorded from a file the chat model read can be accepted and saved. | The name check, the date check and the corrections see the file's content (D6, P9). | 2, 6 | Planned |
+| The name check, the date check and the corrections receive this run's tool results, and no keys. | A general part of `ToolContext` (D6, P9), and a test that no check request carries a key. Since D15 the content check receives them too, so #113's wording needs "every check". | 2, 3, 4, 5 | Planned |
+| A food that matches neither the conversation nor a tool result is not saved. | The name check calls it incorrect, and Python removes it. | 3 | Partially met: implemented and tested with the name check on, and off in every run since D17. |
+| Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Planned |
+| Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Planned |
+| A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Planned |
+| Resending after such a failure creates no duplicates. | Nothing was saved, so nothing is saved twice. | 6, 9 | Planned |
+| Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | A bridge handler and service method of their own (D9). | 8, 9 | Planned |
+| The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Planned |
+| Python tests cover a failure and a cancellation between checks through the real agent loop and runtime. | The failure and cancellation tests in step 6. | 6 | Planned |
+| `AGENT_OPERATIONS.md` describes the new behavior, including what each check sees. | What each check sees. | 11 | Planned |
+| `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md` and the README's Settings section describe the switch. | Including version 3 and D8's rule change. | 11 | Planned |
+| The Python checks, `mvn test` and `npm run check` pass. | Run after every area is done. | 12 | Planned |
+
+## Steps
+
+| Step | Work | Status | Evidence |
+|---|---|---|---|
+| 1 | Get the design approved: D1 to D9 answered, what counts as done stated, and #113's wording updated where the design changes it. | Done | D1 to D9 and P1 to P10 answered, #113 updated to match, and what counts as done stated and agreed, on 2026-11-17. |
+| 2 | `recordFood` takes the message's foods as a list, held in memory for the call (D2). Tools can read this run's tool results through a general addition to `ToolContext`, not one for `recordFood` alone (D6). The current verifier still runs on each food until step 6. | Done | See the execution record for 2026-11-17. |
+| 3 | Shared check machinery: one request offering one check tool, and an answer that cannot accept by accident. Then the name and count check, with amount and unit (D4, P3): the model adds missing foods and Python removes incorrect ones. Tests: a whole-meal record is replaced by its foods, a missing food is added, a converted unit is corrected, and a food from an earlier message is not added again. | Done | See the execution record for 2026-11-17, step 3. |
+| 4 | Date check and date correction (P2), with this run's tool results (P9). Tests: an invented date is corrected, foods on different days keep their own dates, and a date taken from a file the chat model read is kept. | Done | See the execution record for 2026-11-17, step 4. |
+| 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Done | See the execution record for 2026-11-17, step 5. |
+| 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Done | See the execution record for 2026-11-17, step 6. |
+| 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). | Done | See the execution record for 2026-11-17, step 7. |
+| 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
+| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it, and the eval's `FakeJava` answers it. The new failure code gets its own message for the user (D10). | Not started | |
+| 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
+| 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
+| 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
+| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Partly done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md). Still to do: a run with the name and count check off, and the time a multi-food message takes. |
+| 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Not started | |
+
+## Decisions
+
+| Date | Decision | Source |
+|---|---|---|
+| 2026-11-17 | Split the current verification tool into separate tools. | Maintainer, when this plan was set up |
+| 2026-11-17 | D1 to D9: the recommended option for each. P1 to P8 accepted. | Maintainer, in the tables under Design |
+| 2026-11-17 | P9 and P10 accepted. #113's scope and acceptance criteria updated to match the design, with one new criterion for D9's one-transaction save. | Maintainer |
+| 2026-11-17 | D10: an unusable answer from the name check or the date check is asked again up to 3 times, then the chat fails; from the content check it is asked once more, then the food goes on unchanged. D11 to D14: the recommended option for each. | Maintainer |
+| 2026-11-17 | D15 and D16, after the first eval run of the new checks: the content check is shown the conversation and the tool results and respects every value the user stated, and the date check never accepts a food with no date. | Maintainer |
+| 2026-11-17 | What counts as done: every check implemented and the content check switchable from Settings, every criterion met, the cheap models improve, no wrong date and no missing food, and better results with the content check on. How the eval is read against it, as recommended. | Maintainer |
+| 2026-11-18 | The full run is read without `some-almonds`: its message can be taken as general chat that calls for no `recordFood`. The run is marked a temporary success. | Maintainer |
+| 2026-11-18 | D17: the name and count check is switched off in every run, with its code kept, until [#118](https://github.com/phanmi/tyler_agent/issues/118) shows with new classes of eval cases whether it does important work. | Maintainer |
+| 2026-11-18 | The requirements that rest on the name and count check are partially met: it is implemented, and it is switched on only after it is proved to work. Proving that needs complex eval cases designed for it, which is out of scope for #113 and goes to [#118](https://github.com/phanmi/tyler_agent/issues/118). | Maintainer |
+| 2026-11-18 | Review findings F1 to F10 on PR #117. F1 and F2: the stricter option, so Python also rejects a negative number in a correction and a corrected date that is not a real calendar date (D18, D19). F4, F6 and F7: as proposed (D20 to D22). F3: one check for each `recordFood` call stays, and the eval run is read for foods saved twice. F5, F8, F9 and F10: the proposed code changes. | Maintainer, in the PR's review threads |
+
+Decisions made before this plan are in #113's description.
+
+## Execution record
+
+_One entry per completed step or eval run, oldest first: the date, what changed, the checks or eval run and their results, and anything left open._
+
+### 2026-11-17 Step 2: a list of foods, and the run's earlier calls
+
+**What changed**
+
+- `recordFood` takes `{"foods": [...]}`. Each entry has the shape one food had before. A missing, null or empty list goes back to the model, and every food's types are checked before any number is encoded. Its description tells the chat model to put every food of the message in one call and not to combine a meal into one entry.
+- The result is `{"recorded": [...]}`, with each saved food in the released format. Foods the current verifier refuses are listed under `notRecorded` with the reason, beside an `error` that says they were not saved.
+- The current verifier checks every food of a call before the first is saved, so a failed model request saves none of them. Foods are still saved with one `food.insert` each until step 9.
+- `ToolContext.earlier_calls` holds every tool call the run finished before the current one, with its arguments and result. The registry (`ToolAdapters`) fills it in, so no tool needs wiring of its own and the agent loop did not change. It includes a call from the same model response and one the registry rejected.
+- The eval runner counts the foods a call lists as not recorded. The report's "Items saved after a rejection" row is removed: one call now carries several foods, so the runner can no longer tell which food a model request belonged to. Step 7 replaces it with each check's verdict.
+- `contracts/agent/v2/fixtures/tool-definitions.json` has the new definition, and `AgentPersistenceIntegrationTest` reads the saved food from `recorded`.
+
+**Tests shown to catch their bug.** Each of these failed with its change removed and passed with it restored:
+
+- `test_each_call_is_lent_the_calls_its_run_finished_before_it`, with the registry no longer passing `earlier_calls`.
+- `test_wrong_types_are_rejected_before_number_limits_apply`, its new case, with foods encoded one at a time.
+- `test_a_call_without_a_food_object_in_its_list_is_rejected`, the empty list, with an empty list allowed.
+- `test_every_food_of_a_call_is_checked_before_the_first_is_saved`, with each food saved right after its own check.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 909 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. This includes `PythonToolContractTest` on the new definition, and `AgentPersistenceIntegrationTest`, which drives the real worker with list calls.
+- Not run: `npm run check`, because the frontend did not change, and no eval run, because that is step 13.
+
+**Left open**
+
+- A chat model can still spread a message over several `recordFood` calls. Each call is then checked and saved on its own, until the name check reads `earlier_calls` in step 3.
+- #113 says the agent loop changes once to provide the tool results. It did not need to.
+
+### 2026-11-17 Step 3: the name and count check
+
+**What changed**
+
+- Four new modules in `tools/builtin/food_record/`: `foods.py`, `asking.py`, `correction.py` and `name_check.py`, as the code design describes. The check is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodList` is shown the conversation, the run's earlier calls, and each food's number, name, amount and unit. It answers with the missing foods, the records that do not belong and the records with a wrong amount, each pointing at a food by its number (D13).
+- A record that does not belong is removed in Python and kept with its reason for the tool result. Each missing food and each wrong amount gets its own `correctFood` request, and they are sent at the same time (D12). An amount correction brings its nutrition values; the name and date stay (D11).
+- An answer that cannot be used is asked again, 4 requests in all, and then the chat fails as a provider failure (D10, D14). If one correction fails, the others are cancelled before the failure reaches the caller.
+- The conversation and the earlier calls reach every prompt as JSON text (P8).
+- One limit was added that the design does not name: `verifyFoodList` may report 20 missing foods at most. A longer list is an unusable answer, so a confused model cannot start an unbounded number of correction requests.
+- The shared test fakes moved from `test_food_verification.py` to `tests/support/food_fakes.py`, and the current verifier now imports `single_call` and `conversation_text` from `asking.py`, so there is one copy of each.
+
+**Tests shown to catch their bug.** `tests/test_food_name_check.py` has 39 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- An unusable answer asked again: with the question asked only once, 30 tests failed.
+- `test_a_wrong_amount_brings_its_nutrition_and_the_name_and_date_stay`, with the old nutrition values kept.
+- `test_a_record_that_does_not_belong_is_removed_without_correcting_its_amount`, with a removed record still corrected.
+- `test_an_unusable_correction_is_asked_again_then_fails_the_run`, with a correction allowed to lack its nutrition values.
+- `test_corrections_are_sent_at_the_same_time_and_kept_in_order`, with corrections sent one after another.
+- `test_a_failed_correction_cancels_the_others_before_the_check_ends`, with the others left running.
+- `test_the_check_and_its_corrections_see_the_runs_earlier_calls_as_data`, with a tool result pasted into the prompt as plain text.
+- `test_an_unusable_answer_is_asked_again_and_never_read_as_nothing_wrong`, with a food number outside the list accepted.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 948 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step; the run confirms the worker still starts and serves the integration tests with the new modules.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check finds the right foods is the model's work, and only the eval run in step 13 measures it. These tests script the model's answers and prove what Python does with them.
+- The through-the-loop tests, with each real provider class, come with step 6, when `recordFood` uses the checks.
+
+### 2026-11-17 Step 4: the date check
+
+**What changed**
+
+- A new module, `date_check.py`, with the `verifyFoodDates` and `correctFoodDates` tools. It is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodDates` is shown today's date, the conversation, the run's earlier calls (P9), and each food's number, name and date. It answers with the foods whose date is wrong, each with a reason.
+- When a date is wrong, one `correctFoodDates` request gives the new dates. It is shown only the foods the check named, with the reasons. Python changes the date and nothing else in a record (P2).
+- The correction must give a date for every food the check named and for no other. Anything else is an unusable answer, so a food is never left with a date the check called wrong.
+- An unusable answer from the check or the correction is asked again, 4 requests in all, and then the chat fails (D10, D14).
+- A list with no foods, which the name check can leave, is not checked.
+- Python does not judge whether a corrected date is a real calendar date. Java does that when the food is saved, as it does for a date the chat model writes.
+- The helpers the check tests share moved to `tests/support/food_fakes.py`.
+
+**Tests shown to catch their bug.** `tests/test_food_date_check.py` has 30 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- A corrected date not written into the record: 17 tests failed.
+- A correction that may leave out a food the check named.
+- A correction that may change a food the check did not name. The first run of this removal passed every test, because the rule that the answer covers exactly the named foods already rejects an extra food. The guard still stops a number such as 1.5 being rounded to food 1, so that case was added, and it now fails.
+- `true` read as food number 1.
+- The check not shown the run's earlier calls.
+- A list with no foods being checked.
+- An answer without its list read as every date right.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 978 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check finds a wrong date is the model's work, and only the eval run in step 13 measures it.
+
+### 2026-11-17 Step 5: the content check
+
+**What changed**
+
+- A new module, `content_check.py`, with the `verifyFoodNutrition` tool. It is not used by `recordFood` yet; step 6 puts the checks in.
+- `verifyFoodNutrition` is shown one food's name, amount, unit and nutrition values, and nothing else: no conversation, no tool result, no date and no other food. Every food is checked at the same time (P6).
+- A food it rejects gets one `correctFood` request, which is shown the conversation and told that a value the user stated is right however unusual it looks. Python keeps only the nutrition values of the answer (P4), and they are saved without a second check (D1, D5). So the check cannot overrule a value the user stated.
+- An unusable answer is asked once more. After that the food goes on with the values it has: an unusable check answer is read neither as a pass nor as a rejection, and an unusable correction keeps the food's values (D10, D14). This check never fails the chat on its own.
+- `RunSettings.check_nutrition` switches the check, and is on by default. With it off, the check makes no request. `RunSettings.verify_food` still switches the current verifier until step 6 removes it.
+- The sources text the check judges against moved from the current verifier to `content_check.py`, and the current verifier imports it, so there is one copy.
+
+**Tests shown to catch their bug.** `tests/test_food_content_check.py` has 24 tests. Each of these failed with its behaviour removed and passed with it restored:
+
+- A nutrition correction that also changes the amount and unit.
+- The switch ignored.
+- An unusable answer read as a rejection: 10 tests failed.
+- An unusable answer not asked again: 15 tests failed.
+- Foods checked one after another.
+- The check shown the conversation.
+- The check shown the food's date.
+- A rejection accepted without a reason.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1002 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- Whether the check judges nutrition values well is the model's work, and only the eval run in step 13 measures it.
+- `test_a_value_the_user_stated_survives_a_rejection` scripts a correction that keeps the user's 1900 kcal. It proves the correction is shown the conversation, is told to keep stated values, and is not checked again. Whether a real model then keeps the value is for the eval's `stated-nutrition` cases.
+
+### 2026-11-17 Step 6: recordFood uses the checks
+
+**What changed**
+
+- A new module, `checks.py`, runs the name and count check, the date check and the content check in that order (P1), each on the list the one before it leaves. `recordFood` saves the list they leave, and saves nothing until the last check has finished.
+- The old verifier is removed: `verification.py`, `submitFoodVerdict`, `RunSettings.verify_food` and `tests/test_food_verification.py`.
+- The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model not to record it again. The old result told the chat model to tell the user why a food was refused; a removed record is now often a duplicate or a whole-meal record whose foods were saved, so the note no longer asks for that.
+- The name and count check and the date check now run in every chat. `RunSettings.check_nutrition` switches only the content check (D3).
+- The eval runner sets `check_nutrition` for its two modes and counts the records a call lists as not recorded. Its report still says "verification off and on"; step 7 rewrites the report.
+- `docs/AGENT_OPERATIONS.md` has a rewritten "Food verification" section that describes the checks, and `docs/DEVELOPMENT.md` and `agent-python/README.md` describe `recordFood` as it now works. Step 11 still covers the switch, the protocol and the eval README.
+- The fakes that pass every check take their answers from `tests/support/persistence_worker.py`. That file is the worker the Java integration tests start as a script, so it can import only `tyler_agent`, and keeping the answers there means one copy.
+
+**Tests.** `tests/test_food_record.py` has 23 tests through the real agent loop, tool registry and `recordFood`, each real provider class against an in-memory server, and the production runtime:
+
+- The checks run in order and nothing is saved before the last one. One chat has a whole-meal record replaced by its food, an invented date corrected and an implausible value rewritten.
+- A food from a file the chat model read is saved (#100), and no check prompt holds the API key.
+- A second `recordFood` call in the same model response is shown what the first saved (P3).
+- With the nutrition check off, only the other two checks run.
+- A provider failure during any check, or a required check that cannot be answered, saves nothing (#101).
+- Cancelling during the name, date or content check, through the runtime, saves nothing.
+- OpenAI, Claude and DeepSeek each carry all five tools.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- The date check run before the name and count check: 10 tests failed.
+- The foods the chat model gave saved, not the list the checks leave.
+- Each food saved before the checks run: 13 tests failed.
+- The removed records not reported.
+- The checks not shown the run's earlier calls.
+- A failed check skipped and the foods saved anyway: 10 tests failed.
+- The content check left out: 10 tests failed.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 977 passed and 1 skipped (the owner-only file mode test, which Windows cannot run). The count is lower than after step 5 because the old verifier's 48 tests are gone and 23 were added.
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. `AgentPersistenceIntegrationTest` drives the real worker, which now runs every check on each food.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- The foods are still saved with one `food.insert` each. If Java rejects a later food, the earlier ones stay saved, until step 9 adds the one-transaction save (D9).
+- A required check that cannot be answered fails the chat as a provider failure, which the user sees as "Internal server error". Step 8 adds a failure code of its own (D10).
+- The eval report's wording and its verification rows describe the old verifier until step 7.
+
+### 2026-11-17 Step 7: the eval report shows what the checks changed
+
+**What changed**
+
+- Each check now records a finding for everything it does: the check's tool, the food, the change and the reason. `FoodList.findings` replaces the list of removed foods from step 3. The changes are: removed, added, amount corrected, date corrected, nutrition corrected, and two for a nutrition check that could not be settled, when the check or its correction gave no usable answer.
+- `recordFood`'s adapter is split into two steps, `record_foods`, which checks and saves, and `rendered`, which writes the tool result. The tool result is unchanged: it lists only the removed records under `notRecorded`.
+- The eval runner stands in for `recordFood`'s handler in each chat. It calls those same two steps, keeps the findings, and returns what the real handler returns, so the chat sees the same result. This replaces counting refusals from the result text.
+- The report has six new rows that count the changes, and a new table for each model, "What the checks changed", with one row for each finding and its reason. This answers #113's first design question: why a record was rejected is no longer a guess.
+- The two modes are now named for what they switch: the nutrition check off and on. The name and count check and the date check run in both. The progress line says `nutrition-check=off` in place of `verification=off`.
+- The eval README explains the new rows, and that reports made before the split are not directly comparable: in those, "off" meant no check at all.
+
+**A defect found on the way.** A food with no name was shown as `\-` in the new table, because the harness's own placeholder was escaped like model text. It is now shown as `-`, and a test covers it.
+
+**Moved to step 9.** `FakeJava` answering the new save operation was listed under this step. That operation does not exist until step 9, so it moved there.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- The name and count check recording no finding: 7 tests failed.
+- The date check recording no finding.
+- A nutrition check without an answer leaving no finding: 10 tests failed.
+- The tool result listing every finding as not recorded.
+- The eval runner keeping no findings.
+- The eval's stand-in giving the chat a different result from the real handler.
+- The report without the list of what the checks changed.
+- A food with no name shown as an escaped dash.
+- The change counts including chats that failed.
+- A model's reason put into the report as written, without escaping.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 980 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. No contract or tool definition changed in this step.
+- Not run: `npm run check`, because the frontend did not change, and no eval run. A sample report was rendered from scripted chats and read.
+
+**Left open**
+
+- A check that changes nothing leaves no row, so the report does not show what a check was asked about a food it accepted.
+- The report's rows and the new table are untested against a real model until the eval run in step 13.
+
+### 2026-11-17 After the first eval run: stated values and missing dates
+
+**The run.** The maintainer ran `--cheap-models` on #104's four categories with the checks as they stood after step 7: 23 cases, 3 repeats, 414 chats. It is a first look, not the run step 13 reports, and its report is not in the repository.
+
+| Model | Chats that failed | Fully correct, switch off → on (%) | Missed items | Dates corrected, off / on | Foods saved with no date | Nutrition values corrected, on |
+|---|--:|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 0 | 98.6 → 97.1 | 0 | 16 / 16 | 0 | 9 |
+| `claude-haiku-5-5` | 0 | 92.8 → 94.2 | 0 | 0 / 0 | 0 | 0 |
+| `deepseek-flash` | 0 | 97.1 → 94.2 | 0 | 47 / 43 | 2 | 1 |
+
+What it showed:
+
+- **All three providers accept the new tool definitions.** No chat failed. This was untested until this run.
+- **The date check corrects the dates the baselines found wrong.** No food was saved with a wrong date.
+- **Two foods were saved with no date.** `deepseek-flash` left the date out, and its date check passed both. This led to D16.
+- **`claude-haiku-5-5`'s checks ran and changed nothing.** It made 5.00 model calls for each chat with the switch off and 6.00 with it on, which is the two checks and then the third. Its records had no wrong date in this run or in any earlier report. Its content check accepted values the eval scores as wrong, such as corn at 140 kcal against 98.9.
+- **The content check did not improve two of the three models.** Fully correct chats fell by one chat on `gpt-6-luna` and two on `deepseek-flash` with the switch on. What counts as done asks for the opposite, so step 13 has to look at this again after D15.
+
+**What changed**
+
+- **D15.** `verifyFoodNutrition` is shown the conversation and the run's earlier tool calls beside the one food. Its prompt says a value the user stated is right however unusual it looks, that a record which differs from a stated value is rejected, and that plausibility is judged only for values the user did not state. The food's date is still not shown.
+- **D16.** `check_dates` adds every food with a missing or blank date to the foods the check named, with the reason "The record has no date." The correction must then give each of them a date, or the chat fails as D14 says. The check's own reason is kept for a food it named.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- A food with no date left to the check's answer: 5 tests failed, one of them through the real agent loop.
+- A blank date counted as a date.
+- The fixed reason replacing the check's own reason.
+- The content check not shown the conversation.
+- The content check not shown the earlier calls.
+- The content check not told that a stated value is right.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 986 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. The first run had one failure, in `AgentPersistenceIntegrationTest`: its "missing food" scenario sends a food with no fields, so D16 asked for a date correction, and the scripted worker had no answer for that request. `tests/support/persistence_worker.py` now answers it, and Java then rejects the food for its missing fields as before.
+- Not run: `npm run check`, because the frontend did not change, and no new eval run.
+
+**Left open**
+
+- #113's description and PR #117's description still say the content check is not shown the chat.
+- The nutrition-check-on results of the run above are out of date after D15, and its two foods with no date are fixed by D16. A new run is needed before step 13's comparison.
+- The content check now sends the conversation and the tool results once for each food. With a large file and many foods that is the cost D15's option B accepted.
+
+### 2026-11-18 The full run on the low-cost models
+
+**The run.** The maintainer ran `--cheap-models` on every category with the checks as they stand after D15 and D16: 67 cases, 3 repeats, 1,206 chats, started 2026-11-18 02:27 UTC. All chats ran, and two failed. It holds both sets step 13 names, the 20 `many-items` cases and #104's four categories. It is not step 13's write-up, and its report is not in the repository. The report's estimates put the run at about $1.28.
+
+| Model | Chats that failed | Fully correct, switch off → on (%) | Missed items, off / on | Chats with a date problem | Dates corrected, off / on | Nutrition values corrected, on | Model calls per chat, off / on | Median latency, off / on (s) |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 0 | 94.5 → 94.5 | 4 / 4 | 0 | 98 / 78 | 40 | 4.70 / 7.02 | 6.8 / 8.6 |
+| `claude-haiku-5-5` | 0 | 91.5 → 93.5 | 1 / 1 | 0 | 0 / 0 | 16 | 4.74 / 6.97 | 6.4 / 8.9 |
+| `deepseek-flash` | 2 | 95.5 → 97.0 | 2 / 0 | 0 | 193 / 226 | 2 | 4.74 / 6.94 | 5.9 / 7.3 |
+
+**Against the baselines, on the cases each baseline shares with this run.** Fully correct chats (%). The unit cases are 22: the baseline's scoop case was replaced and its Pizza Hut case removed after it ran.
+
+| Model | `many-items`: baseline off | baseline on | this run off | this run on | Unit cases: baseline off | baseline on | this run off | this run on |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 80.0 | 58.3 | 91.7 | 95.0 | 71.2 | 92.4 | 97.0 | 93.9 |
+| `claude-haiku-5-5` | 80.0 | 73.3 | 81.7 | 90.0 | 89.4 | 93.9 | 93.9 | 92.4 |
+| `deepseek-flash` | 64.4 | 47.5 | 94.9 | 93.2 | 68.2 | 90.9 | 97.0 | 97.0 |
+
+The baselines are the [many-items run](evals/many-items/2026-11-16-many-items.md) and the low-cost models of the [units run](evals/units/2026-11-17-units.md). In the baselines, "off" is no verification at all. In this run the name and date checks run in both columns.
+
+**Against what counts as done**
+
+- **Item 3, the cheap models improve: met.** With the switch on, every model beats its baseline verification-off result on both sets. The smallest margin is `claude-haiku-5-5` on the unit cases, 61 chats against 59 of 66.
+- **Item 4, dates: met.** No chat of the 1,206 lists a wrong or missing date. The date check corrected 595 dates, all on `gpt-6-luna` and `deepseek-flash`. For 32 of `deepseek-flash`'s, the record had no date at all, which is D16 at work.
+- **Item 4, missed items: met on `many-items`, not met elsewhere.**
+  - `many-items`: no missed item on any model, off or on. The baselines had 5 and 28 (`claude-haiku-5-5` and `deepseek-flash`, verification on, many-items run).
+  - Unit cases: one chat, `gpt-6-luna`'s `chick-fil-a-sandwich`, switch on.
+  - The other categories: `some-almonds` in 10 chats over the three models, and `gpt-6-luna`'s `corrected-date` once.
+  - In every one of these chats nothing at all was saved, and no check removed a record. So the chat model most likely never called `recordFood`, and the checks, which run inside it, never ran. The report does not say whether `recordFood` was called, so this is not confirmed. `some-almonds` was missed in the baselines too.
+- **Item 5, better with the content check on: not met.** Over the whole run `gpt-6-luna` is level. On `many-items`, `deepseek-flash` is one chat lower with the switch on. On the 23 unit cases as run, `gpt-6-luna` is two chats lower, `claude-haiku-5-5` one, and `deepseek-flash` level.
+
+**Read without `some-almonds`.** The maintainer set this case aside on 2026-11-18: "I snacked on some almonds this afternoon" can be read as general chat that calls for no `recordFood`. Without it the run has 66 cases, and two chats with a missed item remain, both on `gpt-6-luna`. The maintainer marked the run a temporary success.
+
+The table gives fully correct chats (%) against each case's newest baseline: the units run for `many-items` and the 22 unit cases, and the [nutrition-sources run](evals/nutrition-sources/2026-11-16-nutrition-sources.md) for the other 23. The new scoop case has no baseline, so the comparison has 65 cases. The nutrition-sources run was scored before #104's unit rules, which accepted more units, so its figures are not lower than they would be now.
+
+| Model | Baseline, no verification | Baseline, verification on | This run, switch off | This run, switch on | All 66 cases, switch on |
+|---|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 75.9 | 89.7 | 95.9 | 95.9 | 96.0 (190 of 198) |
+| `claude-haiku-5-5` | 90.3 | 91.8 | 91.8 | 93.8 | 93.9 (186 of 198) |
+| `deepseek-flash` | 72.7 | 86.1 | 96.4 | 96.9 | 96.9 (190 of 196) |
+
+**What the content check did**
+
+- **`claude-haiku-5-5`: a real gain.** It corrected 16 foods in 9 chats, and 7 of those chats ended fully correct. Ten of the foods had 0 for every nutrition value.
+- **`gpt-6-luna`: many corrections, no gain.** It rejected 40 foods in 36 chats. About half of its reasons end by saying the values are plausible, or name a difference of a tenth of a gram, which the prompt says is not a reason to reject. Several give "the user did not state the values" as the fault, which misreads D15's wording. 34 of the 36 chats were fully correct afterwards. One right value was made wrong: a pumpkin pie slice at 323 kcal, the reference value, was rewritten to 243.
+- **`deepseek-flash`: two corrections.** One doubled the values of two rice cakes that were right. Its higher result with the switch on comes from chats that went wrong before any check ran with the switch off, not from the check.
+- **Stated values (D15).** In `stated-nutrition`, all 36 chats with the switch on were fully correct, and no check rejected the 1900 kcal banana. With the switch off, `deepseek-flash` saved 105 kcal for it in 2 chats: the chat model ignored the stated value, and nothing checks that when the content check is off.
+
+**Other findings**
+
+- **`claude-haiku-5-5` wrote 0 for every nutrition value in 5 chats,** all with messages of two to eight foods: 3 of its 24 `several-items` chats and 2 of its 120 `many-items` chats. With the switch on, the content check corrected them in 3 chats. With it off, 2 chats saved them, 10 foods in all. No earlier report has this. The one thing the chat model sees differently is that `recordFood` now takes a list; that this is the cause is not confirmed.
+- **The grande latte is still converted.** `deepseek-flash` wrote 16 fl oz in 4 of 6 chats, and the name check corrected 1.
+- **No double save.** No chat saved a food nothing expected. The name check removed one record, on `gpt-6-luna`: a second `recordFood` call for a food an earlier call had saved.
+- **No food was added, and no record held a whole meal.**
+- **The two failed chats** are `deepseek-flash` calling a file tool the harness does not answer (`unexpected operation: file.read`). The run of 2026-11-16 has the same failure.
+
+### 2026-11-18 The name and count check is switched off (D17)
+
+**Why.** In the full run above the name and count check made one model request in every `recordFood` call and changed a record in 4 of 1,206 chats: it removed one record, had three amounts or units written again, and added no food. The maintainer's reading: the run proves what the check costs, and not that it does important work. [#118](https://github.com/phanmi/tyler_agent/issues/118) is to prove that with new classes of eval cases, or show that it cannot be proved.
+
+**Why the proof is a separate issue.** The current cases rarely lead a chat model into the mistakes the check is for, so proving that it works needs complex cases designed for that. The maintainer decided that designing them is out of scope for #113. Until then the requirements that rest on the check are partially met: the check is implemented and tested, and it is switched on only after [#118](https://github.com/phanmi/tyler_agent/issues/118) proves it works.
+
+**What changed**
+
+- **A switch, off by default.** `RunSettings.check_names` is false unless code sets it. The runtime gives every run the default settings and the run payload carries none, so no run can switch the check on.
+- **The check does nothing when it is off.** `check_names` returns the list it was given and makes no request. It keeps its place in `CHECKS`, so switching it on needs no other change.
+- **A run now makes the date check and the content check.** That is one model request fewer for every `recordFood` call.
+- **The eval harness runs with the check off, as the app does.** The report's three rows for it stay, and read 0. How the harness switches it on belongs to [#118](https://github.com/phanmi/tyler_agent/issues/118).
+- **Tests.** The check's own tests, and the end-to-end tests of what it does, switch it on. The other end-to-end tests run a run's default settings. One eval-runner test needed a removed record, which the harness can no longer produce, and was removed; the one beside it now uses passing checks.
+- **Docs.** `AGENT_OPERATIONS.md`, `DEVELOPMENT.md` and the eval README say which checks a run makes.
+- **#113 and PR #117.** Their descriptions say that the check is implemented and switched off, why, and that [#118](https://github.com/phanmi/tyler_agent/issues/118) comes before it is switched on. They also say that the content check is shown the chat (D15) and that a food with no date is always corrected (D16).
+
+**What a run loses while the check is off.** Going by the full run:
+
+- A second `recordFood` call for a food an earlier call saved is saved again. This was one chat, on `gpt-6-luna`.
+- An amount or unit that differs from what the user said is saved. The check corrected three, all on `deepseek-flash`, and passed three more of the same kind.
+- A record that does not belong is saved, and a food the chat model left out stays out. The run had neither.
+
+**Tests shown to catch their bug.** Each of these failed with its behaviour removed and passed with it restored:
+
+- The check asking although it is switched off: 13 tests failed, among them the check's own test and one through the real agent loop.
+- The switch being on by default: the same 13 tests failed.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 987 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped. Its integration tests start the worker with the check off, as a run does.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- The full run's figures include the name and count check. A run with it off has not been made.
+- PR #117's review finding about two `recordFood` calls in one response rested on this check seeing the first call's result.
+
+### 2026-11-18 The full run is written up
+
+**What was added.** The [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md), with the run's generated report beside it. It is the write-up of the full run above, which was made before the name and count check was switched off.
+
+**What it holds**
+
+- **The improvement over the baselines.** Fully correct chats on the 65 cases that have a baseline, and on each set: `many-items`, the 22 unit cases, and the other 23.
+- **What went wrong in each chat, baseline against this run:** missing foods, dates, amounts and units, nutrition values, foods the case does not expect, and failed chats.
+- **What each check did,** with the content check's reasons counted for `gpt-6-luna`: 14 of its 40 note that the user did not state the values.
+- **Cost and time** against the run of 2026-11-16, which has 61 of the 67 cases. With the nutrition check on, a chat costs about what it did with the old verifier on, and the 95th percentile of reply time is about half.
+- **The run against what counts as done.**
+- **The three decisions made from the run, each with its reason and evidence:** `some-almonds` set aside, the run marked a temporary success, and the name and count check switched off (D17).
+
+**One figure differs from the entry above.** That entry says the name and count check passed three records of the kind it is meant to correct. The write-up counts four: `deepseek-flash`'s three lattes, and a Snickers bar that `claude-haiku-5-5` saved with the unit "bar (2 oz)".
+
+**Left open**
+
+- A run with the name and count check off has not been made, so the write-up does not measure the checks as they now stand.
+- The report does not split reply time by category. So the time a multi-food message takes, which #113 asks for before and after, is not measured directly.
+- PR #117's description still says the report is not in the repository.
+
+### 2026-11-18 Review findings F1 to F10 on PR #117
+
+**What this is.** The review of the branch found ten things, F1 to F10. Each was posted on PR #117 with its options, and the maintainer answered each in its thread. This entry applies those answers.
+
+| Finding | Answer | What changed |
+|---|---|---|
+| F1. A correction with missing fields is accepted | B | `corrected_record` rejects a `correctFood` answer with a field missing or null, or with a negative number (D18). The question is then asked again, as D10 and D14 say. |
+| F2. A corrected date that is not a date is accepted | B | `corrected_dates` accepts only a real day written as `YYYY-MM-DD` (D19). |
+| F3. With two `recordFood` calls in one response, the first call's check adds the second call's foods | A | No code change. In the full run no chat saved a food its case did not expect, and the name and count check added no food. The case cannot happen while that check is off. |
+| F4. Nothing limits how many check requests go out at once | A | `together` asks at most 8 questions at the same time, `MAX_QUESTIONS_TOGETHER` (D20). It now takes the function that asks and the items to ask about, so a question beyond the limit is not built until its turn. |
+| F5. `correctFood`'s description tells the model to use a `foods` list | A | `correctFood` is given `recordFood`'s description from "When the user gives an amount" on. |
+| F6. The chat model is not told to tell the user about a left-out record | A | The `note` in the tool result says to tell the user which records were not recorded and why (D21). |
+| F7. The date check and the content check could run at the same time | A | No code change (D22). |
+| F8. `corrected_dates` repeats the loop in `flagged_foods` | A | `numbered_texts` in `asking.py` reads both lists, and both schemas share `FOOD_NUMBER`. |
+| F9. The same evidence text is in four prompts | A | `Evidence.text` writes the block, and each prompt has one `{evidence}` placeholder. The correction's prompt now also says that the last message is the user's latest. |
+| F10. `FoodCall.model_calls` is counted but nothing reads it | A | `FoodCall` is removed. `RecordedFood` and `ChatResult` keep only the findings. |
+
+**Two things about F1 and F2**
+
+- **They repeat rules Java has.** PY-04 says Python does not tighten Java's date or number rules. These two apply only to the model's answers to the checks' own tools, and Java still applies its rules to every food it saves. `PYTHON_AGENT_STANDARDS.md` is unchanged.
+- **For F1, every field of the record is required.** That includes a field the asking check does not copy, such as the date in a nutrition correction. It is what the tool's schema requires, and what OpenAI and Claude already enforce.
+
+**Tests shown to catch their bug.** Each fix was removed in turn. The tests named here failed, and passed with the fix restored.
+
+- F1, a missing or null field: 2 cases of the content check's unusable-correction test.
+- F1, a negative number: 1 case of the same test.
+- F2: 4 cases of the date check's unusable-correction test. With only the shape check removed, the `20261110` case failed.
+- F4: the new test that a list of 11 foods has at most 8 checks waiting for an answer at once.
+- F5: the test of the rules the correction tool is given.
+- F6 and F9: the end-to-end test of every check, which now reads the note in the tool result and the prompt of each request.
+
+F8 and F10 change no behaviour, and the existing tests cover them. One eval-runner test asserted the entry for a rejected call, which is removed; it now asserts that the chat goes on and nothing is saved.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 995 passed and 1 skipped (the owner-only file mode test, which Windows cannot run).
+- Java: `mvn test` with 887 tests, 0 failures, 0 errors and 5 skipped.
+- Not run: `npm run check`, because the frontend did not change, and no eval run.
+
+**Left open**
+
+- No eval has run with these changes. Two of them change what a correction request sends: `correctFood`'s description is shorter (F5), and its prompt says that the last message is the user's latest (F9).
+- The newest automated review of PR #117 has one finding without a decision: the content check is on in every run, and the full run shows it making some correct records wrong.

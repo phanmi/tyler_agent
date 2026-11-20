@@ -5,10 +5,12 @@ import json
 from collections.abc import Iterator
 from copy import deepcopy
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from conftest import FIXTURES, sequence_message
 from support.agent_fakes import fake_context
+from support.food_fakes import food_context
 
 from tyler_agent.failures import AgentFailure, OperationFailure
 from tyler_agent.protocol.protocol import Message
@@ -53,24 +55,27 @@ def test_all_six_adapters_use_private_operations(prefix: str, name: str, field: 
         seen.append((operation_name, value))
         return result
 
-    raw = request["input"]["food"] if prefix == "food" else request["input"]
-    output = asyncio.run(ToolAdapters(fake_context(operation)).execute(name, model_json(raw)))
+    raw, context = model_json(request["input"]), fake_context(operation)
+    if prefix == "food":
+        raw = '{"foods":[' + model_json(request["input"]["food"]) + "]}"
+        # recordFood checks its foods first; here every check passes.
+        context = food_context(operation)
+    output = asyncio.run(ToolAdapters(context).execute(name, raw))
     assert seen == [(request["operation"], request["input"])]
     if prefix in {"food", "plan"}:
-        assert (
-            json.loads(output, parse_float=Decimal)[
-                "startDate" if prefix == "plan" else "genericInfo"
-            ]
-            is not None
-        )
+        saved = json.loads(output, parse_float=Decimal)
+        assert (saved["startDate"] if prefix == "plan" else saved["recorded"]) is not None
         assert '"id"' not in output
     elif prefix == "profile":
         assert output == profile_text(result[field])
     else:
         assert output == ("Wrote " if prefix == "file_write" else "") + result[field]
     if prefix in {"food", "plan", "profile"}:
-        golden = json.loads((FIXTURES / "tool-output.json").read_text("utf-8"))
-        assert output.replace("\r\n", "\n") == golden[prefix]
+        golden = json.loads((FIXTURES / "tool-output.json").read_text("utf-8"))[prefix]
+        if prefix == "food":
+            # recordFood lists the saved foods; each keeps the released format, one level in.
+            golden = '{\n  "recorded" : [ ' + golden.replace("\n", "\n  ") + " ]\n}"
+        assert output.replace("\r\n", "\n") == golden
 
 
 # One schema-valid call per tool that takes arguments; each case below changes one part.
@@ -78,14 +83,18 @@ VALID: dict[str, Message] = {
     "readFile": {"path": "notes.txt"},
     "writeFile": {"path": "notes.txt", "content": "retain-me"},
     "recordFood": {
-        "genericInfo": {
-            "foodName": "Oats",
-            "amount": 100,
-            "unit": "g",
-            "calories": 389,
-            "date": "2026-10-20",
-        },
-        "macroNutrients": {"protein": 17, "carbs": 66, "fat": 7, "fiber": 10},
+        "foods": [
+            {
+                "genericInfo": {
+                    "foodName": "Oats",
+                    "amount": 100,
+                    "unit": "g",
+                    "calories": 389,
+                    "date": "2026-10-20",
+                },
+                "macroNutrients": {"protein": 17, "carbs": 66, "fat": 7, "fiber": 10},
+            }
+        ]
     },
     "generateWorkoutPlan": {"startDate": "2026-10-20", "goal": "strength", "equipment": "gym"},
 }
@@ -97,7 +106,10 @@ WRONG_TYPES: dict[str, tuple[object, ...]] = {
     "string": (1, 1.5, True, {}, []),
     "number": ("1", "", True, {}, []),
     "object": ("{}", 1, False, []),
+    "array": ("[]", 1, False, {}),
 }
+# A place in a tool's arguments: field names, and 0 for the entry of a list.
+type Path = tuple[str | int, ...]
 
 
 def wrong_values(field: Message) -> tuple[object, ...]:
@@ -106,19 +118,24 @@ def wrong_values(field: Message) -> tuple[object, ...]:
     return WRONG_TYPES.get(declared, ()) if isinstance(declared, str) else ()
 
 
-def objects(
-    schema: Message, path: tuple[str, ...] = ()
-) -> Iterator[tuple[tuple[str, ...], Message]]:
-    """Yield each object schema in a tool definition with its path in the arguments."""
+def objects(schema: Message, path: Path = ()) -> Iterator[tuple[Path, Message]]:
+    """Yield each object schema in a tool definition with its path in the arguments,
+    including the object a list's entries must be."""
     yield path, schema
     for name, field in schema["properties"].items():
         if field["type"] == "object":
             yield from objects(field, path + (name,))
+        elif field["type"] == "array":
+            yield from objects(field["items"], path + (name, 0))
 
 
-def replaced(value: Message, path: tuple[str, ...], replacement: object) -> Message:
+def dotted(path: Path) -> str:
+    return ".".join(str(key) for key in path)
+
+
+def replaced(value: Message, path: Path, replacement: object) -> Message:
     copy = deepcopy(value)
-    target = copy
+    target: Any = copy  # A list on the way to the entry of one.
     for key in path[:-1]:
         target = target[key]
     target[path[-1]] = replacement
@@ -126,14 +143,15 @@ def replaced(value: Message, path: tuple[str, ...], replacement: object) -> Mess
 
 
 def recorded(result: Message | None = None) -> tuple[ToolAdapters, list[tuple[str, Message]]]:
-    """Adapters whose Java operation only records requests, so no request means no effect."""
+    """Adapters whose Java operation only records requests, so no request means no effect.
+    recordFood's checks pass, and the clock they read is not among the requests."""
     seen: list[tuple[str, Message]] = []
 
     async def operation(name: str, value: Message) -> Message:
         seen.append((name, value))
         return result or {"content": "", "path": "", "food": {}, "plan": {}}
 
-    return ToolAdapters(fake_context(operation), CATALOG), seen
+    return ToolAdapters(food_context(operation), CATALOG), seen
 
 
 def rejected(name: str, raw: str) -> None:
@@ -151,7 +169,7 @@ def test_definitions_are_strict_and_a_valid_call_delegates_once(name: str) -> No
         assert schema["required"] == list(properties)
         assert [key for key, field in properties.items() if not wrong_values(field)] == []
         # The valid call uses every declared field, so a definition cannot drift from the parser.
-        valid = VALID[name]
+        valid: Any = VALID[name]
         for key in path:
             valid = valid[key]
         assert valid.keys() == properties.keys()
@@ -163,28 +181,26 @@ def test_definitions_are_strict_and_a_valid_call_delegates_once(name: str) -> No
 @pytest.mark.parametrize(
     "name,path,wrong",
     [
-        pytest.param(name, path + (field,), wrong, id=f"{name}.{'.'.join(path + (field,))}")
+        pytest.param(name, path + (field,), wrong, id=f"{name}.{dotted(path + (field,))}")
         for name in VALID
         for path, schema in objects(DEFINITIONS[name]["parameters"])
         for field, declared in schema["properties"].items()
         for wrong in wrong_values(declared)
     ],
 )
-def test_each_declared_field_rejects_other_json_types(
-    name: str, path: tuple[str, ...], wrong: object
-) -> None:
+def test_each_declared_field_rejects_other_json_types(name: str, path: Path, wrong: object) -> None:
     rejected(name, json.dumps(replaced(VALID[name], path, wrong)))
 
 
 @pytest.mark.parametrize(
     "name,path",
     [
-        pytest.param(name, path, id=f"{name}:{'.'.join(path) or 'root'}")
+        pytest.param(name, path, id=f"{name}:{dotted(path) or 'root'}")
         for name in VALID
         for path, _ in objects(DEFINITIONS[name]["parameters"])
     ],
 )
-def test_each_object_rejects_unsupported_properties(name: str, path: tuple[str, ...]) -> None:
+def test_each_object_rejects_unsupported_properties(name: str, path: Path) -> None:
     rejected(name, json.dumps(replaced(VALID[name], path + ("unexpected",), True)))
 
 
@@ -226,7 +242,8 @@ def test_missing_or_null_file_fields_are_rejected(name: str, raw: str) -> None:
         ("writeFile", '{"path":"notes.txt","content":"a","content":"a"}'),
         ("readFile", '{"path":1,"path":"notes.txt"}'),
         ("generateWorkoutPlan", '{"goal":1,"goal":"x","startDate":"2026-01-05","equipment":"y"}'),
-        ("recordFood", '{"genericInfo":{"amount":1,"amount":2},"macroNutrients":{}}'),
+        ("recordFood", '{"foods":[{"genericInfo":{"amount":1,"amount":2},"macroNutrients":{}}]}'),
+        ("recordFood", '{"foods":[],"foods":[{"genericInfo":{},"macroNutrients":{}}]}'),
     ],
 )
 def test_repeated_keys_are_rejected(name: str, raw: str) -> None:
@@ -252,7 +269,7 @@ def test_exponents_outside_the_decimal_range_are_rejected(raw: str) -> None:
         ("writeFile", r'{"path":"\ud800","content":"x"}'),
         ("writeFile", r'{"path":"a.txt","content":"\ud800"}'),
         ("writeFile", r'{"path":"a.txt","content":"half \ude00"}'),
-        ("recordFood", r'{"genericInfo":{"foodName":"\ud800"}}'),
+        ("recordFood", r'{"foods":[{"genericInfo":{"foodName":"\ud800"}}]}'),
         ("generateWorkoutPlan", r'{"startDate":"\ud800"}'),
     ],
 )
@@ -272,15 +289,42 @@ def test_blank_paths_are_rejected(name: str, extra: Message, path: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw",
+    "foods",
     [
         '{"genericInfo":{"amount":3000000000,"unit":true}}',
         '{"genericInfo":{"amount":3000000000},"macroNutrients":"oops"}',
         '{"genericInfo":{"foodName":5,"amount":3000000000}}',
+        # The number beyond the limit is in one food and the wrong type in the next.
+        '{"genericInfo":{"amount":3000000000}},{"genericInfo":{"unit":true}}',
     ],
 )
-def test_wrong_types_are_rejected_before_number_limits_apply(raw: str) -> None:
+def test_wrong_types_are_rejected_before_number_limits_apply(foods: str) -> None:
+    rejected("recordFood", '{"foods":[' + foods + "]}")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["{}", '{"foods":null}', '{"foods":[]}', '{"foods":[null]}', '{"foods":["Oats"]}'],
+)
+def test_a_call_without_a_food_object_in_its_list_is_rejected(raw: str) -> None:
     rejected("recordFood", raw)
+
+
+def test_every_food_of_a_call_is_saved_in_the_models_order() -> None:
+    names = ["Oats", "Milk", "Banana"]
+    (food,) = VALID["recordFood"]["foods"]
+    foods = [replaced(food, ("genericInfo", "foodName"), name) for name in names]
+    seen: list[str] = []
+
+    async def operation(operation_name: str, value: Message) -> Message:
+        assert operation_name == "food.insert"
+        seen.append(value["food"]["genericInfo"]["foodName"])
+        return value
+
+    tools = ToolAdapters(food_context(operation), CATALOG)
+    output = asyncio.run(tools.execute("recordFood", json.dumps({"foods": foods})))
+    assert seen == names
+    assert [food["genericInfo"]["foodName"] for food in json.loads(output)["recorded"]] == names
 
 
 @pytest.mark.parametrize(
@@ -306,7 +350,7 @@ def test_missing_and_null_domain_values_still_reach_java_validation() -> None:
     tools, seen = recorded()
     plan = '{"startDate":"+999999999-12-31","goal":"","equipment":null}'
     asyncio.run(tools.execute("generateWorkoutPlan", plan))
-    food = '{"genericInfo":{"foodName":"","amount":null,"date":"not-a-date"}}'
+    food = '{"foods":[{"genericInfo":{"foodName":"","amount":null,"date":"not-a-date"}}]}'
     asyncio.run(tools.execute("recordFood", food))
     assert seen == [
         (
@@ -371,7 +415,8 @@ def test_food_numbers_keep_exact_decimal_text(number: str, expected: str | None)
 def test_numbers_beyond_the_protocol_bound_still_end_the_run(value: str) -> None:
     tools, seen = recorded()
     with pytest.raises(AgentFailure) as caught:
-        asyncio.run(tools.execute("recordFood", '{"genericInfo":{"amount":' + value + "}}"))
+        raw = '{"foods":[{"genericInfo":{"amount":' + value + "}}]}"
+        asyncio.run(tools.execute("recordFood", raw))
     assert (caught.value.category, caught.value.code) == ("validation", "INVALID_ARGUMENT")
     assert seen == []
 
@@ -395,7 +440,7 @@ def test_java_storage_and_domain_failures_still_end_the_run(
         raise OperationFailure(error)
 
     with pytest.raises(OperationFailure) as caught:
-        asyncio.run(ToolAdapters(fake_context(operation)).execute(name, json.dumps(VALID[name])))
+        asyncio.run(ToolAdapters(food_context(operation)).execute(name, json.dumps(VALID[name])))
     assert caught.value.error == error
 
 

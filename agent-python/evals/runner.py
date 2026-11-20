@@ -1,11 +1,11 @@
 """Run one case as one chat through the real agent, provider and tools, and record what it did.
 
 Only Java is replaced. The provider is wrapped so every model request is counted, including
-the verification requests recordFood makes, without any tool knowing it is measured.
+the requests recordFood's checks make. recordFood's handler is wrapped too, so what its checks
+found is kept; the wrapper runs the tool's own two steps and changes nothing the chat sees.
 """
 
 import asyncio
-import json
 import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -18,8 +18,9 @@ from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.provider import open_provider
 from tyler_agent.tools import ToolAdapters
-from tyler_agent.tools.builtin.food_record.verification import NOT_RECORDED
-from tyler_agent.tools.contracts import RunSettings, ToolContext
+from tyler_agent.tools.builtin.food_record.adapter import record_foods, rendered
+from tyler_agent.tools.builtin.food_record.foods import Finding
+from tyler_agent.tools.contracts import RunSettings, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.registry import ToolCatalog
 from tyler_agent.transcript import AssistantTurn, Provider, ToolDefinition, TranscriptEntry, Usage
@@ -47,17 +48,19 @@ class Target:
 
 @dataclass(frozen=True)
 class Chat:
-    """One planned chat: a case on a target, with verification on or off, and which repeat."""
+    """One planned chat: a case on a target, with recordFood's nutrition check on or off,
+    and which repeat. The date check runs in both, and the name and count check in
+    neither."""
 
     case: Case
     target: Target
-    verify: bool
+    check_nutrition: bool
     repeat: int
 
     @property
     def mode(self) -> str:
-        """Food verification as progress lines and the report name it."""
-        return "on" if self.verify else "off"
+        """The nutrition check as progress lines and the report name it."""
+        return "on" if self.check_nutrition else "off"
 
 
 @dataclass(frozen=True)
@@ -69,26 +72,15 @@ class ModelCall:
 
 
 @dataclass(frozen=True)
-class FoodCheck:
-    """One recordFood call: the model requests made inside it, and whether it was refused.
-
-    Verification makes one request for an item it accepts straight away, so a saved item with
-    more than one request was rejected at least once first.
-    """
-
-    model_calls: int
-    refused: bool
-
-
-@dataclass(frozen=True)
 class ChatResult:
     """What one chat did. `error` is None for a chat that finished; a failed chat keeps what
-    it had recorded up to the failure, and the report leaves it out of every measurement."""
+    it had recorded up to the failure, and the report leaves it out of every measurement.
+    `findings` is what recordFood's checks found, in the order of the chat's calls."""
 
     chat: Chat
     error: str | None
     saved: tuple[Message, ...]
-    checks: tuple[FoodCheck, ...]
+    findings: tuple[Finding, ...]
     calls: tuple[ModelCall, ...]
     seconds: float
 
@@ -96,12 +88,12 @@ class ChatResult:
 @dataclass(frozen=True)
 class Session:
     """What every chat of a harness run shares: the API key for each provider, how a provider
-    is opened, the clock, and the tool catalog. Keys stay here and never enter a result."""
+    is opened, the clock, and the agent's tools. Keys stay here and never enter a result."""
 
     keys: Mapping[str, str]
     opener: ProviderFactory = open_provider
     clock: Callable[[], float] = time.perf_counter
-    catalog: ToolCatalog = field(default_factory=lambda: ToolCatalog(discover_tools()))
+    tools: tuple[Tool, ...] = field(default_factory=discover_tools)
 
 
 class MeteredProvider:
@@ -125,34 +117,31 @@ class MeteredProvider:
         return turn
 
 
-class RecordedTools(ToolAdapters):
-    """The chat's real tools, noting for each recordFood call how many model requests ran
-    inside it and whether verification refused it.
+class RecordedFood:
+    """Stands in for recordFood's handler in one chat's catalog. It runs the tool's own two
+    steps, checking and saving the foods and then writing the result, and keeps what the
+    checks found.
 
-    `checks` starts empty and grows by one for each recordFood call the model makes,
-    including calls whose arguments were rejected. One instance belongs to one chat.
+    `findings` starts empty and grows with each recordFood call that saves its foods. A call
+    whose arguments were rejected, or that fails the chat, adds nothing. One instance belongs
+    to one chat.
     """
 
-    def __init__(self, context: ToolContext, catalog: ToolCatalog, meter: MeteredProvider) -> None:
-        super().__init__(context, catalog)
-        self._meter = meter
-        self.checks: list[FoodCheck] = []
+    def __init__(self) -> None:
+        self.findings: list[Finding] = []
 
-    async def execute(self, name: str, raw: str) -> str:
-        before = len(self._meter.calls)
-        result = await super().execute(name, raw)
-        if name == RECORD_FOOD:
-            self.checks.append(FoodCheck(len(self._meter.calls) - before, was_refused(result)))
-        return result
+    async def execute(self, raw: str, context: ToolContext) -> str:
+        recorded = await record_foods(raw, context)
+        self.findings.extend(recorded.findings)
+        return rendered(recorded)
 
 
-def was_refused(result: str) -> bool:
-    """True for the result recordFood returns when verification refused the item."""
-    try:
-        value = json.loads(result)
-    except ValueError:
-        return False
-    return isinstance(value, dict) and value.get("error") == NOT_RECORDED
+def chat_catalog(tools: Sequence[Tool], food: RecordedFood) -> ToolCatalog:
+    """The agent's tools for one chat, with recordFood handled by this chat's recorder."""
+    return ToolCatalog(
+        Tool(tool.definition, food.execute) if tool.definition["name"] == RECORD_FOOD else tool
+        for tool in tools
+    )
 
 
 def run_payload(chat: Chat, api_key: str) -> Message:
@@ -175,16 +164,17 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
     payload = run_payload(chat, session.keys[chat.target.provider])
     java = FakeJava(chat.case.now)
     meter: MeteredProvider | None = None
-    tools: RecordedTools | None = None
+    food: RecordedFood | None = None
     error: str | None = None
     started = session.clock()
     try:
         async with asyncio.timeout(CHAT_TIMEOUT_MS / 1000):
             async with session.opener(payload) as provider:
                 meter = MeteredProvider(provider, session.clock)
-                settings = RunSettings(verify_food=chat.verify)
+                food = RecordedFood()
+                settings = RunSettings(check_nutrition=chat.check_nutrition)
                 context = tool_context(payload, meter, java.operation, settings)
-                tools = RecordedTools(context, session.catalog, meter)
+                tools = ToolAdapters(context, chat_catalog(session.tools, food))
                 await run_agent(payload, meter, tools)
     except AgentFailure as failure:
         error = f"{failure.category}/{failure.code}"
@@ -200,7 +190,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
         chat,
         error,
         tuple(java.saved),
-        tuple(tools.checks) if tools else (),
+        tuple(food.findings) if food else (),
         tuple(meter.calls) if meter else (),
         session.clock() - started,
     )

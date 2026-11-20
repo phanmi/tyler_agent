@@ -266,7 +266,7 @@ def test_a_full_run_makes_every_case_twice_per_repeat_for_each_model() -> None:
     assert len(chats) == len(cases) * 2 * 3 * 2
     first = chats[:6]
     assert {chat.case.id for chat in first} == {cases[0].id}
-    assert [(chat.repeat, chat.verify) for chat in first] == [
+    assert [(chat.repeat, chat.check_nutrition) for chat in first] == [
         (1, False),
         (1, True),
         (2, False),
@@ -295,7 +295,7 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
     assert code == EXIT_FINISHED and provider.opened == 4
     assert progress.splitlines() == [
         *(
-            f"[{number}/4] openai/configured-model grams-chicken verification={mode} "
+            f"[{number}/4] openai/configured-model grams-chicken nutrition-check={mode} "
             f"repeat={repeat}: finished"
             for number, (repeat, mode) in enumerate(
                 [(1, "off"), (1, "on"), (2, "off"), (2, "on")], start=1
@@ -306,15 +306,16 @@ def test_one_command_runs_the_chosen_cases_and_reports_them(tmp_path: Path) -> N
     lines = output.splitlines()
     assert lines[0] == "# Food recording eval report"
     assert f"- **Tyler version:** {release_version()}" in lines
-    assert "- **Cases:** 1, each run 2 times with food verification off and on" in lines
+    assert "- **Cases:** 1, each run 2 times with the nutrition check off and on" in lines
     assert "- **Status:** All 4 chats ran." in lines
     assert "## openai / configured-model" in lines
     assert "This model has no price in the table, so no cost is shown." in lines
     for label, shown in [
         ("Chats run", ["2", "2", "+0"]),
         ("Fully correct chats (%)", ["100.0", "100.0", "+0.0"]),
-        ("Model calls per chat", ["2.00", "3.00", "+1.00"]),
-        ("Input tokens per chat", ["200", "300", "+100"]),
+        # The date check runs in both modes.
+        ("Model calls per chat", ["3.00", "4.00", "+1.00"]),
+        ("Input tokens per chat", ["300", "400", "+100"]),
         ("Cost per chat (USD)", ["-", "-", "-"]),
     ]:
         assert row(output, label) == shown, label
@@ -471,7 +472,7 @@ def test_a_report_that_cannot_be_updated_is_reported_and_the_run_goes_on(
     assert code == EXIT_FINISHED and provider.opened == 2
     assert progress.splitlines()[:2] == [
         f"Could not update {report}: Permission denied",
-        "[1/2] openai/m grams-chicken verification=off repeat=1: finished",
+        "[1/2] openai/m grams-chicken nutrition-check=off repeat=1: finished",
     ]
     assert len(writes) == 3
     assert output == f"{report.read_text('utf-8')}\nReport: {report}\n"

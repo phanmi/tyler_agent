@@ -26,7 +26,7 @@ src/tyler_agent/
     builtin/
       file_read/       # Each tool owns __init__.py, adapter.py, definition.json
       file_write/
-      food_record/     # Also verification.py: the model checks each item before it is saved
+      food_record/     # Also the checks the model runs on a call's foods before they are saved
       time_current/
       user_info/
       workout_plan/

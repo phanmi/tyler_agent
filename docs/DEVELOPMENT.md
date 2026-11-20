@@ -189,7 +189,7 @@ Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent
 | `GetUserInfo` | Reads the saved profile. |
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
-| `recordFood` | Validates food arguments, has the run's model check the item against the conversation, then saves it through the food service. An item rejected twice is not saved; see [food verification](AGENT_OPERATIONS.md#food-verification). |
+| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and nutrition values, and correct what it finds. It saves the foods the checks leave through the food service; see [food verification](AGENT_OPERATIONS.md#food-verification). |
 | `generateWorkoutPlan` | Requests seven dated days and saves planned exercises through the Java plan service. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
@@ -348,7 +348,7 @@ mvn "-Dtest=PythonAgentServiceTest,AgentPersistenceIntegrationTest,AgentRestartI
 uv run --locked pytest tests/test_agent.py tests/test_tools.py tests/test_tool_registry.py
 ```
 
-The suites use deterministic provider mocks and synthetic credentials without network requests. To measure how accurately a real model records food, and what food verification costs, run the [eval harness](../agent-python/evals/README.md) by hand; it makes paid provider calls with your own API keys. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
+The suites use deterministic provider mocks and synthetic credentials without network requests. To measure how accurately a real model records food, and what the food checks change and cost, run the [eval harness](../agent-python/evals/README.md) by hand; it makes paid provider calls with your own API keys. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
 
 ## Release version and packaging
 

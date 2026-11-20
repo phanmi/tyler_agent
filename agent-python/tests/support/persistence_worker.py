@@ -19,19 +19,44 @@ from tyler_agent.provider import (
     TranscriptEntry,
     responses_input,
 )
-from tyler_agent.tools.builtin.food_record.verification import VERDICT_TOOL
+from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
+from tyler_agent.tools.builtin.food_record.date_check import CORRECT_FOOD_DATES, VERIFY_FOOD_DATES
+from tyler_agent.tools.builtin.food_record.name_check import VERIFY_FOOD_LIST
 from tyler_agent.worker import main
 
-ACCEPT = ToolCall("verdict", VERDICT_TOOL.name, '{"valid": true, "reason": "Matches."}')
+# What a model that finds nothing wrong answers to each of recordFood's checks. The other test
+# fakes take it from here, because this entry point runs as a script and can import only
+# tyler_agent.
+ALL_CLEAR = {
+    VERIFY_FOOD_LIST.name: '{"missing": [], "incorrect": [], "wrongAmount": []}',
+    VERIFY_FOOD_DATES.name: '{"wrong": []}',
+    VERIFY_FOOD_NUTRITION.name: '{"valid": true, "reason": "Plausible."}',
+}
+
+
+# The date check never accepts a food with no date, so the scenario that leaves the date out
+# is asked for one. Every scenario's call holds one food, so the answer is for food 1.
+FIRST_FOOD_DATED = ToolCall(
+    CORRECT_FOOD_DATES.name,
+    CORRECT_FOOD_DATES.name,
+    '{"dates": [{"number": 1, "date": "2026-10-19"}]}',
+)
+
+
+def all_clear(tools: Sequence[ToolDefinition]) -> AssistantTurn | None:
+    """The answer that finds nothing wrong, when the request is one of recordFood's checks;
+    None for any other request."""
+    if len(tools) != 1 or tools[0].name not in ALL_CLEAR:
+        return None
+    name = tools[0].name
+    return AssistantTurn((ToolCall(name, name, ALL_CLEAR[name]),), "")
 
 
 def food_call(**changes: object) -> ToolCall:
     info = dict(foodName="Oats", amount=100, unit="g", calories=389, date="2026-10-19")
     info.update(changes)
-    return tool(
-        "recordFood",
-        dict(genericInfo=info, macroNutrients=dict(protein=17, carbs=66, fat=7, fiber=10)),
-    )
+    macros = dict(protein=17, carbs=66, fat=7, fiber=10)
+    return tool("recordFood", dict(foods=[dict(genericInfo=info, macroNutrients=macros)]))
 
 
 def tool(name: str, arguments: Message) -> ToolCall:
@@ -46,7 +71,7 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
         "before_write": (tool("getCurrentTime", {}), food_call()),
         "negative_food": (food_call(amount=-1),),
         "invalid_date": (food_call(date="2026-02-30"),),
-        "missing_food": (tool("recordFood", {}),),
+        "missing_food": (tool("recordFood", dict(foods=[{}])),),
         "plan": (
             tool(
                 "generateWorkoutPlan",
@@ -96,9 +121,12 @@ class PersistenceProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
-        if [tool.name for tool in tools] == [VERDICT_TOOL.name]:
-            # recordFood verifies each item first; accept it so Java services decide validity.
-            return AssistantTurn((ACCEPT,), "")
+        cleared = all_clear(tools)
+        if cleared is not None:
+            # recordFood checks its foods first; pass them so Java services decide validity.
+            return cleared
+        if [tool.name for tool in tools] == [CORRECT_FOOD_DATES.name]:
+            return AssistantTurn((FIRST_FOOD_DATED,), "")
         first = not any(isinstance(entry, ToolResult) for entry in transcript)
         if first:
             assert responses_input(transcript) == self.history + [

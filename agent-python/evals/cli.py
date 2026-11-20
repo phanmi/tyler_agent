@@ -78,8 +78,9 @@ def positive(value: str) -> int:
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(
         prog="python -m evals",
-        description="Run labelled food-recording cases against real providers, with food "
-        "verification off and on, and report accuracy and cost. This makes paid API calls.",
+        description="Run labelled food-recording cases against real providers, with "
+        "recordFood's nutrition check off and on, and report accuracy and cost. This makes paid "
+        "API calls.",
     )
     action = command.add_mutually_exclusive_group(required=True)
     action.add_argument(
@@ -171,11 +172,11 @@ def plan(cases: Sequence[Case], targets: Sequence[Target], repeats: int) -> list
     """Every chat of a run. Off and on are next to each other for each case, so a provider
     slowdown during the run affects both modes alike."""
     return [
-        Chat(case, target, verify, repeat)
+        Chat(case, target, check_nutrition, repeat)
         for target in targets
         for case in cases
         for repeat in range(1, repeats + 1)
-        for verify in (False, True)
+        for check_nutrition in (False, True)
     ]
 
 
@@ -242,7 +243,7 @@ def _name(target: Target) -> str:
 
 def _progress_line(number: int, total: int, chat: Chat, result: ChatResult) -> str:
     return (
-        f"[{number}/{total}] {_name(chat.target)} {chat.case.id} verification={chat.mode} "
+        f"[{number}/{total}] {_name(chat.target)} {chat.case.id} nutrition-check={chat.mode} "
         f"repeat={chat.repeat}: {result.error or 'finished'}"
     )
 

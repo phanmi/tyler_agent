@@ -10,8 +10,11 @@ from typing import Any
 
 from evals.cases import Case, Expected
 from evals.runner import Chat, ProviderFactory, Session, Target
+from support.persistence_worker import ALL_CLEAR, all_clear
 from tyler_agent.protocol.protocol import Message
-from tyler_agent.tools.builtin.food_record.verification import VERDICT_TOOL
+from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
+from tyler_agent.tools.builtin.food_record.correction import CORRECT_FOOD
+from tyler_agent.tools.builtin.food_record.date_check import VERIFY_FOOD_DATES
 from tyler_agent.tools.parsing import GENERIC_INFO_FIELDS, MACRO_FIELDS
 from tyler_agent.transcript import (
     AssistantTurn,
@@ -58,8 +61,8 @@ def case(*expects: Expected, case_id: str = "chicken", history: tuple[Message, .
     return Case(case_id, "test", NOW, history, "I ate 200 g of grilled chicken breast.", expects)
 
 
-def chat(verify: bool, repeat: int = 1, subject: Case | None = None) -> Chat:
-    return Chat(subject or case(expected()), TARGET, verify, repeat)
+def chat(check_nutrition: bool, repeat: int = 1, subject: Case | None = None) -> Chat:
+    return Chat(subject or case(expected()), TARGET, check_nutrition, repeat)
 
 
 SAVED_FIELDS: dict[str, object] = dict(
@@ -84,20 +87,40 @@ def record(**changes: object) -> Message:
     }
 
 
-def food_call(call_id: str = "food", **changes: object) -> ToolCall:
-    """A recordFood call as a model writes it: numbers are JSON numbers."""
+def food(**changes: object) -> Message:
+    """One food as a model writes it: numbers are JSON numbers."""
     info: dict[str, object] = dict(
         foodName="Grilled chicken breast", amount=200, unit="g", calories=302, date=TODAY
     )
     info.update(changes)
-    macros = dict(protein=61, carbs=0, fat=6.3, fiber=0)
-    return ToolCall(
-        call_id, "recordFood", json.dumps({"genericInfo": info, "macroNutrients": macros})
-    )
+    return {"genericInfo": info, "macroNutrients": dict(protein=61, carbs=0, fat=6.3, fiber=0)}
 
 
-def verdict(valid: bool, reason: str = "Checked.") -> ToolCall:
-    return ToolCall("verdict", VERDICT_TOOL.name, json.dumps({"valid": valid, "reason": reason}))
+def food_call(call_id: str = "food", **changes: object) -> ToolCall:
+    """The chat model's recordFood call for one food."""
+    return ToolCall(call_id, "recordFood", json.dumps({"foods": [food(**changes)]}))
+
+
+def corrected_food(**changes: object) -> ToolCall:
+    """A correctFood answer: one whole food record."""
+    return ToolCall("fix", CORRECT_FOOD, json.dumps(food(**changes)))
+
+
+def nutrition_rejected(reason: str) -> ToolCall:
+    """The content check's answer for a food whose nutrition values it rejects."""
+    arguments = json.dumps({"valid": False, "reason": reason})
+    return ToolCall("nutrition", VERIFY_FOOD_NUTRITION.name, arguments)
+
+
+# The check recordFood runs in every chat, and those it runs with the nutrition check on.
+# The name and count check is off in every chat.
+ALWAYS = (VERIFY_FOOD_DATES.name,)
+WITH_NUTRITION = (*ALWAYS, VERIFY_FOOD_NUTRITION.name)
+
+
+def cleared(checks: Sequence[str]) -> list[AssistantTurn]:
+    """The answers of a model that finds nothing wrong, one for each of these checks."""
+    return [turn(ToolCall(check, check, ALL_CLEAR[check])) for check in checks]
 
 
 def turn(*calls: ToolCall, text: str = "", usage: Usage | None = USAGE) -> AssistantTurn:
@@ -112,7 +135,7 @@ def session(opener: ProviderFactory) -> Session:
 
 class RuleProvider:
     """Answers like a well-behaved model for any number of chats: record the food once,
-    accept every verification, then reply. `opened` counts the chats that reached it, and
+    pass every check, then reply. `opened` counts the chats that reached it, and
     `keys` holds the API key each of them was opened with."""
 
     def __init__(self) -> None:
@@ -122,8 +145,9 @@ class RuleProvider:
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
-        if [tool.name for tool in tools] == [VERDICT_TOOL.name]:
-            return turn(verdict(True))
+        cleared = all_clear(tools)
+        if cleared is not None:
+            return replace(cleared, usage=USAGE)
         if any(isinstance(entry, ToolResult) for entry in transcript):
             return turn(text="Recorded.")
         return turn(food_call())

@@ -10,12 +10,13 @@ from typing import cast
 
 import pytest
 from conftest import FIXTURES
-from support.agent_fakes import fake_context
+from support.agent_fakes import FakeProvider, call, fake_context, payload
 
+from tyler_agent.agent import run_agent
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.tools import ToolAdapters
-from tyler_agent.tools.contracts import Handler, Tool, ToolContext
+from tyler_agent.tools.contracts import CompletedCall, Handler, Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.parsing import ArgumentsRejected
 from tyler_agent.tools.registry import MALFORMED_CALL_RESULT, ToolCatalog
@@ -75,6 +76,39 @@ def test_a_registered_tool_can_ask_the_run_model_about_the_conversation() -> Non
 
     tools = ToolAdapters(fake_context(operation, respond), [Tool(definition(), ask)])
     assert asyncio.run(tools.execute("example", "{}")) == "model saw current"
+
+
+def test_each_call_is_lent_the_calls_its_run_finished_before_it() -> None:
+    """Through the real agent loop: a tool sees every earlier call of its run with the result
+    the model was given, including a call from the same model response and one the registry
+    rejected, and never its own call or another run's."""
+    seen: list[tuple[CompletedCall, ...]] = []
+
+    async def probe(raw: str, context: ToolContext) -> str:
+        seen.append(context.earlier_calls)
+        return "probed " + raw
+
+    catalog = ToolCatalog([Tool(definition(), execute), Tool(definition("probe"), probe)])
+    provider = FakeProvider(
+        [
+            AssistantTurn((call("example", "a", "1"), call("probe", "b", "2")), ""),
+            AssistantTurn((call("missing", "c", "3"), call("probe", "d", "4")), ""),
+            AssistantTurn((), "done"),
+        ]
+    )
+    tools = ToolAdapters(fake_context(operation), catalog)
+    assert asyncio.run(run_agent(payload(), provider, tools)) == "done"
+    first = CompletedCall("example", "a", "clocka")
+    assert seen == [
+        (first,),
+        (
+            first,
+            CompletedCall("probe", "b", "probed b"),
+            CompletedCall("missing", "c", MALFORMED_CALL_RESULT),
+        ),
+    ]
+    asyncio.run(ToolAdapters(fake_context(operation), catalog).execute("probe", "e"))
+    assert seen[-1] == ()
 
 
 def test_rejection_after_an_operation_fails_the_run_instead_of_claiming_no_action() -> None:

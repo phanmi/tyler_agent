@@ -4,7 +4,7 @@ import asyncio
 from copy import deepcopy
 
 import pytest
-from support.agent_fakes import VERIFICATION_ON, FakeProvider, call, fake_context, payload
+from support.agent_fakes import FakeProvider, call, fake_context, payload
 
 from tyler_agent.agent import run_agent, tool_context
 from tyler_agent.failures import AgentFailure, OperationFailure
@@ -17,6 +17,7 @@ from tyler_agent.provider import (
     parse_response,
 )
 from tyler_agent.tools import ToolAdapters
+from tyler_agent.tools.contracts import RunSettings
 from tyler_agent.tools.registry import MALFORMED_CALL_RESULT
 
 
@@ -62,8 +63,9 @@ def test_tool_context_lends_the_run_model_operations_and_text_conversation() -> 
         {"role": "assistant", "content": "reply"},
     ]
     provider = FakeProvider([AssistantTurn((), "answer")])
-    context = tool_context(data, provider, clock_operation, VERIFICATION_ON)
-    assert context.settings == VERIFICATION_ON
+    settings = RunSettings(check_nutrition=False)
+    context = tool_context(data, provider, clock_operation, settings)
+    assert context.settings == settings
     assert context.conversation == (
         UserTurn("old"),
         AssistantTurn((), "reply"),
@@ -158,7 +160,7 @@ def test_exactly_five_rounds_returns_last_text_without_sixth_tool(text: str) -> 
 
 
 def test_number_beyond_protocol_bound_does_not_call_java_or_continue() -> None:
-    raw = '{"genericInfo":{"amount":2000000001}}'
+    raw = '{"foods":[{"genericInfo":{"amount":2000000001}}]}'
     provider = FakeProvider([AssistantTurn((call("recordFood", raw),), "")])
     with pytest.raises(AgentFailure) as error:
         asyncio.run(run_agent(payload(), provider, ToolAdapters(fake_context(clock_operation))))
@@ -226,9 +228,9 @@ def test_provider_failure_never_replays(after_tool: bool, category: str, code: s
         ("readFile", '{"path": 123}'),
         (
             "recordFood",
-            '{"genericInfo": {"foodName": true, "unit": false, "amount": "1", "calories": "2",'
-            ' "date": "2026-10-20"}, "macroNutrients": {"protein": 1, "carbs": 1, "fat": 1,'
-            ' "fiber": 1}}',
+            '{"foods": [{"genericInfo": {"foodName": true, "unit": false, "amount": "1",'
+            ' "calories": "2", "date": "2026-10-20"}, "macroNutrients": {"protein": 1,'
+            ' "carbs": 1, "fat": 1, "fiber": 1}}]}',
         ),
         (
             "generateWorkoutPlan",

@@ -68,7 +68,7 @@ Operation names are private service commands. Public model-facing tool names and
 
 | Operation | Public tool | Input | Success result | Model-visible output produced by Python |
 |---|---|---|---|---|
-| `food.insert` | `recordFood` | `{food}` | `{id, food}` | Pretty-printed food JSON string, excluding the generated ID. |
+| `food.insert` | `recordFood` | `{food}` | `{id, food}` | Pretty-printed JSON string listing the saved foods under `recorded`, each excluding the generated ID. `recordFood` requests one `food.insert` for each food of its call. |
 | `workout_plan.generate_save` | `generateWorkoutPlan` | `{startDate, goal, equipment}` | `{plan}` | Pretty-printed plan JSON string. |
 | `user_info.read` | `GetUserInfo` | `{}` | `{profile}` | Existing Java-record-style text, not JSON. |
 | `file.read` | `readFile` | `{path}` | `{content}` | Raw content string. |
