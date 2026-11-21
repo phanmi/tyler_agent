@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -280,6 +281,23 @@ class PythonAgentServiceTest {
             service.ask("second");
         }
         assertEquals(List.of("openai", "anthropic"), providers);
+    }
+
+    @Test
+    void everyChatIsSentWithTheNutritionCheckOff() {
+        var keys = mock(ILlmKeyService.class);
+        when(keys.get(any())).thenReturn("SYNTHETIC");
+        var history = mock(IChatHistoryService.class); when(history.get()).thenReturn(List.of());
+        var worker = mock(PythonWorker.class);
+        when(worker.execute(any())).thenReturn("reply");
+        var settings = settings("complete");
+        try (var lane = new ConversationLane(settings)) {
+            new PythonAgentService(worker, lane, defaults(), keys, history, settings).ask("question");
+        }
+        var run = ArgumentCaptor.forClass(ObjectNode.class);
+        verify(worker).execute(run.capture());
+        // A JSON boolean, as the run contract requires; a missing value would not equal it.
+        assertEquals(BooleanNode.FALSE, run.getValue().get("checkNutrition"));
     }
 
     @Test

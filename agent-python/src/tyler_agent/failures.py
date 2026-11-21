@@ -20,6 +20,12 @@ class AgentFailure(Exception):
         }
 
 
+def model_answer_unusable() -> AgentFailure:
+    """The model answered every request, but no answer to a question the run cannot go on
+    without could be used. A request that itself failed is a PROVIDER_FAILURE, not this."""
+    return AgentFailure("provider", "MODEL_ANSWER_UNUSABLE")
+
+
 class OperationFailure(AgentFailure):
     """Preserve Java's failure details with the run outcome; Java retains its local cause."""
 

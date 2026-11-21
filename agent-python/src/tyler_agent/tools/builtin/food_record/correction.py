@@ -83,7 +83,7 @@ def food_correction(evidence: Evidence, task: str, record: str | None = None) ->
 
 
 def corrected_record(raw: str) -> Message:
-    """Read a correction's arguments as one whole food record, as food.insert input.
+    """Read a correction's arguments as one whole food record, as `food_arguments` writes it.
 
     The tool's schema requires every field. OpenAI and Claude enforce that and DeepSeek does
     not, so a field that is missing or null is rejected here: a check would copy the gap over

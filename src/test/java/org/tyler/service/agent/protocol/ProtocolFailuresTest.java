@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.tyler.exceptionHandler.FileExceptionHandler;
 import org.tyler.exceptionHandler.GenericExceptionHandler;
 import org.tyler.exceptionHandler.ApiKeyExceptionHandler;
+import org.tyler.exceptionHandler.ProviderExceptionHandler;
 import org.tyler.exceptionHandler.SqlExceptionHandler;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,6 +41,7 @@ class ProtocolFailuresTest {
             "storage, FILE_READ, 500, Failed to read file: Agent file read failed, FileReadException",
             "storage, FILE_WRITE, 500, Failed to write file: Agent file write failed, FileWriteException",
             "provider, PROVIDER_FAILURE, 500, Internal server error. Please try again later, IllegalStateException",
+            "provider, MODEL_ANSWER_UNUSABLE, 502, The model could not complete a required check. Please try again, ModelAnswerUnusableException",
             "worker, WORKER_UNAVAILABLE, 500, Internal server error. Please try again later, IllegalStateException",
             "timeout, DEADLINE_EXCEEDED, 500, Internal server error. Please try again later, IllegalStateException",
             "cancelled, REQUEST_CANCELLED, 500, Internal server error. Please try again later, IllegalStateException",
@@ -53,7 +55,7 @@ class ProtocolFailuresTest {
         assertNull(failure.getCause(), "Do not retain worker detail in a loggable cause");
         var mvc = MockMvcBuilders.standaloneSetup(new ThrowingController(failure))
                 .setControllerAdvice(new SqlExceptionHandler(), new FileExceptionHandler(),
-                        new ApiKeyExceptionHandler(), new GenericExceptionHandler()).build();
+                        new ApiKeyExceptionHandler(), new ProviderExceptionHandler(), new GenericExceptionHandler()).build();
         String response = mvc.perform(get("/protocol-test")).andExpect(status().is(status))
                 .andExpect(content().json(MAPPER.createObjectNode().put("error", body).toString()))
                 .andReturn().getResponse().getContentAsString();

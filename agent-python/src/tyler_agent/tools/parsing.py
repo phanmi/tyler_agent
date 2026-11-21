@@ -103,14 +103,15 @@ PLAN_FIELDS = ("startDate", "goal", "equipment")
 
 
 def food_arguments(raw: str) -> Message:
-    """One food written as a whole arguments object, as food.insert input."""
+    """One food written as a whole arguments object: `{"food": record}`, where the record is
+    one entry of food.insert_all's `foods` list."""
     return _food_input(_food_parts(arguments(raw)))
 
 
 def foods_arguments(raw: str) -> list[Message]:
-    """Each food of a recordFood call as food.insert input, in the model's order.
+    """Each food of a recordFood call as `food_arguments` writes one, in the model's order.
 
-    A call must carry at least one food: with none there is no operation to request, so an
+    A call must carry at least one food: with none there is nothing to save, so an
     absent, null or empty list goes back to the model like any other shape mismatch.
     """
     foods = object_value(arguments(raw), ("foods",)).get("foods")

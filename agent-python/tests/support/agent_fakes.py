@@ -15,7 +15,7 @@ from tyler_agent.provider import (
 )
 from tyler_agent.tools.contracts import Operation, Respond, RunSettings, ToolContext
 
-# What the runtime gives every run: recordFood's nutrition check is on.
+# The settings of a run whose payload has recordFood's nutrition check on, as `payload()` has.
 DEFAULT_SETTINGS = RunSettings()
 
 
@@ -45,6 +45,7 @@ def payload() -> Message:
         "maxToolRounds": 5,
         "timeoutMs": 300000,
         "operationTimeoutMs": 60000,
+        "checkNutrition": True,
     }
 
 

@@ -24,9 +24,9 @@ class UnexpectedOperation(Exception):
 class FakeJava:
     """Answers one chat's Java operations and keeps the food records it saved.
 
-    `saved` starts empty and grows by one record for each food.insert; nothing removes a
-    record. A new chat gets a new instance. The stand-in applies none of Java's domain rules,
-    so a record Java would reject is kept here and scored as a wrong save.
+    `saved` starts empty and grows by the records of each food.insert_all, in order; nothing
+    removes a record. A new chat gets a new instance. The stand-in applies none of Java's
+    domain rules, so a record Java would reject is kept here and scored as a wrong save.
     """
 
     def __init__(self, now: str) -> None:
@@ -42,9 +42,15 @@ class FakeJava:
     def current_time(self, value: Message) -> Message:
         return {"text": self._now}
 
-    def insert_food(self, value: Message) -> Message:
-        self.saved.append(deepcopy(value["food"]))
-        return {"food": deepcopy(value["food"]), "id": str(len(self.saved))}
+    def insert_foods(self, value: Message) -> Message:
+        first = len(self.saved) + 1
+        self.saved.extend(deepcopy(value["foods"]))
+        return {
+            "foods": [
+                {"id": str(first + place), "food": deepcopy(food)}
+                for place, food in enumerate(value["foods"])
+            ]
+        }
 
     def read_profile(self, value: Message) -> Message:
         return {"profile": deepcopy(PROFILE)}
@@ -54,6 +60,6 @@ class FakeJava:
 # error that names it; add an entry here only when a case needs that operation answered.
 OPERATIONS: dict[str, Callable[[FakeJava, Message], Message]] = {
     "time.current": FakeJava.current_time,
-    "food.insert": FakeJava.insert_food,
+    "food.insert_all": FakeJava.insert_foods,
     "user_info.read": FakeJava.read_profile,
 }

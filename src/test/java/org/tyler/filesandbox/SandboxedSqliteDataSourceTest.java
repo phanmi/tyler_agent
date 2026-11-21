@@ -7,8 +7,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.tyler.config.FoodDatabaseConfig;
 import org.tyler.config.WorkoutDatabaseConfig;
-import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.exceptionHandler.exception.WorkspacePathException;
 
 import java.nio.file.Files;
@@ -63,7 +63,7 @@ class SandboxedSqliteDataSourceTest {
         assertEquals(INVALID_PATH, assertThrowsExactly(IllegalArgumentException.class,
                 () -> new SandboxedSqliteDataSource(sandbox, filename)).getMessage());
         assertEquals(INVALID_PATH, assertThrowsExactly(IllegalArgumentException.class,
-                () -> new FoodRecordDAOSqlite(sandbox, filename)).getMessage());
+                () -> new FoodDatabaseConfig().foodDataSource(sandbox, filename)).getMessage());
         assertEquals(INVALID_PATH, assertThrowsExactly(IllegalArgumentException.class,
                 () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, filename)).getMessage());
         assertEquals("keep", Files.readString(external));
@@ -118,7 +118,7 @@ class SandboxedSqliteDataSourceTest {
         Path external = Files.writeString(tempDir.resolve("external"), "keep");
         FileSandboxLinkTest.symbolicLink(tempDir.resolve("workspace/data.sqlite"), external);
         assertThrowsExactly(WorkspacePathException.class,
-                () -> new FoodRecordDAOSqlite(sandbox, "data.sqlite"));
+                () -> new FoodDatabaseConfig().foodDataSource(sandbox, "data.sqlite"));
         assertThrowsExactly(WorkspacePathException.class,
                 () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, "data.sqlite"));
         assertEquals("keep", Files.readString(external));
@@ -133,7 +133,7 @@ class SandboxedSqliteDataSourceTest {
         FileSandboxLinkTest.junction(junction, external);
         try {
             assertThrowsExactly(WorkspacePathException.class,
-                    () -> new FoodRecordDAOSqlite(sandbox, "linked/data.sqlite"));
+                    () -> new FoodDatabaseConfig().foodDataSource(sandbox, "linked/data.sqlite"));
             assertThrowsExactly(WorkspacePathException.class,
                     () -> new WorkoutDatabaseConfig().workoutDataSource(sandbox, "linked/data.sqlite"));
             assertFalse(Files.exists(external.resolve("data.sqlite")));

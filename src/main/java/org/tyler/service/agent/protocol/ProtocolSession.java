@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -12,7 +13,11 @@ import java.util.Set;
  * The future supervisor must dispatch only accepted operations and report real local outcomes.
  */
 public final class ProtocolSession {
-    private static final Set<String> WRITES = Set.of("food.insert", "workout_plan.generate_save", "file.write");
+    private static final Set<String> WRITES = Set.of("food.insert_all", "workout_plan.generate_save", "file.write");
+    // A failure's HTTP status goes by its category, unless its code is listed with its own.
+    private static final Map<String, Integer> STATUS_BY_CATEGORY = Map.of("validation", 400, "authentication", 401);
+    private static final Map<String, Integer> STATUS_BY_CODE = Map.of(ProtocolFailures.MODEL_ANSWER_UNUSABLE, 502);
+    private static final int OTHER_FAILURE_STATUS = 500;
     private final String sessionId;
     private final MessageValidator validator;
     private final Set<String> requests = new HashSet<>();
@@ -216,11 +221,8 @@ public final class ProtocolSession {
             state = "CANCELLING";
         }
         settleRun();
-        int status = switch (error.path("category").asText()) {
-            case "validation" -> 400;
-            case "authentication" -> 401;
-            default -> 500;
-        };
+        int byCategory = STATUS_BY_CATEGORY.getOrDefault(error.path("category").asText(), OTHER_FAILURE_STATUS);
+        int status = STATUS_BY_CODE.getOrDefault(error.path("code").asText(), byCategory);
         return decision().put("httpStatus", status);
     }
 

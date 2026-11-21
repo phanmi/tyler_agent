@@ -14,7 +14,7 @@ class OperationPayloadMapperTest {
 
     @Test
     void convertsExactDecimalsWithoutChangingNulls() {
-        var food = mapper.read(ServiceOperationDispatcherTest.input("food").get("food"), Food.class);
+        var food = mapper.read(ServiceOperationDispatcherTest.input("food").get("foods").get(0), Food.class);
         assertEquals(new BigDecimal("16.900"), food.macroNutrients().protein());
         assertEquals("16.900", mapper.value("food", food).path("food").path("macroNutrients").path("protein").textValue());
         assertEquals("2000", mapper.value("number", new BigDecimal("2E+3")).get("number").textValue());

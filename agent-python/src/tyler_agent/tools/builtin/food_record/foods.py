@@ -1,7 +1,8 @@
 """The foods of one recordFood call, held in memory while the checks run.
 
-A food here is its food.insert input: `{"food": {"genericInfo": ..., "macroNutrients": ...}}`,
-with numbers as exact decimal text. Either part can be None when the chat model left it out;
+A food here is `{"food": {"genericInfo": ..., "macroNutrients": ...}}`, as `food_arguments`
+writes it, with numbers as exact decimal text. The inner record is one entry of
+`food.insert_all`'s `foods` list. Either part can be None when the chat model left it out;
 Java still decides whether such a record can be saved.
 """
 

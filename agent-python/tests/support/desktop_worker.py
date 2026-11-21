@@ -44,7 +44,7 @@ def run() -> int:
         print(
             json.dumps(
                 dict(
-                    protocolVersion=1,  # Retired version.
+                    protocolVersion=2,  # Retired version.
                     type="ready",
                     sessionId=os.environ["TYLER_AGENT_SESSION_ID"],
                     requestId=None,

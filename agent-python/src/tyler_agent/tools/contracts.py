@@ -22,12 +22,14 @@ type Respond = Callable[
 class RunSettings:
     """Behavior switches for one run.
 
-    The run payload carries none of these, so the runtime uses the defaults below. Code that
+    The run payload carries `check_nutrition` as `checkNutrition`, and `agent.run_settings`
+    reads it. It carries no other switch, so the others keep the defaults below. Code that
     drives the agent directly, such as tests, can choose other values.
     """
 
     # recordFood's content check judges each food's nutrition values, and has the ones it
-    # rejects written again. The date check has no switch.
+    # rejects written again. The run payload sets it: the app sends it off for every chat, and
+    # the eval harness switches it to measure the check. The date check has no switch.
     check_nutrition: bool = True
     # recordFood's name and count check compares the list of foods with what the user said.
     # It costs a model request for every call, and no eval has shown what it is worth, so it

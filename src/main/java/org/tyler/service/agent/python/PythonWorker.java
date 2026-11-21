@@ -197,7 +197,7 @@ public final class PythonWorker implements AutoCloseable {
             ObjectNode payload = WorkerMessages.result(request, result, failure);
             if (current.broken || closed || run.cancelled || run.reply.isDone()) {
                 String outcome = failure == null
-                        ? (java.util.Set.of("food.insert", "workout_plan.generate_save", "file.write")
+                        ? (java.util.Set.of("food.insert_all", "workout_plan.generate_save", "file.write")
                         .contains(request.path("operation").asText()) ? "committed" : "none")
                         : payload.path("error").path("writeOutcome").asText();
                 current.session.observe("operation_settled", outcome, request.path("operationId").asText());

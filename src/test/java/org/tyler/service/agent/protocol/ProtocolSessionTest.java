@@ -54,7 +54,8 @@ class ProtocolSessionTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"failed_validation, 400", "failed_authentication, 401", "failed_provider, 500"})
+    @CsvSource({"failed_validation, 400", "failed_authentication, 401", "failed_provider, 500",
+            "failed_model_answer_unusable, 502"})
     void failureMappingAndDuplicateTerminal(String fixture, int status) {
         ObjectNode failure = accept(fixture, "python");
         assertEquals(status, failure.path("httpStatus").asInt());

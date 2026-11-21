@@ -5,6 +5,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.tyler.exceptionHandler.exception.FileReadException;
 import org.tyler.exceptionHandler.exception.FileWriteException;
 import org.tyler.exceptionHandler.exception.ApiKeyMissingException;
+import org.tyler.exceptionHandler.exception.ModelAnswerUnusableException;
 import org.tyler.exceptionHandler.exception.ProviderAuthException;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
@@ -12,6 +13,9 @@ import org.tyler.exceptionHandler.exception.SQLReadException;
 
 /** Allowlisted transport-to-Java exception mapping; HTTP response mapping stays in existing advice. */
 public final class ProtocolFailures {
+    /** The model answered, but no answer to a question the run needs could be used. */
+    static final String MODEL_ANSWER_UNUSABLE = "MODEL_ANSWER_UNUSABLE";
+
     private ProtocolFailures() {
     }
 
@@ -30,6 +34,8 @@ public final class ProtocolFailures {
             // The code carries no provider; Java names the provider in its own pre-run check.
             case "API_KEY_MISSING" -> new ApiKeyMissingException("API key is empty; chat is unavailable");
             case "PROVIDER_AUTH" -> new ProviderAuthException("This API key is invalid or unavailable");
+            case MODEL_ANSWER_UNUSABLE -> new ModelAnswerUnusableException(
+                    "The model could not complete a required check. Please try again");
             case "SQL_READ" -> new SQLReadException("Agent database read failed");
             case "SQL_WRITE" -> new SQLPersistentException("Agent database write failed");
             case "SQL_ACCESS" -> new DataAccessResourceFailureException("Agent database access failed");

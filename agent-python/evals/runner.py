@@ -13,14 +13,14 @@ from dataclasses import dataclass, field
 
 from evals.cases import Case
 from evals.java import FakeJava, UnexpectedOperation
-from tyler_agent.agent import run_agent, tool_context
+from tyler_agent.agent import run_agent, run_settings, tool_context
 from tyler_agent.failures import AgentFailure
 from tyler_agent.protocol.protocol import Message
 from tyler_agent.provider import open_provider
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.builtin.food_record.adapter import record_foods, rendered
 from tyler_agent.tools.builtin.food_record.foods import Finding
-from tyler_agent.tools.contracts import RunSettings, Tool, ToolContext
+from tyler_agent.tools.contracts import Tool, ToolContext
 from tyler_agent.tools.discovery import discover_tools
 from tyler_agent.tools.registry import ToolCatalog
 from tyler_agent.transcript import AssistantTurn, Provider, ToolDefinition, TranscriptEntry, Usage
@@ -155,6 +155,7 @@ def run_payload(chat: Chat, api_key: str) -> Message:
         "maxToolRounds": MAX_TOOL_ROUNDS,
         "timeoutMs": CHAT_TIMEOUT_MS,
         "operationTimeoutMs": OPERATION_TIMEOUT_MS,
+        "checkNutrition": chat.check_nutrition,
     }
 
 
@@ -172,8 +173,7 @@ async def run_chat(chat: Chat, session: Session) -> ChatResult:
             async with session.opener(payload) as provider:
                 meter = MeteredProvider(provider, session.clock)
                 food = RecordedFood()
-                settings = RunSettings(check_nutrition=chat.check_nutrition)
-                context = tool_context(payload, meter, java.operation, settings)
+                context = tool_context(payload, meter, java.operation, run_settings(payload))
                 tools = ToolAdapters(context, chat_catalog(session.tools, food))
                 await run_agent(payload, meter, tools)
     except AgentFailure as failure:

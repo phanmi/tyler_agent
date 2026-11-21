@@ -3,6 +3,7 @@ package org.tyler.dao.foodrecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.dao.DataAccessException;
+import org.tyler.config.FoodDatabaseConfig;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
@@ -21,7 +22,9 @@ class FoodRecordDAOSqliteTest {
     @TempDir Path tempDir;
     private static final String DATE = "2026-09-12";
     private FoodRecordDAOSqlite newDao() throws Exception {
-        return new FoodRecordDAOSqlite(new FileSandbox(tempDir.toString()), "food.sqlite");
+        var config = new FoodDatabaseConfig();
+        return new FoodRecordDAOSqlite(config.foodJdbcTemplate(
+                config.foodDataSource(new FileSandbox(tempDir.toString()), "food.sqlite")));
     }
     private static Food food(String name, String date) {
         return new Food(new GenericInfo(name, new BigDecimal("100.25"), "g", new BigDecimal("200.5"), date),

@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Java-Python agent protocol v2 message",
+  "title": "Java-Python agent protocol v3 message",
   "$comment": "Validates transport shape only. Framing, message direction, session/request/operation state, numeric range and timeout relationships are checked separately. Domain validation remains in Java services; nulls, signed decimals and date strings are intentionally preserved.",
   "type": "object",
   "additionalProperties": false,
   "required": ["protocolVersion", "type", "sessionId", "requestId", "payload"],
   "properties": {
-    "protocolVersion": { "type": "integer", "const": 2 },
+    "protocolVersion": { "type": "integer", "const": 3 },
     "type": { "type": "string" },
     "sessionId": { "type": "string", "pattern": "^[a-f0-9]{32}$(?![\\s\\S])" },
     "requestId": { "oneOf": [{ "$ref": "#/$defs/correlationId" }, { "type": "null" }] },
@@ -98,7 +98,7 @@
     "run": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["message", "history", "provider", "model", "apiKey", "maxToolRounds", "timeoutMs", "operationTimeoutMs"],
+      "required": ["message", "history", "provider", "model", "apiKey", "maxToolRounds", "timeoutMs", "operationTimeoutMs", "checkNutrition"],
       "properties": {
         "message": { "type": "string" },
         "history": { "type": "array", "items": { "$ref": "#/$defs/historyMessage" } },
@@ -110,7 +110,11 @@
         "apiKey": { "$ref": "#/$defs/nonemptyString" },
         "maxToolRounds": { "type": "integer", "const": 5 },
         "timeoutMs": { "$ref": "#/$defs/timeoutMs" },
-        "operationTimeoutMs": { "$ref": "#/$defs/timeoutMs" }
+        "operationTimeoutMs": { "$ref": "#/$defs/timeoutMs" },
+        "checkNutrition": {
+          "$comment": "Whether recordFood checks each food's nutrition values in this run. The saved setting, read when the chat leaves the queue.",
+          "type": "boolean"
+        }
       }
     },
     "historyMessage": {
@@ -149,7 +153,7 @@
       }
     },
     "operation": {
-      "enum": ["food.insert", "workout_plan.generate_save", "user_info.read", "file.read", "file.write", "time.current"]
+      "enum": ["food.insert_all", "workout_plan.generate_save", "user_info.read", "file.read", "file.write", "time.current"]
     },
     "operationRequest": {
       "type": "object",
@@ -161,7 +165,7 @@
         "input": { "type": "object" }
       },
       "oneOf": [
-        { "properties": { "operation": { "const": "food.insert" }, "input": { "$ref": "#/$defs/foodInsertInput" } } },
+        { "properties": { "operation": { "const": "food.insert_all" }, "input": { "$ref": "#/$defs/foodInsertAllInput" } } },
         { "properties": { "operation": { "const": "workout_plan.generate_save" }, "input": { "$ref": "#/$defs/planInput" } } },
         { "properties": { "operation": { "const": "user_info.read" }, "input": { "$ref": "#/$defs/emptyInput" } } },
         { "properties": { "operation": { "const": "file.read" }, "input": { "$ref": "#/$defs/fileReadInput" } } },
@@ -203,7 +207,7 @@
         },
         {
           "oneOf": [
-            { "properties": { "operation": { "const": "food.insert" }, "result": { "$ref": "#/$defs/foodInsertResult" } } },
+            { "properties": { "operation": { "const": "food.insert_all" }, "result": { "$ref": "#/$defs/foodInsertAllResult" } } },
             { "properties": { "operation": { "const": "workout_plan.generate_save" }, "result": { "$ref": "#/$defs/planResult" } } },
             { "properties": { "operation": { "const": "user_info.read" }, "result": { "$ref": "#/$defs/profileResult" } } },
             { "properties": { "operation": { "const": "file.read" }, "result": { "$ref": "#/$defs/fileReadResult" } } },
@@ -214,13 +218,21 @@
       ]
     },
     "emptyInput": { "type": "object", "additionalProperties": false, "properties": {} },
-    "foodInsertInput": {
+    "foodInsertAllInput": {
+      "$comment": "Every food of one recordFood call. Java saves them in one transaction: all of them, or none.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["food"],
-      "properties": { "food": { "$ref": "#/$defs/food" } }
+      "required": ["foods"],
+      "properties": { "foods": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/food" } } }
     },
-    "foodInsertResult": {
+    "foodInsertAllResult": {
+      "$comment": "One saved food for each food of the input, in the input's order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["foods"],
+      "properties": { "foods": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/savedFood" } } }
+    },
+    "savedFood": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "food"],
@@ -390,7 +402,7 @@
       "oneOf": [
         { "properties": { "category": { "const": "validation" }, "code": { "enum": ["INVALID_ARGUMENT", "SQL_DATA_VALIDATION"] } } },
         { "properties": { "category": { "const": "authentication" }, "code": { "enum": ["API_KEY_MISSING", "PROVIDER_AUTH"] } } },
-        { "properties": { "category": { "const": "provider" }, "code": { "const": "PROVIDER_FAILURE" } } },
+        { "properties": { "category": { "const": "provider" }, "code": { "enum": ["PROVIDER_FAILURE", "MODEL_ANSWER_UNUSABLE"] } } },
         { "properties": { "category": { "const": "storage" }, "code": { "enum": ["SQL_READ", "SQL_WRITE", "SQL_ACCESS", "FILE_READ", "FILE_WRITE"] } } },
         { "properties": { "category": { "const": "worker" }, "code": { "enum": ["UNKNOWN_TOOL", "SERIALIZATION_FAILURE", "HISTORY_FAILURE", "WORKER_UNAVAILABLE", "WORKER_BUSY", "INTERNAL_FAILURE"] } } },
         { "properties": { "category": { "const": "timeout" }, "code": { "const": "DEADLINE_EXCEEDED" } } },

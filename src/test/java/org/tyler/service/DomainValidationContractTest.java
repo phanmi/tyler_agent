@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.tyler.controller.food.FoodController;
 import org.tyler.controller.workout.WorkoutController;
@@ -25,12 +26,13 @@ import org.tyler.model.workout.Workout;
 import org.tyler.service.food.FoodService;
 import org.tyler.service.workout.WorkoutPlanService;
 import org.tyler.service.workout.WorkoutService;
-import org.tyler.service.agent.bridge.handler.FoodInsertHandler;
+import org.tyler.service.agent.bridge.handler.FoodInsertAllHandler;
 import org.tyler.service.agent.bridge.OperationPayloadMapper;
 import org.tyler.service.agent.bridge.handler.WorkoutPlanSaveHandler;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -51,7 +53,7 @@ class DomainValidationContractTest {
             """;
     private final IFoodRecordDAO foodDao = mock(IFoodRecordDAO.class);
     private final IWorkoutDAO workoutDao = mock(IWorkoutDAO.class);
-    private final FoodService foodService = new FoodService(foodDao, new FoodValidator());
+    private final FoodService foodService = new FoodService(foodDao, new FoodValidator(), TransactionOperations.withoutTransaction());
     private final WorkoutService workoutService = new WorkoutService(workoutDao, new WorkoutValidator());
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
     private final WorkoutPlanService planService = new WorkoutPlanService(workoutService, transactions);
@@ -62,8 +64,10 @@ class DomainValidationContractTest {
     private com.fasterxml.jackson.databind.JsonNode foodOperation(String json) throws Exception {
         var transport = new OperationPayloadMapper();
         // The wire carries exact decimal strings, never an intermediate floating-point tree.
-        return new FoodInsertHandler(foodService, transport)
-                .execute(transport.value("food", MAPPER.readValue(json, Food.class)));
+        // One food as a list of one, which may hold the null a "null" body stands for.
+        return new FoodInsertAllHandler(foodService, transport)
+                .execute(transport.value("foods", Collections.singletonList(MAPPER.readValue(json, Food.class))))
+                .get("foods").get(0);
     }
 
     private com.fasterxml.jackson.databind.JsonNode planOperation(String json) throws Exception {
@@ -107,7 +111,7 @@ class DomainValidationContractTest {
     @MethodSource("invalidFood")
     void foodOperationAndDirectServiceUseTheSameDomainErrors(String json) throws Exception {
         Food food = MAPPER.readValue(json, Food.class);
-        var direct = assertThrowsExactly(IllegalArgumentException.class, () -> foodService.insertFood(food));
+        var direct = assertThrowsExactly(IllegalArgumentException.class, () -> foodService.insertFoods(Collections.singletonList(food)));
         var tool = assertThrowsExactly(IllegalArgumentException.class,
                 () -> foodOperation(json));
         assertEquals(direct.getMessage(), tool.getMessage());
@@ -265,6 +269,6 @@ class DomainValidationContractTest {
         String foodJson = changed(FOOD, "genericInfo", "date", "2024-02-29");
         Food food = MAPPER.readValue(foodJson, Food.class);
         when(foodDao.insert(food)).thenReturn(8L);
-        assertEquals(8L, foodService.insertFood(food).id());
+        assertEquals(8L, foodService.insertFoods(List.of(food)).getFirst().id());
     }
 }

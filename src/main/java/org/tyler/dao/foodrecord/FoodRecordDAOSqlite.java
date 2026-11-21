@@ -2,15 +2,13 @@ package org.tyler.dao.foodrecord;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.tyler.exceptionHandler.exception.SQLDataValidationException;
 import org.tyler.exceptionHandler.exception.SQLReadException;
 import org.tyler.exceptionHandler.exception.SQLPersistentException;
-import org.tyler.filesandbox.IFileSandboxPath;
-import org.tyler.filesandbox.SandboxedSqliteDataSource;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodRecord;
 import org.tyler.model.food.GenericInfo;
@@ -33,9 +31,9 @@ import java.util.List;
  * Required columns are validated before writing; missing values raise
  * {@link SQLDataValidationException} instead of being replaced with zero or empty strings.
  *
- * <p>The {@code food.database-path} setting is resolved by {@link IFileSandboxPath#resolve}
- * inside the sandbox. SQL and schema definitions are loaded from classpath resources
- * under {@code db/food_record/*.sql}.
+ * <p>The database is the one {@link org.tyler.config.FoodDatabaseConfig} opens inside the
+ * sandbox, so a service transaction on that data source covers these statements. SQL and
+ * schema definitions are loaded from classpath resources under {@code db/food_record/*.sql}.
  *
  * <p>{@code insert} appends one record and returns its generated ID. Use {@link #deleteByDate} or {@link #deleteById}
  * for deletion and {@link #loadRecordsByDate} to read records with IDs.
@@ -55,10 +53,8 @@ public class FoodRecordDAOSqlite implements IFoodRecordDAO {
     private final String sqlDeleteByDate;
     private final String sqlDeleteById;
 
-    public FoodRecordDAOSqlite(
-            IFileSandboxPath sandbox,
-            @Value("${food.database-path:food-record.sqlite}") String dbFile) {
-        this.jdbcTemplate = new JdbcTemplate(new SandboxedSqliteDataSource(sandbox, dbFile));
+    public FoodRecordDAOSqlite(@Qualifier("foodJdbcTemplate") JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
         this.ddlCreateTable = loadSql("create_table.sql");
         this.ddlCreateIndex = loadSql("create_index.sql");
         this.sqlSelectRecordsByDate = loadSql("select_records_by_date.sql");

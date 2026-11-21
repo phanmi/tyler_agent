@@ -12,6 +12,14 @@ import org.tyler.service.llm.ILlmSettingsService;
 
 /** Java owns request snapshots and durable history; Python owns all model/tool orchestration. */
 public final class PythonAgentService implements IAgentService {
+    /**
+     * Whether recordFood asks the model to check each food's nutrition values before saving.
+     * The app keeps this check off in every chat, and no setting turns it on. The check stays
+     * in the worker, and the run contract still requires the value, so the eval harness can
+     * measure the check. "Food verification" in docs/AGENT_OPERATIONS.md gives the reason.
+     */
+    private static final boolean CHECK_NUTRITION = false;
+
     private final PythonWorker worker;
     private final ConversationLane lane;
     private final ILlmSettingsService llmSettings;
@@ -49,7 +57,8 @@ public final class PythonAgentService implements IAgentService {
                 .put("provider", provider.id()).put("model", selected.model(provider)).put("apiKey", key)
                 .put("maxToolRounds", 5)
                 .put("timeoutMs", settings.runTimeout().toMillis())
-                .put("operationTimeoutMs", settings.operationTimeout().toMillis());
+                .put("operationTimeoutMs", settings.operationTimeout().toMillis())
+                .put("checkNutrition", CHECK_NUTRITION);
         var messages = payload.putArray("history");
         // The shared history service applies chat.max-messages (default 20) and removes
         // leading assistant messages. Reuse that configured bound for both agent paths.

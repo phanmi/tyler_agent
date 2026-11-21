@@ -11,8 +11,13 @@ import java.util.List;
  * and IDs positive. Storage exceptions propagate unchanged.
  */
 public interface IFoodService {
-    /** Appends one entry using its embedded date and returns its generated ID and food value. */
-    FoodEntry insertFood(Food food);
+    /**
+     * Appends every food in one transaction, each under its embedded date, and returns each
+     * generated ID with its food in the list's order. All of them are saved or none: every food
+     * is validated before the first write, and a storage failure rolls back the ones written.
+     * A transaction that cannot open or commit is a write failure like any other.
+     */
+    List<FoodEntry> insertFoods(List<Food> foods);
 
     /** Returns ID-bearing calendar entries for a date, or an empty list. */
     List<FoodEntry> getFoodRecordsByDate(String date);

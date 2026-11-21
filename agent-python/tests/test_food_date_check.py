@@ -219,13 +219,13 @@ def test_an_unusable_correction_is_asked_again_then_fails_the_run(unusable: Assi
 
     with pytest.raises(AgentFailure) as caught:
         check([wrong] + [unusable] * REQUIRED_ATTEMPTS, OATS, RICE, OATS)
-    assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
+    assert (caught.value.category, caught.value.code) == ("provider", "MODEL_ANSWER_UNUSABLE")
 
 
 def test_the_check_is_asked_three_more_times_before_the_run_fails() -> None:
     with pytest.raises(AgentFailure) as caught:
         check([UNUSABLE_TEXT] * (REQUIRED_ATTEMPTS + 1), CHICKEN)
-    assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
+    assert (caught.value.category, caught.value.code) == ("provider", "MODEL_ANSWER_UNUSABLE")
 
 
 def test_logs_record_the_count_but_no_food_reason_or_date(

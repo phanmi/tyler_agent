@@ -39,7 +39,12 @@ def test_completion_after_cancel_cannot_append_history(running_session: Protocol
 
 @pytest.mark.parametrize(
     "ref,status",
-    [("failed_validation", 400), ("failed_authentication", 401), ("failed_provider", 500)],
+    [
+        ("failed_validation", 400),
+        ("failed_authentication", 401),
+        ("failed_provider", 500),
+        ("failed_model_answer_unusable", 502),
+    ],
 )
 def test_failure_mapping_and_duplicate_terminal(
     running_session: ProtocolSession, ref: str, status: int

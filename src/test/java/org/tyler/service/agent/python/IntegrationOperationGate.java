@@ -21,7 +21,7 @@ final class IntegrationOperationGate implements IOperationDispatcher {
 
     @Override
     public JsonNode dispatch(String operation, JsonNode input) {
-        if (operation.equals("food.insert")) foodCalls.incrementAndGet();
+        if (operation.equals("food.insert_all")) foodCalls.incrementAndGet();
         JsonNode result = delegate.dispatch(operation, input);
         if (operation.equals(pausedOperation)) {
             entered.countDown();

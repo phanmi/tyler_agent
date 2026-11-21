@@ -11,8 +11,8 @@ from jsonschema.exceptions import ValidationError, best_match
 from tyler_agent.resources import resource_root
 
 type Message = dict[str, Any]
-# The only accepted protocol version; must match contracts/agent/v2 and Java's MessageValidator.
-PROTOCOL_VERSION = 2
+# The only accepted protocol version; must match contracts/agent/v3 and Java's MessageValidator.
+PROTOCOL_VERSION = 3
 MAX_FRAME_BYTES = 16_777_216
 MAX_DECIMAL_VALUE = 2_000_000_000
 DECIMAL_FIELDS = {"amount", "calories", "protein", "carbs", "fat", "fiber", "weight", "Age"}
@@ -69,7 +69,7 @@ class MessageValidator:
 
     def __init__(self) -> None:
         schema = json.loads(
-            (resource_root() / "contracts/agent/v2/message.schema.json").read_text("utf-8")
+            (resource_root() / "contracts/agent/v3/message.schema.json").read_text("utf-8")
         )
         Draft202012Validator.check_schema(schema)
         self._validator = Draft202012Validator(schema)

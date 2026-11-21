@@ -178,7 +178,9 @@ def test_the_checks_run_in_order_and_nothing_is_saved_before_the_last_one() -> N
     ]
     saved = [food_arguments(OATS), food_arguments(food_raw(macros=LEAN))]
     assert java.saved() == saved
-    # Every request inside recordFood came before the first save.
+    # Both foods reach Java in one request, which saves all of them or none (#101).
+    assert java.requests[-1] == ("food.insert_all", {"foods": [food["food"] for food in saved]})
+    # Every request inside recordFood came before the save.
     assert provider.saved_at_request == [0] * 8 + [2]
     # Each of them is shown the conversation and the earlier calls in the same words.
     for request in range(1, 8):
@@ -193,6 +195,20 @@ def test_the_checks_run_in_order_and_nothing_is_saved_before_the_last_one() -> N
     assert provider.tool_result() == pretty(expected)
     # A check can be wrong to leave a record out, so the reply has to say it did.
     assert "Tell the user which records were not recorded and why." in provider.tool_result()
+
+
+def test_a_call_whose_only_record_is_removed_asks_java_to_save_nothing() -> None:
+    """The save takes at least one food, so with none left it is not requested."""
+    whole = "It stands for the whole meal."
+    replies: list[AssistantTurn | Exception] = [
+        asked(chat(DINNER)),
+        listed(incorrect=[(1, whole)]),
+        DONE,
+    ]
+    _, java, provider = run(replies, settings=NAMES_ON)
+
+    assert java.requests == [("time.current", {})]
+    assert json.loads(provider.tool_result())["recorded"] == []
 
 
 def test_a_food_from_a_file_the_chat_model_read_is_saved_and_no_check_sees_the_key() -> None:
@@ -252,7 +268,8 @@ def test_with_the_nutrition_check_off_only_the_date_check_runs() -> None:
     _, java, provider = run(replies, settings=RunSettings(check_nutrition=False))
 
     assert provider.checks() == [DATES]
-    assert java.requests == [("time.current", {}), ("food.insert", food_arguments(SCOOP))]
+    save = ("food.insert_all", {"foods": [food_arguments(SCOOP)["food"]]})
+    assert java.requests == [("time.current", {}), save]
 
 
 @pytest.mark.parametrize(
@@ -287,7 +304,7 @@ def test_a_required_check_that_cannot_be_answered_fails_the_run_and_saves_nothin
     java = Java()
     with pytest.raises(AgentFailure) as caught:
         run([asked(chat(CHICKEN)), *[UNUSABLE_TEXT] * REQUIRED_ATTEMPTS], java)
-    assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
+    assert (caught.value.category, caught.value.code) == ("provider", "MODEL_ANSWER_UNUSABLE")
     assert java.saved() == []
 
 
@@ -349,6 +366,45 @@ def test_cancelling_during_a_check_saves_nothing(stage: str) -> None:
             await runtime.close()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("check_nutrition", "checks"), [(False, [DATES]), (True, [DATES, NUTRITION])]
+)
+def test_the_run_payload_switches_the_nutrition_check(
+    check_nutrition: bool, checks: list[str]
+) -> None:
+    """Through the production runtime, which reads the switch from the run payload."""
+
+    async def scenario() -> list[str]:
+        java = Java()
+        provider = Recording(java, [asked(chat(SCOOP)), *map(clear, checks), DONE])
+        sent: asyncio.Queue[Message] = asyncio.Queue()
+        runtime = WorkerRuntime(
+            lambda kind, request, value: sent.put_nowait({"type": kind, "payload": value}),
+            provider.open,
+        )
+        try:
+            run = payload() | {"checkNutrition": check_nutrition}
+            await runtime.accept({"type": "run", "requestId": "req-1", "payload": run})
+            while (message := await asyncio.wait_for(sent.get(), 3))["type"] != "completed":
+                assert message["type"] == "operation_request"
+                request = message["payload"]
+                result = {
+                    "operationId": request["operationId"],
+                    "operation": request["operation"],
+                    "outcome": "success",
+                    "result": await java(request["operation"], request["input"]),
+                }
+                await runtime.accept(
+                    {"type": "operation_result", "requestId": "req-1", "payload": result}
+                )
+        finally:
+            await runtime.close()
+        assert java.saved() == [food_arguments(SCOOP)]
+        return provider.checks()
+
+    assert asyncio.run(scenario()) == checks
 
 
 # The same checks through each real provider class and SDK, against an in-memory server.

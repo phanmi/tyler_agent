@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "cases": [
     {
       "id": "plain_reply",
@@ -69,7 +69,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -278,7 +278,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -512,7 +512,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -556,7 +556,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -615,7 +615,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert"
+            "dispatch": "food.insert_all"
           }
         },
         {
@@ -1000,7 +1000,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1131,7 +1131,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1190,7 +1190,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1251,7 +1251,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1304,7 +1304,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1442,7 +1442,7 @@
           "expected": {
             "action": "accept",
             "state": "RUNNING",
-            "dispatch": "food.insert",
+            "dispatch": "food.insert_all",
             "writeOutcome": "unknown"
           }
         },
@@ -1556,7 +1556,7 @@
           "ref": "food_request",
           "from": "java",
           "set": {
-            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
+            "/payload/input/foods/0/genericInfo/calories": "2000000000.000000000000000000001"
           },
           "expected": {
             "action": "reject",
@@ -1579,7 +1579,7 @@
           "from": "java",
           "set": {
             "/sessionId": "ffffffffffffffffffffffffffffffff",
-            "/payload/result/id": "9223372036854775808"
+            "/payload/result/foods/0/id": "9223372036854775808"
           },
           "expected": {
             "action": "reject",
@@ -1623,7 +1623,7 @@
           "ref": "food_request",
           "from": "python",
           "set": {
-            "/payload/input/food/genericInfo/calories": "2000000000.000000000000000000001"
+            "/payload/input/foods/0/genericInfo/calories": "2000000000.000000000000000000001"
           },
           "expected": {
             "action": "reject",
@@ -1645,7 +1645,7 @@
           "ref": "food_result",
           "from": "java",
           "set": {
-            "/payload/result/id": "9223372036854775808"
+            "/payload/result/foods/0/id": "9223372036854775808"
           },
           "expected": {
             "action": "reject",
