@@ -130,7 +130,7 @@ flowchart TB
 
 For a chat request, the Java adapter reads the active provider, its model, that provider's key, and bounded history when the request leaves the queue, and sends that snapshot to Python. Python assembles model input for that provider, calls it, and executes up to five tool rounds through the Java operation bridge. Java saves one successful exchange and returns the unchanged reply response. There is no Java provider client or alternate agent implementation.
 
-Controllers and services are grouped by feature. The food controller and Python recording tool share `IFoodService` through the bridge. Plan HTTP/tool operations share `IWorkoutPlanService`, which coordinates persistence through `IWorkoutService`; workout CRUD also uses `IWorkoutService`. The food and workout persistence services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
+Controllers and services are grouped by feature. The food controller and Python recording tool share `IFoodService` through the bridge; the tool saves the foods of one call with `insertFoods`, in one transaction. Plan HTTP/tool operations share `IWorkoutPlanService`, which coordinates persistence through `IWorkoutService`; workout CRUD also uses `IWorkoutService`. The food and workout persistence services call their DAO interfaces directly. The sole food DAO is the SQLite implementation, selected without a primary-bean override. Controllers and tools do not depend on DAO or DAL types. SQLite implementations load parameterized SQL from resource files, validate input, and preserve decimal values as strings. SQL read failures use `SQLReadException`; write failures use `SQLPersistentException`. Exception handlers translate these failures into HTTP responses.
 
 ## Repository layout
 
@@ -164,7 +164,7 @@ tyler_agent/
 │  │  ├─ chat/                   # MessageBubble and MessageInput
 │  │  ├─ food/                   # FoodCalendar
 │  │  ├─ workout/                # WorkoutPage
-│  │  ├─ settings/               # SettingsPage, UserInfoForm, provider/key/model forms, useLlmSettings
+│  │  ├─ settings/               # SettingsPage, UserInfoForm, provider/key/model forms, their hooks
 │  │  ├─ layout/                 # Sidebar and TitleBar
 │  │  └─ common/                 # Shared ConfirmDialog
 │  ├─ src/styles/                 # Shared theme and page styles
@@ -177,7 +177,7 @@ tyler_agent/
 
 `App` owns navigation between Chat, Workouts, and Settings. Chat includes the collapsible food calendar. `WorkoutPage` owns date selection, plan previews, and the saved-exercise editor. `api.ts` handles HTTP requests. Electron uses a preload bridge for the backend address and custom window controls, with context isolation enabled and renderer Node integration disabled.
 
-CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; `theme.css` supplies base and component styles; `layout.css` arranges the application shell; `chat.css` and `workout.css` style their respective pages.
+CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; `theme.css` supplies base and component styles; `layout.css` arranges the application shell; `chat.css` and `workout.css` style their respective pages, and `settings.css` the provider settings card.
 
 ## Agent tools and workout persistence
 
@@ -189,7 +189,7 @@ Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent
 | `GetUserInfo` | Reads the saved profile. |
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
-| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and nutrition values, and correct what it finds. It saves the foods the checks leave through the food service; see [food verification](AGENT_OPERATIONS.md#food-verification). |
+| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and correct the wrong ones. The nutrition check is off in every chat. It saves the foods the checks leave in one transaction through the food service, all of them or none; see [food verification](AGENT_OPERATIONS.md#food-verification). |
 | `generateWorkoutPlan` | Requests seven dated days and saves planned exercises through the Java plan service. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
@@ -261,7 +261,7 @@ Defaults are in [application.yml](../src/main/resources/application.yml). The wo
 
 The workout database default is declared in its database configuration. `WORKOUT_DATABASE_PATH` uses Spring's environment property binding. The active provider and each provider's model are chosen in Settings and saved in `llm-settings.json`; the former `openai.model` / `OPENAI_MODEL` setting is no longer read. App-managed startup explicitly sets the server address and port, so those two settings apply as overrides only when starting the backend independently.
 
-SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food reads and writes use the sole `IFoodRecordDAO` implementation directly against SQLite.
+SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food reads and writes use the sole `IFoodRecordDAO` implementation directly against SQLite. Each database has a configuration class, `FoodDatabaseConfig` and `WorkoutDatabaseConfig`, that gives its DAO and a transaction manager the same data source. So the foods of one `recordFood` call, like the days of a workout plan, are saved in one transaction. A food transaction that cannot open or commit is reported as a write failure, like a failed insert.
 
 Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
 
@@ -370,8 +370,9 @@ Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`.
 | A familiar port is already occupied | Use the address printed by the launcher; the app selects available ports. |
 | Chat reports `<Provider> API key is empty` | Save that provider's key under **Settings → Model providers**, or choose a provider that has one. Only the active provider's key is used. |
 | Chat reports `This API key is invalid or unavailable` | The provider rejected the key. Create a new key on its platform (see [Get an API key](SETUP.md#7-get-an-api-key)) and save it. |
+| Chat reports `The model could not complete a required check` | The model answered a check that `recordFood` cannot save without, four times, in a form the check could not use. No food from that call was saved. Check the Calendar, because an earlier `recordFood` call of the same chat may have been saved, then send the message again. If it keeps happening, choose another model in Settings. |
 | Settings shows `LLM settings file is invalid` | `llm-settings.json` was edited by hand or is damaged. Choose a provider and save a model in Settings to rewrite it, or delete the file to return to the defaults. |
-| Backend startup fails with `UNSUPPORTED_VERSION` | The worker in `agent-python/dist` predates protocol version 2. Rebuild it with `uv run --locked pyinstaller --noconfirm worker.spec` in `agent-python/`. |
+| Backend startup fails with `UNSUPPORTED_VERSION` | The worker in `agent-python/dist` was built for an earlier protocol version. Rebuild it with `uv run --locked pyinstaller --noconfirm worker.spec` in `agent-python/`. |
 | A suggestion is absent from saved exercises | Use **Add to calendar**, or ask the agent to create and save the plan. Changing preview options alone does not save it. |
 | Existing exercise values survive regeneration | The tool preserves records matching the same date and name. Edit the saved exercise to change those values. |
 | Packaging cannot find the runtime or worker | Set `JAVA_HOME` to Java 26 and follow the packaging guide to build the worker/JAR before running Forge. |

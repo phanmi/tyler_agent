@@ -2,7 +2,7 @@
 
 [Python development guide](../README.md) · [Food verification](../../docs/AGENT_OPERATIONS.md#food-verification)
 
-This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The date check runs in both modes, because the app has no switch for it. The name and count check is off in every chat, as it is in the app ([#118](https://github.com/phanmi/tyler_agent/issues/118)).
+This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The app keeps this check off in every chat, so the mode with it off is what the app does, and the mode with it on shows what the check would add. The date check runs in both modes, as it does in every chat of the app. The name and count check is off in every chat, as it is in the app ([#118](https://github.com/phanmi/tyler_agent/issues/118)).
 
 **A run makes paid API calls on your own provider account.** It is not part of the worker wheel or the Windows bundle, and CI never runs it. CI runs only its tests, which use a fake model.
 
@@ -83,6 +83,17 @@ The report file is created before the first call and replaced after every chat, 
 ### Failed chats
 
 A chat that fails, for example on a rate limit, is counted and the run goes on. A model that reaches 10 failed chats while it still has chats to run is stopped: its remaining chats are skipped, the run goes on with the next model, and the report says which model was stopped. A model whose 10th failure is its last chat ran in full and is not stopped. A revoked key or a mistyped model ID would otherwise fail every chat of that model.
+
+The progress line and the report name each failure. These are the ones a run usually shows:
+
+| Failure | Meaning |
+|---|---|
+| `provider/PROVIDER_FAILURE` | A request to the provider failed, for example on a rate limit, or its answer was cut off. |
+| `provider/MODEL_ANSWER_UNUSABLE` | The model answered the date check, or its correction, four times without an answer that could be used. No food of that `recordFood` call was saved. In the app the user sees "The model could not complete a required check. Please try again". |
+| `authentication/PROVIDER_AUTH` | The provider rejected the key. |
+| `timeout` | The chat ran longer than the five minutes the harness allows for one chat. |
+| `unexpected operation: <name>` | A tool asked for a Java operation the stand-in does not answer; see [Limits](#limits). |
+| `internal: <exception>` | A bug in the agent or the harness. Only the exception's type is kept. |
 
 A model's chats run in case-file order, by file name, with the `many-items` category last. Its chats take the longest and are the likeliest to fail on the run deadline, so a model that is stopped there has already run every other category.
 
@@ -219,7 +230,7 @@ Before a run starts, `prices.json` is checked against [prices.schema.json](price
 
 ## Limits
 
-- **Java's rules are not applied.** A stand-in answers the Java operations and keeps whatever `recordFood` sends. A record Java would reject, such as an impossible date, is scored as a wrong save.
+- **Java's rules are not applied.** A stand-in answers the Java operations and keeps whatever `recordFood` sends. A record Java would reject, such as an impossible date, is scored as a wrong save. The other foods of its call are kept too, where Java's one-transaction save would save none of them.
 - **Other tools are not answered.** Only the time, food and profile operations have a stand-in. A chat that reads or writes a file, or saves a workout plan, ends as a failed chat that names the operation.
 - **A check that changes nothing leaves no row.** The report lists what the checks changed and why. A food every check passed is not listed, so the report does not show what a check was asked about a food it accepted.
 - **Chats run one at a time**, including across providers, so a full run of several models takes a long time.
