@@ -28,6 +28,8 @@ class ProtocolFailuresTest {
     private static final MessageCodec CODEC = new MessageCodec();
     private static final String WORKER_DETAIL = "synthetic-api-key synthetic-private-prompt\n"
             + "synthetic-private-history synthetic-private-file-content";
+    /** What the session's ledger holds for a run that saved nothing. */
+    private static final String NOTHING_SAVED = "none";
 
     @ParameterizedTest
     @CsvSource({
@@ -50,7 +52,7 @@ class ProtocolFailuresTest {
     void preservesExceptionTypeAndPublicHttpErrorWithoutWorkerDetail(String category, String code, int status,
                                                                      String body, String exceptionType,
                                                                      CapturedOutput output) throws Exception {
-        RuntimeException failure = ProtocolFailures.translate(failure(category, code), CODEC);
+        RuntimeException failure = ProtocolFailures.translate(failure(category, code), CODEC, NOTHING_SAVED);
         assertEquals(exceptionType, failure.getClass().getSimpleName());
         assertNull(failure.getCause(), "Do not retain worker detail in a loggable cause");
         var mvc = MockMvcBuilders.standaloneSetup(new ThrowingController(failure))
@@ -67,24 +69,40 @@ class ProtocolFailuresTest {
         }
     }
 
+    /**
+     * A confirmed write goes through the real worker in AgentPersistenceIntegrationTest. A write
+     * that is still open cannot be reached there with this code, so it is checked here.
+     */
+    @Test
+    void anUnusableAnswerWhileAWriteIsOpenWarnsBeforeTheMessageIsSentAgain() {
+        // The failure itself claims that nothing was written; Java's own outcome decides.
+        RuntimeException failure = ProtocolFailures.translate(
+                failure("provider", "MODEL_ANSWER_UNUSABLE"), CODEC, "unknown");
+        assertEquals("The model could not complete a required check. Some foods from this message may "
+                + "already be saved. Check the Calendar before sending it again", failure.getMessage());
+    }
+
     @Test
     void rejectsUntrustedErrorCodesBeforeMapping() {
         ProtocolException error = assertThrowsExactly(ProtocolException.class,
-                () -> ProtocolFailures.translate(failure("validation", "arbitrary.ClassName"), CODEC));
+                () -> ProtocolFailures.translate(failure("validation", "arbitrary.ClassName"), CODEC,
+                        NOTHING_SAVED));
         assertEquals("INVALID_MESSAGE", error.code());
     }
 
     @Test
     void rejectsASuccessMessageWithoutAnError() {
         ProtocolException error = assertThrowsExactly(ProtocolException.class,
-                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("food_result"), CODEC));
+                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("food_result"), CODEC,
+                        NOTHING_SAVED));
         assertEquals("INVALID_MESSAGE", error.code());
     }
 
     @Test
     void validatesValuesBeforeLookingForAnError() {
         ProtocolException error = assertThrowsExactly(ProtocolException.class,
-                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("run_blank_model"), CODEC));
+                () -> ProtocolFailures.translate(ProtocolTestFixtures.message("run_blank_model"), CODEC,
+                        NOTHING_SAVED));
         assertEquals("INVALID_VALUE", error.code());
     }
 

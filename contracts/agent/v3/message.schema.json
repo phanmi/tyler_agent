@@ -112,7 +112,7 @@
         "timeoutMs": { "$ref": "#/$defs/timeoutMs" },
         "operationTimeoutMs": { "$ref": "#/$defs/timeoutMs" },
         "checkNutrition": {
-          "$comment": "Whether recordFood checks each food's nutrition values in this run. The saved setting, read when the chat leaves the queue.",
+          "$comment": "Whether recordFood checks each food's nutrition values in this run. Java sends false for every chat of the app; the eval harness sends either value.",
           "type": "boolean"
         }
       }

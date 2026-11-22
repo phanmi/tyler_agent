@@ -202,7 +202,7 @@ This is how steps 3 to 6 are built.
 | `verifyFoodList`, `verifyFoodDates`, and their corrections | Asked again, up to 3 more times. Then the chat fails with an error that says the model could not complete the check, and nothing is saved. |
 | `verifyFoodNutrition` and its correction | Asked once more. Then the food goes on with the values it has. |
 
-The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24). The contract allows a new code only in a new protocol version, so it came with version 3 in step 8. Java answers it with HTTP 502 and the text "The model could not complete a required check. Please try again" (D26).
+The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24). The contract allows a new code only in a new protocol version, so it came with version 3 in step 8. Java answers it with HTTP 502 and the text "The model could not complete a required check. Please try again" (D26). When the run saved something before the call that failed, the text does not ask to try again. It says that some foods may already be saved, and to check the Calendar first (R8 of the second code review).
 
 **Tests.** Steps 3 to 5 test each check on its own, with a real tool context and a scripted model, as the current verifier's tests do. Step 6 puts the checks into `recordFood` and adds the tests through the real agent loop, registry and runtime.
 
@@ -238,7 +238,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Planned |
 | Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Planned |
 | A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Planned |
-| Resending after such a failure creates no duplicates. | Nothing was saved, so nothing is saved twice. | 6, 9 | Planned |
+| Resending after such a failure creates no duplicates. | Nothing of the failed call was saved, so nothing of it is saved twice. When an earlier call of the same message was saved, the error says so and does not ask the user to send the message again (R8 of the second code review). | 6, 9 | Planned |
 | Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | The operation `food.insert_all`, with a bridge handler and service method of its own (D9, D23). | 9 | Planned |
 | The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Planned |
 | Python tests cover a failure and a cancellation between checks through the real agent loop and runtime. | The failure and cancellation tests in step 6. | 6 | Planned |
@@ -286,6 +286,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | 2026-11-21 | D30: option A. The Settings card, the agent settings endpoint and its file are removed, Java sends `checkNutrition: false` in every `run`, and the protocol field and the Python check stay. | Maintainer |
 | 2026-11-21 | After D30, what R5 extracted has one user. Option A: `SandboxJsonFile`, `useLoadedSettings` and `SettingsLoadError` are deleted, and the provider settings code is what `main` has. | Maintainer |
 | 2026-11-21 | #113's wording after D30 is approved and posted: how the check is forced off, the scope of #98, and two criteria in place of the five about the switch. | Maintainer |
+| 2026-11-21 | The four findings of the second code review: R8 B, fixed in [PR #121](https://github.com/phanmi/tyler_agent/pull/121) because it blocks the release, and R9 A, R10 A and R11 A. | Maintainer, in the PR's threads; R10 in chat |
 
 Decisions made before this plan are in #113's description.
 
@@ -990,11 +991,48 @@ The counts of fixed, broken and unchanged foods were read from the report's two 
 
 `/code-review` ran at level `high` on the branch after D29, D30 and the removal of what R5 extracted. It found no blocking bug, and four findings. Each was checked against the code and is real.
 
-The maintainer asked for the PR to be opened with the findings as comments, and decides them there. None is applied.
+The maintainer asked for the PR to be opened with the findings as comments, and decided them there on 2026-11-21.
 
 | | Finding | Where | Proposed | Decision |
 |---|---|---|---|---|
-| R8 | The HTTP 502 text ends with "Please try again", whatever the run saved before it failed. When a chat's first `recordFood` call saved and its second call failed, sending the message again saves the first call's foods twice. Every other failure has the same gap, and it was there before this branch. | `ProtocolFailures.java` | A follow-up issue that covers every failure after a save | No decision yet |
-| R9 | The contract still describes a saved setting: the `$comment` of `run.checkNutrition`, and the description of the fixture `invalid_null_check_nutrition`. | `contracts/agent/v3/` | Reword both | No decision yet |
-| R10 | The "Food validation" row of the current-state table in `AGENT_MIGRATION.md` names `food.insert`. | `docs/AGENT_MIGRATION.md` | Name `food.insert_all` and `IFoodService.insertFoods` | No decision yet |
-| R11 | Python writes the code `MODEL_ANSWER_UNUSABLE` as text in two modules, and the status 500 that the same lookup falls back to has no name. Java has a constant for each. | `failures.py`, `session.py` | One constant for the code, and a named fallback status | No decision yet |
+| R8 | The HTTP 502 text ends with "Please try again", whatever the run saved before it failed. When a chat's first `recordFood` call saved and its second call failed, sending the message again saves the first call's foods twice. Every other failure has the same gap, and it was there before this branch. | `ProtocolFailures.java` | A follow-up issue that covers every failure after a save | B. Fixed in this PR for this code, because it blocks the release. |
+| R9 | The contract still describes a saved setting: the `$comment` of `run.checkNutrition`, and the description of the fixture `invalid_null_check_nutrition`. | `contracts/agent/v3/` | Reword both | A |
+| R10 | The "Food validation" row of the current-state table in `AGENT_MIGRATION.md` names `food.insert`. | `docs/AGENT_MIGRATION.md` | Name `food.insert_all` and `IFoodService.insertFoods` | A |
+| R11 | Python writes the code `MODEL_ANSWER_UNUSABLE` as text in two modules, and the status 500 that the same lookup falls back to has no name. Java has a constant for each. | `failures.py`, `session.py` | One constant for the code, and a named fallback status | A, to avoid duplicate code |
+
+A second review posted on the PR reported R8, R9 and R10 again, and no other finding.
+
+### 2026-11-21 The second review's decisions applied
+
+**What changed**
+
+- **R8.** For `MODEL_ANSWER_UNUSABLE`, the text goes by what the run saved before it failed.
+  - Nothing (`none`): "The model could not complete a required check. Please try again", as before.
+  - Something, or a write still open (`committed`, `unknown`): "The model could not complete a required check. Some foods from this message may already be saved. Check the Calendar before sending it again".
+  - `ProtocolFailures.translate` takes the outcome as a parameter. `PythonWorker` passes the one in the session's decision on the `failed` message, which is Java's own ledger. The `writeOutcome` in the worker's failure is not read, because `AGENT_SESSION.md` calls it a claim and the ledger authoritative. For this failure the two hold the same value.
+  - The other failures keep the gap, as option B says.
+- **R9.** Both texts are reworded as proposed. What the schema accepts did not change.
+- **R10.** The row names `food.insert_all` with every food of the call, and `IFoodService.insertFoods`.
+- **R11.** `failures.py` has the constant `MODEL_ANSWER_UNUSABLE`, which `model_answer_unusable()` and the session's `STATUS_BY_CODE` use. `session.py` names the fallback `OTHER_FAILURE_STATUS`.
+
+**Tests for R8**
+
+- Through the real worker, the new scenario `saved_then_unanswered_check` makes two `recordFood` calls and answers only the first call's date check. The chat answers 502 with the new text, one food stays saved, and history is empty.
+- `ProtocolFailuresTest` covers `unknown`, with a failure that itself claims `none`.
+- With the text chosen without the outcome, both tests failed. With the fix back, both passed.
+- R11 has no new test, because the fixture test `failed_model_answer_unusable` covers the lookup.
+
+**Docs**
+
+`AGENT_OPERATIONS.md`, `AGENT_PROTOCOL.md`, `AGENT_SESSION.md`, `DEVELOPMENT.md`, the README and the eval README give both texts, or say which one the user sees.
+
+**Checks**
+
+- Python: `ruff format --check`, `ruff check`, `mypy` for Linux and Windows, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test`, with 921 tests, 0 failures, 0 errors and 5 skipped. That is the 919 from before and the two new tests.
+- Frontend: not run, because no frontend file changed.
+
+**Left open**
+
+- The other failures still answer "Please try again later" after a save. No issue is opened for them.
+- A user who sends the message again in spite of the warning still saves the first call's foods twice. #113's criterion about resending is met only as far as the app no longer asks for it.

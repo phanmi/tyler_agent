@@ -2563,7 +2563,7 @@
     },
     {
       "id": "invalid_null_check_nutrition",
-      "description": "Null does not stand for a switch that was never saved.",
+      "description": "Null is not a JSON boolean, and does not stand for off.",
       "message": {
         "protocolVersion": 3,
         "type": "run",

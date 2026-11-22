@@ -105,7 +105,11 @@ Java has both rules and applies them to every food it saves. Python repeats them
 
 An answer that cannot be used is never read as "nothing is wrong":
 
-- For the name and count check, the date check and their corrections, the question is asked again, four requests in all (`REQUIRED_ATTEMPTS`). Then the run fails as `provider/MODEL_ANSWER_UNUSABLE`, and nothing is saved. The user sees `The model could not complete a required check. Please try again` (HTTP 502). A request that itself fails is still `provider/PROVIDER_FAILURE`.
+- For the name and count check, the date check and their corrections, the question is asked again, four requests in all (`REQUIRED_ATTEMPTS`). Then the run fails as `provider/MODEL_ANSWER_UNUSABLE` (HTTP 502), and none of the call's foods is saved. The text the user sees depends on what the run saved before that call:
+  - Nothing: `The model could not complete a required check. Please try again`.
+  - Something, such as the foods of an earlier `recordFood` call: `The model could not complete a required check. Some foods from this message may already be saved. Check the Calendar before sending it again`. The failed message is not added to history, so sending it again would save those foods a second time.
+
+  A request that itself fails is still `provider/PROVIDER_FAILURE`.
 - For the content check and its correction, the question is asked once more (`OPTIONAL_ATTEMPTS`). Then the food goes on with the values it has.
 
 **Saving.** No food is saved until every check has finished. A provider failure, a cancellation, or a required check that could not be answered ends the run with its usual code, and none of the call's foods is saved. The foods the checks leave are then saved in one `food.insert_all` request, which Java runs as one transaction: if Java rejects one food, or the database fails part of the way, none of the call's foods is saved. When the checks leave no food, no save is requested. A second `recordFood` call in the same run is a save of its own, so a failure in it does not undo the first. The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model to tell the user which records were left out and why, and not to record them again. Only the name and count check removes a record.

@@ -148,6 +148,20 @@ class AgentPersistenceIntegrationTest {
     }
 
     @Test
+    void aCheckThatFailsAfterAnEarlierCallSavedWarnsBeforeTheMessageIsSentAgain() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            JsonNode error = app.chat("saved_then_unanswered_check", 502);
+            assertEquals("The model could not complete a required check. Some foods from this message may "
+                    + "already be saved. Check the Calendar before sending it again", error.path("error").asText());
+            // The first recordFood call saved its food before the second call's date check failed.
+            // History has no record of the message, so sending it again would save that food twice.
+            assertEquals(1, app.get(FOOD_DATE).size());
+            assertEquals(1, app.gate.foodCalls.get());
+            assertTrue(app.get(HISTORY).isEmpty());
+        }
+    }
+
+    @Test
     void schemaMismatchedToolCallsGoBackToTheModelWithoutSideEffects() throws Exception {
         byte[] notes = "retain-me".getBytes(StandardCharsets.UTF_8);
         Files.write(workspace.resolve("notes.txt"), notes);

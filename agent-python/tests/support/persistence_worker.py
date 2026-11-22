@@ -111,6 +111,7 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
         "file_failure": (tool("readFile", dict(path="missing.txt")),),
         "food_then_failure": (food_call(),),
         "unanswered_check": (food_call(),),
+        "saved_then_unanswered_check": (food_call(), food_call()),
         "reply": (),
     }
     # Distinct call IDs exercise the production loop's correlation across equal tool calls.
@@ -131,6 +132,19 @@ class PersistenceProvider:
         self.provider: str = value["provider"]
         # Reported back so Java can check whether the run's nutrition check was switched on.
         self.nutrition_checks = 0
+        # Counted for the scenario that answers only its first recordFood call's date check.
+        self.date_checks = 0
+
+    def _leaves_unanswered(self, check: str) -> bool:
+        """Whether this scenario answers the check with text, which no check can use."""
+        if self.scenario == "unanswered_check":
+            return True
+        if self.scenario != "saved_then_unanswered_check" or check != VERIFY_FOOD_DATES.name:
+            return False
+        # The first call's date check is answered, so that call saves its food. Every date
+        # check after it belongs to the second call, which asks until it gives up.
+        self.date_checks += 1
+        return self.date_checks > 1
 
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
@@ -138,7 +152,7 @@ class PersistenceProvider:
         if [tool.name for tool in tools] == [VERIFY_FOOD_NUTRITION.name]:
             self.nutrition_checks += 1
         cleared = all_clear(tools)
-        if cleared is not None and self.scenario == "unanswered_check":
+        if cleared is not None and self._leaves_unanswered(tools[0].name):
             # Text where a check's tool call is required: an answer that cannot be used.
             return AssistantTurn((), "Everything looks right.")
         if cleared is not None:

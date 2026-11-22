@@ -89,7 +89,7 @@ The progress line and the report name each failure. These are the ones a run usu
 | Failure | Meaning |
 |---|---|
 | `provider/PROVIDER_FAILURE` | A request to the provider failed, for example on a rate limit, or its answer was cut off. |
-| `provider/MODEL_ANSWER_UNUSABLE` | The model answered the date check, or its correction, four times without an answer that could be used. No food of that `recordFood` call was saved. In the app the user sees "The model could not complete a required check. Please try again". |
+| `provider/MODEL_ANSWER_UNUSABLE` | The model answered the date check, or its correction, four times without an answer that could be used. No food of that `recordFood` call was saved. In the app the user sees "The model could not complete a required check", followed by "Please try again" when the chat saved nothing, or by a warning to look at the Calendar when an earlier call of the chat saved. |
 | `authentication/PROVIDER_AUTH` | The provider rejected the key. |
 | `timeout` | The chat ran longer than the five minutes the harness allows for one chat. |
 | `unexpected operation: <name>` | A tool asked for a Java operation the stand-in does not answer; see [Limits](#limits). |
