@@ -15,12 +15,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Shared protocol version 2 wire validation. Domain rules remain in application services;
+ * Shared protocol version 3 wire validation. Domain rules remain in application services;
  * request correlation and lifecycle guards remain in the session ledger.
  */
 public final class MessageValidator {
-    /** The only accepted protocol version; must match contracts/agent/v2 and the Python worker. */
-    public static final int PROTOCOL_VERSION = 2;
+    /** The only accepted protocol version; must match contracts/agent/v3 and the Python worker. */
+    public static final int PROTOCOL_VERSION = 3;
     public static final int MAX_FRAME_BYTES = 16_777_216;
     private static final BigDecimal MAX_DECIMAL_VALUE = BigDecimal.valueOf(2_000_000_000L);
     private static final Set<String> DECIMALS = Set.of("amount", "calories", "protein", "carbs",

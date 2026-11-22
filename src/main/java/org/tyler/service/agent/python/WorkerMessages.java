@@ -38,7 +38,7 @@ final class WorkerMessages {
             payload.put("outcome", "success").set("result", result);
         } else {
             ObjectNode error = error(failure);
-            if (!java.util.Set.of("food.insert", "workout_plan.generate_save", "file.write")
+            if (!java.util.Set.of("food.insert_all", "workout_plan.generate_save", "file.write")
                     .contains(request.path("operation").asText())) error.put("writeOutcome", "none");
             payload.put("outcome", "failure").set("error", error);
         }

@@ -2,7 +2,7 @@
 
 [Developer guide](DEVELOPMENT.md) | [Protocol contract](AGENT_PROTOCOL.md) | [Migration tracker](AGENT_MIGRATION.md)
 
-This guide explains the session model, the meaning of each state and message type, and the responsibilities of Java and Python. The [version 2 protocol contract](AGENT_PROTOCOL.md) remains authoritative for exact fields, limits, and failure codes.
+This guide explains the session model, the meaning of each state and message type, and the responsibilities of Java and Python. The [version 3 protocol contract](AGENT_PROTOCOL.md) remains authoritative for exact fields, limits, and failure codes.
 
 ## What is implemented today?
 
@@ -65,7 +65,7 @@ A **session** represents one Python worker process generation. One session may h
 | `sessionId` | Java | A fresh 32-character lowercase hexadecimal identifier for each worker process. Python receives it through `TYLER_AGENT_SESSION_ID` and echoes it on every frame. It detects messages from a different process generation; it is not an authentication token. |
 | `requestId` | Java | Identifies one chat run. Never reused within the session. Explicitly `null` for `ready` and `shutdown`. |
 | `operationId` | Python | Identifies one service operation within a run. Never reused within that run. It is separate from a database record ID and a provider tool-call ID. |
-| `protocolVersion` | Shared contract | Currently `1`; independent of the application's release version. |
+| `protocolVersion` | Shared contract | Currently `3`; independent of the application's release version. |
 | `type` | Message sender | Selects the message handler. Direction is fixed by the protocol. |
 | `payload` | Message sender | The type-specific data, checked against the shared schema. |
 
@@ -115,7 +115,7 @@ All incoming messages pass validation before state or correlation checks. The se
 | `operation_request`: Python → Java | Request an allowlisted service operation. Requires an active `RUNNING` request, new operation ID, no pending operation, no prior terminal/failure. | Register the pending operation before dispatch; return a `dispatch` decision. Mark a pending write's effect unknown. | Wait for its result before issuing another operation. Requests crossing cancellation are ignored without dispatch. |
 | `operation_result`: Java → Python | Success or failure of the pending operation. Request ID, operation ID, and operation name must match. | Resolve the pending entry and record its write outcome. A duplicate result is rejected. | On success, continue the loop. On failure, send terminal `failed` and do not schedule more operations. A result arriving after cancellation must not restart tools. |
 | `completed`: Python → Java | Model execution succeeded; contains the final `reply`. Requires `RUNNING`, no pending operation, no operation failure, and no prior terminal. | Mark terminal/awaiting-history and request exactly one history append. Remain `RUNNING` until history settles. | Finish this run; do not send another terminal or operation. |
-| `failed`: Python → Java | Terminal unsuccessful execution; carries category, code, safe detail, and claimed write outcome. | Mark terminal, append no successful exchange, and retain the authoritative Java effect ledger. Return to `IDLE` only when pending work has settled. Model decision status is 400 for validation, 401 for authentication, otherwise 500. Actual HTTP mapping remains in the existing advice. | Stop the run. A pending operation normally requires cancellation first; `DEADLINE_EXCEEDED` may independently terminate while an operation is pending. |
+| `failed`: Python → Java | Terminal unsuccessful execution; carries category, code, safe detail, and claimed write outcome. | Mark terminal, append no successful exchange, and retain the authoritative Java effect ledger. Return to `IDLE` only when pending work has settled. Model decision status is 400 for validation, 401 for authentication, 502 for the code `MODEL_ANSWER_UNUSABLE`, otherwise 500. Actual HTTP mapping remains in the existing advice. The ledger's write outcome, not the claimed one, picks the text of `MODEL_ANSWER_UNUSABLE`. | Stop the run. A pending operation normally requires cancellation first; `DEADLINE_EXCEEDED` may independently terminate while an operation is pending. |
 | `cancel`: Java → Python | Cancel the active run; not a rollback instruction. | Record cancellation before disabling dispatch/sending the message. Repeated cancellation is idempotent; cancellation after accepted completion is ignored. | Stop new continuations and send a cancellation/deadline failure. Ignore a cancel crossing an already-sent terminal. |
 | `shutdown`: Java → Python | Stop accepting work and exit. No reply frame is defined. | Move to `STOPPING` and wait for process exit within the grace period; keep pending service outcomes. | Clean up and exit. Repeated shutdown is allowed before closure. |
 

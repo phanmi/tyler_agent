@@ -1,26 +1,29 @@
-# Java and Python agent protocol version 2
+# Java and Python agent protocol version 3
 
 [Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
 
-This is the version 2 contract. Version 1 was established in Step 3; version 2 (issue #79) adds the required `run.provider` field and otherwise keeps version 1's messages, bounds, and failure codes. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the Java process supervisor and parent watchdog. Step 10 makes Python the sole agent implementation after the validated release window. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same service boundary.
+This is the version 3 contract. Version 1 was established in Step 3; version 2 (issue #79) added the required `run.provider` field; version 3 (issue #113) adds the required `run.checkNutrition` field and the failure code `MODEL_ANSWER_UNUSABLE`, replaces the operation `food.insert` with `food.insert_all`, and otherwise keeps version 2's messages, bounds, and failure codes. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the Java process supervisor and parent watchdog. Step 10 makes Python the sole agent implementation after the validated release window. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same service boundary.
 
 Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
 ## Contract artifacts and authority
 
-- [Message schema](../contracts/agent/v2/message.schema.json): closed message and domain-transport shapes, using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core).
-- [Message fixtures](../contracts/agent/v2/fixtures/messages.json): accepted/rejected shapes and expected values.
-- [Framing fixtures](../contracts/agent/v2/fixtures/framing.json): raw bytes, chunk boundaries, malformed JSON, and size boundaries.
-- [Sequence fixtures](../contracts/agent/v2/fixtures/sequences.json): directions, correlation, state transitions, cancellation, and uncertain writes.
+- [Message schema](../contracts/agent/v3/message.schema.json): closed message and domain-transport shapes, using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core).
+- [Message fixtures](../contracts/agent/v3/fixtures/messages.json): accepted/rejected shapes and expected values.
+- [Framing fixtures](../contracts/agent/v3/fixtures/framing.json): raw bytes, chunk boundaries, malformed JSON, and size boundaries.
+- [Sequence fixtures](../contracts/agent/v3/fixtures/sequences.json): directions, correlation, state transitions, cancellation, and uncertain writes.
 
 The schema controls structural validity; this document additionally controls framing, semantic checks, state, and effects. Passing schema validation alone never authorizes an operation. Resolve disagreements between artifacts before changing a consumer. Schema validation must not coerce values, add defaults, or discard unknown properties. No schema references require network resolution.
 
-`protocolVersion` is the integer `2`, independent of the application release version. `ready.payload.workerVersion` reports the shared release version for diagnostics. Version 2 accepts only version 2; a peer sending the retired version 1 fails with `UNSUPPORTED_VERSION`. New message types, fields, enum members, or changed meanings require a new protocol version and fixture set; no silent downgrade or automatic legacy-agent fallback is allowed.
+`protocolVersion` is the integer `3`, independent of the application release version. `ready.payload.workerVersion` reports the shared release version for diagnostics. Version 3 accepts only version 3; a peer sending a retired version, 1 or 2, fails with `UNSUPPORTED_VERSION`. New message types, fields, enum members, or changed meanings require a new protocol version; no silent downgrade or automatic legacy-agent fallback is allowed.
+
+A new version moves the contract directory to its own name with `git mv` and edits the schema and fixtures in place, so the change reads as a diff. The version before it is not kept as a copy: it stays in git history.
 
 | Version | Change | Contract |
 |---|---|---|
 | 1 | Initial Java/Python protocol (Step 3). Retired; kept unchanged for reference only and loaded by no code. | `contracts/agent/v1/` |
-| 2 | Adds the required `run.provider` field (`openai`, `anthropic`, `deepseek`) for multi-provider support (issue #79). | `contracts/agent/v2/` |
+| 2 | Adds the required `run.provider` field (`openai`, `anthropic`, `deepseek`) for multi-provider support (issue #79). Retired. | In git history; the directory became `contracts/agent/v3/`. |
+| 3 | Adds the required `run.checkNutrition` field, which switches `recordFood`'s nutrition check for the run, and the failure code `provider`/`MODEL_ANSWER_UNUSABLE`. Replaces the operation `food.insert` with `food.insert_all`, which saves a list of foods in one transaction; `food.insert` is no longer an operation (issue #113). | `contracts/agent/v3/` |
 
 ## Transport and resource bounds
 
@@ -28,7 +31,7 @@ Java launches one worker using redirected private stdin/stdout/stderr, without a
 
 Each frame is one JSON object encoded in strict UTF-8 followed by LF (`0A`). Writers must flush after each frame. Use escaped `\n`/`\r` inside strings; never pretty-print an envelope across lines. Readers accept LF only, reject BOM, blank frames, CRLF, invalid UTF-8, unpaired Unicode surrogates, duplicate object keys, non-JSON numbers such as `NaN`/`Infinity`, and trailing content after the object. JSON string escapes are decoded once. Reading may split anywhere, including inside a multibyte character; buffer bytes until LF before decoding. EOF with buffered bytes is a truncated frame, never a partial message to execute.
 
-| Bound | Version 2 behavior |
+| Bound | Version 3 behavior |
 |---|---|
 | Maximum frame | 16,777,216 bytes before LF, inclusive, measured on UTF-8 bytes rather than characters. Abort as soon as an incomplete frame exceeds this bound. |
 | Startup readiness | 30 seconds, including the worker handshake inside the existing overall backend-startup deadline. |
@@ -39,7 +42,7 @@ Each frame is one JSON object encoded in strict UTF-8 followed by LF (`0A`). Wri
 | Cancel/shutdown grace | 5 seconds before Java terminates a nonresponsive worker; termination does not prove a Java operation rolled back. |
 | Worker recycling | Java retires an idle worker after 10,000 accepted runs, bounding retained request-ID tombstones. A new worker gets a new session ID. |
 
-These are new transport/lifecycle bounds, not new domain limits. Previously unbounded large files/results may exceed the frame limit. Reject oversize outbound input before dispatch; fail oversize output without truncating it or claiming a completed write was undone. Record this operational limit during rollout. No chunked large-message extension exists in version 2. Configuration may change run/operation deadlines within their ranges; it cannot silently change framing or queue limits.
+These are new transport/lifecycle bounds, not new domain limits. Previously unbounded large files/results may exceed the frame limit. Reject oversize outbound input before dispatch; fail oversize output without truncating it or claiming a completed write was undone. Record this operational limit during rollout. No chunked large-message extension exists in version 3. Configuration may change run/operation deadlines within their ranges; it cannot silently change framing or queue limits.
 
 Use monotonic timers locally. Java starts the run timer when it sends `run`; Python starts its timer on receipt. Java's earlier deadline remains authoritative. Deadlines never reset for a new tool round or result. Continuously drain stderr with bounded buffers so logging cannot block protocol progress.
 
@@ -52,7 +55,7 @@ All payload fields listed below are required; no additional fields are permitted
 | Type | Direction | Payload | Meaning |
 |---|---|---|---|
 | `ready` | Python to Java | `workerVersion: string` | First and only readiness message, before a run. It requires no key or provider access. |
-| `run` | Java to Python | `message: string`, `history: [{role, content}]`, `provider: openai \| anthropic \| deepseek`, `model: string`, `apiKey: string`, `maxToolRounds: 5`, `timeoutMs`, `operationTimeoutMs` | Begin one chat using a credential/configuration snapshot. `provider` names the model provider (a closed, case-sensitive set); `model` and `apiKey` belong to that provider. History roles are `user` or `assistant`; content/message are strings. Model/key must be nonempty and nonblank. |
+| `run` | Java to Python | `message: string`, `history: [{role, content}]`, `provider: openai \| anthropic \| deepseek`, `model: string`, `apiKey: string`, `maxToolRounds: 5`, `timeoutMs`, `operationTimeoutMs`, `checkNutrition: boolean` | Begin one chat using a credential/configuration snapshot. `provider` names the model provider (a closed, case-sensitive set); `model` and `apiKey` belong to that provider. History roles are `user` or `assistant`; content/message are strings. Model/key must be nonempty and nonblank. `checkNutrition` says whether `recordFood` checks each food's nutrition values in this run; it is a JSON boolean and has no default. |
 | `operation_request` | Python to Java | `operationId`, `operation`, `input` | Request one allowlisted Java service operation; schema depends on the operation. |
 | `operation_result` | Java to Python | `operationId`, `operation`, `outcome`, and exactly `result` for `success` or `error` for `failure` | Resolve the pending operation once. Error results are not model-visible successful tool outputs. |
 | `completed` | Python to Java | `reply: string` | Successful agent execution. Empty replies are allowed by the characterized baseline. |
@@ -60,7 +63,7 @@ All payload fields listed below are required; no additional fields are permitted
 | `cancel` | Java to Python | `reason: user_cancelled | deadline_exceeded | shutdown` | Request cancellation of the active run, never a rollback instruction. |
 | `shutdown` | Java to Python | `reason: application_exit | startup_cancelled | protocol_error | worker_recycle` | Stop accepting work and exit. There is no shutdown reply; process exit is the acknowledgement. |
 
-Java reads the active provider, its model, and that provider's key from the saved LLM settings when the request leaves the queue, and fills `provider`, `model`, and `apiKey` from them. A missing/blank key for the active provider fails before `run` is sent with `ApiKeyMissingException` (HTTP 400) and the message `<Provider> API key is empty; chat is unavailable`, where `<Provider>` is OpenAI, Claude, or DeepSeek; another provider's key is never used. Request body validation and trimming remain at the HTTP adapter. An empty `message` is structurally valid because the service transport does not add an HTTP validation rule. The worker constructs provider messages from history and the current message. Java must not construct provider-specific objects or send prompts/tool schemas in this protocol.
+Java reads the active provider, its model, and that provider's key from the saved LLM settings when the request leaves the queue, and fills `provider`, `model`, and `apiKey` from them. It sends `checkNutrition` as `false` in every `run`: the app keeps `recordFood`'s nutrition check off, and no setting turns it on (see [food verification](AGENT_OPERATIONS.md#food-verification)). An unreadable provider settings file fails the chat before `run` is sent. A missing/blank key for the active provider fails before `run` is sent with `ApiKeyMissingException` (HTTP 400) and the message `<Provider> API key is empty; chat is unavailable`, where `<Provider>` is OpenAI, Claude, or DeepSeek; another provider's key is never used. Request body validation and trimming remain at the HTTP adapter. An empty `message` is structurally valid because the service transport does not add an HTTP validation rule. The worker constructs provider messages from history and the current message. Java must not construct provider-specific objects or send prompts/tool schemas in this protocol.
 
 ## Allowed Java operations and data representations
 
@@ -68,7 +71,7 @@ Operation names are private service commands. Public model-facing tool names and
 
 | Operation | Public tool | Input | Success result | Model-visible output produced by Python |
 |---|---|---|---|---|
-| `food.insert` | `recordFood` | `{food}` | `{id, food}` | Pretty-printed JSON string listing the saved foods under `recorded`, each excluding the generated ID. `recordFood` requests one `food.insert` for each food of its call. |
+| `food.insert_all` | `recordFood` | `{foods: [food, ...]}`, at least one food | `{foods: [{id, food}, ...]}`, in the input's order | Pretty-printed JSON string listing the saved foods under `recorded`, each excluding the generated ID. `recordFood` requests one `food.insert_all` for all the foods of its call, and none when its checks leave no food. Java saves the list in one transaction: all of the foods, or none. |
 | `workout_plan.generate_save` | `generateWorkoutPlan` | `{startDate, goal, equipment}` | `{plan}` | Pretty-printed plan JSON string. |
 | `user_info.read` | `GetUserInfo` | `{}` | `{profile}` | Existing Java-record-style text, not JSON. |
 | `file.read` | `readFile` | `{path}` | `{content}` | Raw content string. |
@@ -89,7 +92,7 @@ Food quantities/nutrition, workout weights, and profile age cross the pipe as pl
 
 The absolute value must be at most **2,000,000,000**, inclusive. Larger magnitudes fail semantic validation with `INVALID_VALUE`. Negative values within that bound remain transport-valid so shared domain services own nonnegative validation. No fractional rounding is introduced. This intentionally narrows the previous exponent/full-scale transport contract, as requested on 2026-10-17, to simplify the prototype. Record IDs retain their separate existing range. Application storage and HTTP validation are unchanged; adapters must encode supported values as plain decimals. Python emits JSON **numbers**, not quoted decimals, in model-visible food/plan output, using decimal-aware serialization.
 
-The generated food `id` is a decimal string representing `1` through `9223372036854775807`. Leading zeros, signs, zero, and more than 19 digits fail the schema (`INVALID_MESSAGE`). A lexically valid value above the signed-long maximum fails the codec's full-range check (`INVALID_VALUE`). Do not convert IDs through a floating-point JSON parser. Public tool output still omits this ID. Version 2 introduces no ID-based mutation command.
+The generated food `id` is a decimal string representing `1` through `9223372036854775807`. Leading zeros, signs, zero, and more than 19 digits fail the schema (`INVALID_MESSAGE`). A lexically valid value above the signed-long maximum fails the codec's full-range check (`INVALID_VALUE`). Do not convert IDs through a floating-point JSON parser. Public tool output still omits this ID. Version 3 introduces no ID-based mutation command.
 
 ### Dates, nulls, and existing adapter behavior
 
@@ -134,13 +137,14 @@ An already dispatched Java write may finish or fail. Do not label it rolled back
 - `committed`: at least one write is confirmed committed, with no unresolved dispatched write. A later failure does not undo it.
 - `unknown`: a dispatched write may have committed, partially written, or still be running and its final effect is unconfirmed. This takes precedence over `committed`/`none`.
 
-Java computes the effective outcome from its own ledger, never downgrading uncertainty based only on a worker claim. Successful `food.insert`, `workout_plan.generate_save`, and `file.write` confirm committed effects; a plan result can reuse existing records without new writes, but remains conservatively classified as completed write-capable work. Reading operations do not add write uncertainty. A rejected protocol message is never dispatched; earlier writes still count. These states are diagnostic, not exactly-once delivery or concurrent deduplication guarantees.
+Java computes the effective outcome from its own ledger, never downgrading uncertainty based only on a worker claim. Successful `food.insert_all`, `workout_plan.generate_save`, and `file.write` confirm committed effects; a plan result can reuse existing records without new writes, but remains conservatively classified as completed write-capable work. Reading operations do not add write uncertainty. A rejected protocol message is never dispatched; earlier writes still count. These states are diagnostic, not exactly-once delivery or concurrent deduplication guarantees.
 
 | Category | Codes | Java mapping and HTTP behavior |
 |---|---|---|
 | `validation` | `INVALID_ARGUMENT`, `SQL_DATA_VALIDATION` | Remote failures map to `IllegalArgumentException` / `SQLDataValidationException`; HTTP 400 with Java-owned `Invalid agent request` / `Invalid agent record data`. |
 | `authentication` | `API_KEY_MISSING`, `PROVIDER_AUTH` | `ApiKeyMissingException` (HTTP 400, `API key is empty; chat is unavailable`) and `ProviderAuthException` (HTTP 401, `This API key is invalid or unavailable`), respectively. Provider unauthorized and permission-denied failures both use the latter. |
 | `provider` | `PROVIDER_FAILURE` | Unexpected provider/transport/rate-limit/server failure; HTTP 500 with `Internal server error. Please try again later`. Preserve the existing HTTP mapping, not the provider's 429/5xx status. |
+| `provider` | `MODEL_ANSWER_UNUSABLE` | The model answered every request, but no answer to a question the run cannot go on without could be used. `recordFood` raises it when a check it cannot save without gets no usable answer in four requests. It is named for the cause, not for `recordFood`, so another tool can raise it without a new protocol version. Maps to `ModelAnswerUnusableException`; HTTP 502. The text is `The model could not complete a required check. Please try again` when Java's write outcome for the run is `none`. For `committed` or `unknown` it is `The model could not complete a required check. Some foods from this message may already be saved. Check the Calendar before sending it again`, because the failed message is not in history and sending it again repeats every write. Java reads the outcome from its own session, not from the failure. It is the one code whose HTTP status does not follow from its category, and the one whose text depends on the write outcome. |
 | `storage` | `SQL_READ`, `SQL_WRITE`, `SQL_ACCESS` | Existing SQL read/write/Spring data-access mapping; HTTP 500 with `Database operation failed. Please try again later`. |
 | `storage` | `FILE_READ`, `FILE_WRITE` | Remote failures map to existing file exceptions; HTTP 500 with `Failed to read file: Agent file read failed` / `Failed to write file: Agent file write failed`. Worker detail is not appended. |
 | `worker` | `UNKNOWN_TOOL`, `SERIALIZATION_FAILURE`, `HISTORY_FAILURE`, `WORKER_UNAVAILABLE`, `WORKER_BUSY`, `INTERNAL_FAILURE` | Existing unexpected-failure HTTP 500 mapping. `HISTORY_FAILURE` is synthesized by Java after worker completion, not emitted by Python. A model call to an unknown tool is returned to the model instead, so `UNKNOWN_TOOL` now only guards direct catalog use. |
@@ -174,11 +178,11 @@ Details use code-owned explanations, schema metadata, and parser line/column num
 
 Message fixtures are individual JSON objects with `expected.schemaValid` and a reason for rejection. `expected.semantic` is separate: a negative nutrition or a malformed date can be structurally/transport-valid but subject to domain rejection later. Accepted values must survive encode/decode without coercion; compare decimals/IDs as exact strings in the transport.
 
-The shared fixtures live under `contracts/agent/v2/fixtures/` so both languages consume the same test data. They are contract examples, not production data or an alternative implementation of plan templates. Language-specific test code remains in the dedicated testing directories. To check message shapes from the repository root with PowerShell 7's `Test-Json`:
+The shared fixtures live under `contracts/agent/v3/fixtures/` so both languages consume the same test data. They are contract examples, not production data or an alternative implementation of plan templates. Language-specific test code remains in the dedicated testing directories. To check message shapes from the repository root with PowerShell 7's `Test-Json`:
 
 ```powershell
-$schemaPath = (Resolve-Path 'contracts/agent/v2/message.schema.json').Path
-$messageCases = (Get-Content 'contracts/agent/v2/fixtures/messages.json' -Raw | ConvertFrom-Json -Depth 100).cases
+$schemaPath = (Resolve-Path 'contracts/agent/v3/message.schema.json').Path
+$messageCases = (Get-Content 'contracts/agent/v3/fixtures/messages.json' -Raw | ConvertFrom-Json -Depth 100).cases
 foreach ($case in $messageCases) {
     $json = ConvertTo-Json -InputObject $case.message -Depth 100 -Compress
     $actual = Test-Json -Json $json -SchemaFile $schemaPath -ErrorAction SilentlyContinue

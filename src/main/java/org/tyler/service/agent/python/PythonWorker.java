@@ -139,7 +139,7 @@ public final class PythonWorker implements AutoCloseable {
                 case "ready" -> current.ready.complete(null);
                 case "operation_request" -> dispatch(current, message.path("payload"));
                 case "completed" -> complete(current, message.path("payload").path("reply").asText());
-                case "failed" -> failed(current, message);
+                case "failed" -> failed(current, message, decision.path("writeOutcome").asText());
                 default -> breakConnection(current, "WRONG_DIRECTION");
             }
         }
@@ -152,10 +152,12 @@ public final class PythonWorker implements AutoCloseable {
         run.reply.complete(reply);
     }
 
-    private void failed(Connection current, JsonNode message) {
+    /** {@code writeOutcome} is what the session's ledger holds for this run, not the worker's claim. */
+    private void failed(Connection current, JsonNode message, String writeOutcome) {
         Run run = current.run;
         stopDeadline(run);
-        run.reply.completeExceptionally(run.withLocalCause(ProtocolFailures.translate(message, current.codec)));
+        run.reply.completeExceptionally(run.withLocalCause(
+                ProtocolFailures.translate(message, current.codec, writeOutcome)));
         if (run.cancelled) {
             breakConnection(current, "REQUEST_CANCELLED");
             return;
@@ -197,7 +199,7 @@ public final class PythonWorker implements AutoCloseable {
             ObjectNode payload = WorkerMessages.result(request, result, failure);
             if (current.broken || closed || run.cancelled || run.reply.isDone()) {
                 String outcome = failure == null
-                        ? (java.util.Set.of("food.insert", "workout_plan.generate_save", "file.write")
+                        ? (java.util.Set.of("food.insert_all", "workout_plan.generate_save", "file.write")
                         .contains(request.path("operation").asText()) ? "committed" : "none")
                         : payload.path("error").path("writeOutcome").asText();
                 current.session.observe("operation_settled", outcome, request.path("operationId").asText());

@@ -2,6 +2,10 @@
 
 from tyler_agent.protocol.protocol import Message
 
+# Named because two modules use it: model_answer_unusable() raises it, and the session gives it
+# an HTTP status of its own.
+MODEL_ANSWER_UNUSABLE = "MODEL_ANSWER_UNUSABLE"
+
 
 class AgentFailure(Exception):
     """Carry an established category/code, with local causes retained only in Python."""
@@ -18,6 +22,12 @@ class AgentFailure(Exception):
             "message": f"Agent execution failed: {self.code}",
             "writeOutcome": write_outcome,
         }
+
+
+def model_answer_unusable() -> AgentFailure:
+    """The model answered every request, but no answer to a question the run cannot go on
+    without could be used. A request that itself failed is a PROVIDER_FAILURE, not this."""
+    return AgentFailure("provider", MODEL_ANSWER_UNUSABLE)
 
 
 class OperationFailure(AgentFailure):

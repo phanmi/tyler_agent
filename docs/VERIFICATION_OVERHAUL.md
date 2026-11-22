@@ -72,6 +72,8 @@ Since D17 (2026-11-18) the name and count check is off in every run. Until [#118
 
 The requirements that rest on this check count as partially met: the check is implemented and tested, and it is not switched on. Proving that it works comes before switching it on. That needs complex eval cases designed for it, which the maintainer decided on 2026-11-18 is out of scope for #113. [#118](https://github.com/phanmi/tyler_agent/issues/118) holds that work.
 
+Since D29 (2026-11-21) the content check is forced off in every chat of the app, with its code kept. Item 5 was not met, and D29 was decided from that: in the many-foods run of 2026-11-21, fully correct chats with the check on were level on `gpt-6-luna`, higher on `claude-haiku-5-5` and lower on `deepseek-flash`. Item 1's Settings switch was removed with the check (D30), so nothing in the app turns the check on or off.
+
 ### How the design meets #113
 
 This table checks the scope of #113. The [acceptance criteria](#how-the-acceptance-criteria-are-met) are checked below the proposals.
@@ -88,8 +90,8 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 | A converted unit is not accepted (from #104) | The name check compares each food's amount and unit with the message, and the correction restores the user's unit (D4) | Partially met: implemented and tested with the name check on, and off in every run since D17 |
 | Whether the date and unit checks run with the switch off | The date check always runs; the switch turns off only the content check (D3). The unit check is part of the name check, which is off in every run since D17. | Dates: yes. Units: partially met, as the row above |
 | User-stated values always win (#96) | The content check is shown the conversation and the tool results, and treats a stated value as right (D15). Its correction keeps every stated value too (D1). | Yes |
-| A Settings switch, saved, sent in the `run` payload, protocol version 3 (#98) | The switch turns off the content check (D3). It is saved as the first agent setting (D7) and sent in the `run` payload of protocol version 3, moved from version 2 (D8). | Yes |
-| With the switch off, no content check or food correction runs (#98, reworded) | With the switch off, the date check still runs (D3). The name check is off in every run since D17. | Yes |
+| A Settings switch, saved, sent in the `run` payload, protocol version 3 (#98) | The switch turns off the content check (D3). It is saved as the first agent setting (D7) and sent in the `run` payload of protocol version 3, moved from version 2 (D8). | Superseded by D30: the switch and its storage were removed. Protocol version 3 still carries the value, and Java sends `false` in every `run`. |
+| With the switch off, no content check or food correction runs (#98, reworded) | With the switch off, the date check still runs (D3). The name check is off in every run since D17. | Since D29 there is no switch: no chat of the app runs the content check or its correction, and the date check still runs. |
 | Checks see the tool results a record was based on (#100) | Every check and every correction gets this run's tool results (D6, P9, D15) | Yes |
 | Tool results cannot change what a check is asked to do (#100) | Tool results stay inside the JSON the checks read (P8) | Yes |
 | A failed check saves nothing from the message (#101) | No food is saved until every check has run, and the whole list is saved in one Java transaction (D9) | Yes |
@@ -98,7 +100,7 @@ This table checks the scope of #113. The [acceptance criteria](#how-the-acceptan
 
 ### Design decisions
 
-D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. D15 and D16 came from the first eval run of the new checks, and D17 from the full run of 2026-11-18. D18 to D22 are the maintainer's answers of 2026-11-18 to review findings on PR #117. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
+D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and were answered the same day. D15 and D16 came from the first eval run of the new checks, and D17 from the full run of 2026-11-18. D18 to D22 are the maintainer's answers of 2026-11-18 to review findings on PR #117. D23 to D25 came up when step 8 started and were answered on 2026-11-20. D26 to D28 came up when step 9 started and were answered on 2026-11-21. D29 and D30 came from the many-foods run of 2026-11-21 and were answered the same day. Where these decisions and the proposals differ from the sketch above, they take precedence; for example, P1 runs the name check before the date check.
 
 | | Question | Recommended | Other options | Steps | Answer               |
 |---|---|---|---|---|----------------------|
@@ -110,7 +112,7 @@ D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and
 | D6 | How do checks see tool results? | The name check and every correction that sees the chat also get this run's tool results, so they judge what the chat model actually read. These also show the foods an earlier `recordFood` call in the run saved. | As the design says: the name check calls `readFile` itself. | 2, 3 | recommended          |
 | D7 | Where is the switch saved? | As the first agent setting from #82, with its own model, service, controller and file, so agent behavior stays out of the provider settings. | A field in `LlmSettings`: about half the code, but "Reset provider settings" would also reset it. | 9, 10 | recommended          |
 | D8 | How is the contract version kept? | Move `contracts/agent/v2/` to `v3/` with `git mv` and edit it in place, so the PR shows only the real changes. Version 2 stays in git history, and the rule in `docs/AGENT_PROTOCOL.md` changes. | Keep a full copy: about 5,000 lines of fixtures. | 8 | recommended          |
-| D9 | How is the list saved? | A new Java operation saves every food of the message in one transaction, added in protocol version 3. | Save one food at a time, and when Java rejects one, tell the user which were saved. | 8, 9 | recommended          |
+| D9 | How is the list saved? | A new Java operation saves every food of the message in one transaction, added in protocol version 3. | Save one food at a time, and when Java rejects one, tell the user which were saved. | 9 | recommended          |
 | D10 | What happens when a check's answer cannot be used: a text reply, the wrong tool, several calls, or arguments that do not fit? D5 does not say. | Ask once more. If the second answer is also unusable, the check changes nothing, the foods go on to the next check, and a warning is logged without any food or chat text. The check tools are offered, not forced, so this happens now and then, and the baseline showed that dropping foods does more harm than leaving them unchecked. | Fail the chat. Or treat every food as rejected. | 3, 4, 5 | Content check: recommended. Name check and date check: ask again up to 3 times, then fail the chat with an error that says the model could not complete the check. |
 | D11 | D4 says an amount correction changes only the amount and unit. But a food's nutrition values were estimated for the amount it had. If "2 eggs" was saved as 3, changing only the amount leaves the nutrition of 3 eggs, and with the content check switched off nothing fixes it. | The amount correction rewrites the amount, the unit and the nutrition values, keeping any value the user stated. The name and date stay. | Only the amount and unit, as D4 reads, leaving the nutrition to the content check. | 3 | recommended |
 | D12 | Is a correction one request for each food, or one for all the foods a check flagged? | One request for each food, all sent at the same time. Each answer is one food record, so it cannot be matched to the wrong food. | One request for all of them: fewer requests, but each answer has to be matched back to its food. | 3, 5 | recommended |
@@ -124,6 +126,14 @@ D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and
 | D20 | The `foods` list has no size limit, so a long list sent every content check, or every correction, at the same moment. The providers do not retry, so one rate-limit error failed the run (F4). | At most 8 of a check's questions are asked at the same time, as a named constant. The rest wait their turn. | Leave it until an eval run shows a rate limit. Or limit how many foods one call may carry. | 3, 5 | recommended |
 | D21 | The tool result told the chat model not to record a left-out record again, and no longer to tell the user. A check that wrongly removes a real food then goes unnoticed (F6). | Restore the instruction: tell the user which records were left out and why. A duplicate or a whole-meal record is then mentioned too. | Keep the note as it was. Or also list the foods whose nutrition values could not be corrected. | 6 | recommended |
 | D22 | The date check and the content check do not depend on each other. Should they run at the same time (F7)? | Keep them one after the other, and decide with the measured time of a multi-food message. | Run both after the name and count check, and merge the dates from one with the nutrition values from the other. | 6 | recommended. The maintainer added: "having tools running at the same time should be put later in the design." |
+| D23 | What is the operation that saves a list of foods (D9) called, what does it carry, and does `food.insert` stay? | `food.insert_all`. Its input is `{foods: [food, ...]}` with at least one food, and its result is `{foods: [{id, food}, ...]}` in the input's order. It replaces `food.insert`, which nothing would call after step 9. | Add it and keep `food.insert`, an allowed write that nothing calls. Or keep the name `food.insert` and change its input and result to lists. | 9 | recommended |
+| D24 | What is the failure code for a check the model could not complete (D10), and in which category? | `MODEL_ANSWER_UNUSABLE`, in the existing `provider` category. A new code needs a new protocol version, so the name is general and another tool can raise it. | `FOOD_CHECK_INCOMPLETE`, also in `provider`, named for the only thing that raises it today. | 8, 9 | recommended |
+| D25 | Step 8 put the operation in the schema and step 9 gave it its Java handler. But Java does not start unless every operation in the schema has a handler. Where does the operation go? | Whole into step 9: the schema, the fixtures, the handler, the one-transaction save, and `recordFood` using it. Step 8 ends with the failure code. | Pull the handler and the one-transaction save forward into step 8. | 8, 9 | recommended |
+| D26 | What does the user get when a run fails with `MODEL_ANSWER_UNUSABLE` (D10, D24)? | The text "The model could not complete a required check. Please try again", with HTTP 500 like every other failure in the `provider` category. | The same text with HTTP 502, because the fault is in the model's answers and not in the server. The rule that gives a failure its status by category then has an exception for this code, in the Java and the Python session. | 9 | Decided by the maintainer on 2026-11-21: HTTP 502, with the proposed text. |
+| D27 | How is the switch read and saved (D7), and what happens when its file cannot be read? | `GET` and `PUT /api/agent/settings` with `{"checkNutrition": true}`, saved in `agent-settings.json`. No file means on. A missing or non-boolean value gets HTTP 400 naming the field. A file that cannot be read or parsed fails the settings request and the chat with HTTP 500 until the switch is saved again, as `llm-settings.json` does. | Treat an unreadable file as on and log a warning. A user who switched the check off would then pay for it without being told. | 9 | recommended |
+| D28 | `IFoodService.insertFood` is called only by the bridge handler that `food.insert_all` replaces. What happens to it? | `insertFoods`, which saves a list in one transaction, replaces it, and its tests move. | Keep both, with only tests calling `insertFood`. | 9 | recommended |
+| D29 | In the many-foods run of 2026-11-21 the content check left fully correct chats unchanged on `gpt-6-luna`, raised them by 4 of 60 on `claude-haiku-5-5` and lowered them by 3 of 60 on `deepseek-flash`, for more than twice the model requests in each chat. Should it run? | Decided by the maintainer on 2026-11-21: no. The content check is forced off and not deleted: the check, its correction and their tests stay in the code. The reason given: even on the low-cost models, the nutrition values the chat model estimates from the first prompt are good enough. [#113](https://github.com/phanmi/tyler_agent/issues/113) records the run. | Keep the Settings switch. Or remove the check's code. | 5, 9, 10 | decided |
+| D30 | How is the content check forced off, and what happens to the Settings switch of steps 9 and 10? | The Settings card, the agent settings endpoint and its file are removed. Java sends `checkNutrition: false` in every `run`. The protocol field and the Python check stay, so the eval harness can still switch the check on. | Remove only the Settings card, and keep the backend setting unused. | 8, 9, 10 | recommended |
 
 ### Proposed additions
 
@@ -192,7 +202,7 @@ This is how steps 3 to 6 are built.
 | `verifyFoodList`, `verifyFoodDates`, and their corrections | Asked again, up to 3 more times. Then the chat fails with an error that says the model could not complete the check, and nothing is saved. |
 | `verifyFoodNutrition` and its correction | Asked once more. Then the food goes on with the values it has. |
 
-The error needs a failure code of its own, and the contract allows a new code only in a new protocol version. So it is added with version 3 in step 8, and until then the chat fails with the existing provider failure.
+The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24). The contract allows a new code only in a new protocol version, so it came with version 3 in step 8. Java answers it with HTTP 502 and the text "The model could not complete a required check. Please try again" (D26). When the run saved something before the call that failed, the text does not ask to try again. It says that some foods may already be saved, and to check the Calendar first (R8 of the second code review).
 
 **Tests.** Steps 3 to 5 test each check on its own, with a real tool context and a scripted model, as the current verifier's tests do. Step 6 puts the checks into `recordFood` and adds the tests through the real agent loop, registry and runtime.
 
@@ -201,6 +211,8 @@ The error needs a failure code of its own, and the contract allows a new code on
 ### How the acceptance criteria are met
 
 #113's criteria were reworded on 2026-11-17 to match D1 to D9 and P1 to P10. **Planned** means a step meets the criterion as #113 now words it.
+
+**Superseded by D30** marks a criterion about the Settings switch, which D30 removed on 2026-11-21. #113 was reworded the same day. Two criteria replace them, in the two rows after the superseded ones, and #113 lists the superseded criteria in one line.
 
 | #113 criterion | How it is met | Steps | Status |
 |---|---|---|---|
@@ -211,25 +223,27 @@ The error needs a failure code of its own, and the contract allows a new code on
 | One tool checks only that a record's date is correct, with an invented date tested. | Verify date and correct date (P2). | 4 | Planned |
 | A unit converted from the user's is not accepted, with the grande latte tested. | The name check reports 16 fl oz, and the correction restores "grande" (D4). | 3 | Partially met: implemented and tested with the name check on, and off in every run since D17. |
 | A `--cheap-models` run of #104's four categories is reported beside #116's run. | Wrong-date chats, and the unit `deepseek-flash` saves for `starbucks-latte`. | 13 | Planned |
-| Settings shows a nutrition check switch, "Check nutrition values", that is on when nothing has been saved, and it persists across a restart. | The first agent setting (D7) and the Settings page (P10). | 9, 10 | Planned |
-| With the switch off, no content check or food correction runs. The name and date checks still run. | `RunSettings` built from the `run` payload switches the content check (D3). Since D17 the name check runs in neither position. | 5, 8 | Planned |
-| A change applies to the next chat, and Java tests prove the `run` payload carries the saved value. | `PythonAgentService` reads the setting when a chat leaves the queue. | 9 | Planned |
-| A missing or non-boolean value gets HTTP 400 naming the field, and the frontend shows it. | The settings controller and the Settings page. | 9, 10 | Planned |
-| The model's file tools refuse the file that stores the switch. | The setting's service implements `IApplicationOwnedFiles`. | 9 | Planned |
+| Settings shows a nutrition check switch, "Check nutrition values", that is on when nothing has been saved, and it persists across a restart. | The first agent setting (D7) and the Settings page (P10). | 9, 10 | Superseded by D30: the switch was removed |
+| With the switch off, no content check or food correction runs. The name and date checks still run. | `RunSettings` built from the `run` payload switches the content check (D3). Since D17 the name check runs in neither position. | 5, 8 | Superseded by D30: there is no switch. Java sends `checkNutrition: false` in every `run`, so no chat of the app runs the content check or its correction, and the date check still runs |
+| A change applies to the next chat, and Java tests prove the `run` payload carries the saved value. | `PythonAgentService` reads the setting when a chat leaves the queue. | 9 | Superseded by D30: the switch was removed |
+| A missing or non-boolean value gets HTTP 400 naming the field, and the frontend shows it. | The settings controller and the Settings page. | 9, 10 | Superseded by D30: the switch was removed |
+| The model's file tools refuse the file that stores the switch. | The setting's service implements `IApplicationOwnedFiles`. | 9 | Superseded by D30: the switch was removed |
 | The version 3 schema and fixtures reject a `run` without `checkNutrition` or with a non-boolean, the fixture tests agree, and a version 2 peer fails with `UNSUPPORTED_VERSION`. | Version 2 moved to version 3 and edited in place (D8). | 8 | Planned |
-| Frontend tests cover the default, a save and a failed save. | Settings page tests. | 10 | Planned |
+| Frontend tests cover the default, a save and a failed save. | Settings page tests. | 10 | Superseded by D30: the switch was removed |
+| No chat of the app runs the content check or its food correction: Java sends `checkNutrition: false` in every `run`, and Java tests prove it. The date check still runs. | `PythonAgentService` sends the constant `CHECK_NUTRITION` (D30). `PythonAgentServiceTest` asserts the payload, and `AgentPersistenceIntegrationTest` runs a chat through the real worker. | 9 | Planned |
+| The content check, its food correction and their tests stay in the code, and the eval harness can run a case with the check on. | `RunSettings.check_nutrition` still switches the check, and the eval harness runs every case with it off and on (D29). | 5, 7 | Planned |
 | A food recorded from a file the chat model read can be accepted and saved. | The name check, the date check and the corrections see the file's content (D6, P9). | 2, 6 | Planned |
 | The name check, the date check and the corrections receive this run's tool results, and no keys. | A general part of `ToolContext` (D6, P9), and a test that no check request carries a key. Since D15 the content check receives them too, so #113's wording needs "every check". | 2, 3, 4, 5 | Planned |
 | A food that matches neither the conversation nor a tool result is not saved. | The name check calls it incorrect, and Python removes it. | 3 | Partially met: implemented and tested with the name check on, and off in every run since D17. |
 | Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Planned |
 | Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Planned |
 | A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Planned |
-| Resending after such a failure creates no duplicates. | Nothing was saved, so nothing is saved twice. | 6, 9 | Planned |
-| Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | A bridge handler and service method of their own (D9). | 8, 9 | Planned |
+| Resending after such a failure creates no duplicates. | Nothing of the failed call was saved, so nothing of it is saved twice. When an earlier call of the same message was saved, the error says so and does not ask the user to send the message again (R8 of the second code review). | 6, 9 | Planned |
+| Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | The operation `food.insert_all`, with a bridge handler and service method of its own (D9, D23). | 9 | Planned |
 | The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Planned |
 | Python tests cover a failure and a cancellation between checks through the real agent loop and runtime. | The failure and cancellation tests in step 6. | 6 | Planned |
 | `AGENT_OPERATIONS.md` describes the new behavior, including what each check sees. | What each check sees. | 11 | Planned |
-| `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md` and the README's Settings section describe the switch. | Including version 3 and D8's rule change. | 11 | Planned |
+| `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md` and the README describe protocol version 3, and say that the nutrition values are not checked a second time. | Including version 3 and D8's rule change. #113 worded this criterion for the switch until D30. | 11 | Planned |
 | The Python checks, `mvn test` and `npm run check` pass. | Run after every area is done. | 12 | Planned |
 
 ## Steps
@@ -243,13 +257,13 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 5 | Content check and food correction (D1, P4), one per food, run at the same time (P6), switched by `RunSettings` (D3). Tests: the user's 1900 kcal banana is kept, and an implausible estimate is corrected. | Done | See the execution record for 2026-11-17, step 5. |
 | 6 | The checks run in P1's order in place of `verified_food`, and no food is saved until every check has finished. The old verifier, `submitFoodVerdict` and their tests are removed. Tests through the real agent loop and runtime: a failure or a cancellation between checks saves nothing, and a food from a file the chat model read is saved. | Done | See the execution record for 2026-11-17, step 6. |
 | 7 | Eval harness: record each check's verdict and reason, and list rejections in the report (P7). | Done | See the execution record for 2026-11-17, step 7. |
-| 8 | Protocol version 3 (D8): the switch field in `run`, the operation that saves a list of foods (D9), and a failure code for a check the model could not complete (D10). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Not started | |
-| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. A bridge handler and service method save a list of foods in one transaction, and `recordFood` uses it, and the eval's `FakeJava` answers it. The new failure code gets its own message for the user (D10). | Not started | |
-| 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Not started | |
-| 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Not started | |
-| 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Not started | |
-| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Partly done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md). Still to do: a run with the name and count check off, and the time a multi-food message takes. |
-| 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Not started | |
+| 8 | Protocol version 3 (D8): the switch field in `run`, and a failure code for a check the model could not complete (D10, D24). The operation that saves a list of foods moved to step 9 (D25). Update the schema, the fixtures, `MessageValidator`, `MessageCodec`, the Python validation, the version constants, and the contract paths in `pom.xml`, `worker.spec`, `tests/desktop-worker.spec` and `tests/conftest.py`. A version 2 peer fails with `UNSUPPORTED_VERSION`. The runtime builds `RunSettings` from the payload. | Done | See the execution record for 2026-11-20, step 8. |
+| 9 | Java: the switch's storage (D7), implementing `IApplicationOwnedFiles`, which rejects a missing or non-boolean value with HTTP 400 naming the field. `PythonAgentService` sends the value when a chat leaves the queue. The operation `food.insert_all` saves a list of foods in one transaction and replaces `food.insert` (D9, D23, D25): version 3's schema and fixtures, a bridge handler and a service method. `recordFood` uses it, and the eval's `FakeJava` answers it. The new failure code gets its own message for the user (D10, D24, D26). | Done; the switch's storage was then removed by D30 | See the execution record for 2026-11-21, step 9, and for D29 and D30. |
+| 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Done, then removed by D30 | See the execution record for 2026-11-21, step 10, and for D29 and D30. |
+| 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Done | See the execution record for 2026-11-21, step 11. |
+| 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Done | See the execution record for 2026-11-21, step 12. |
+| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Partly done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md). The many-foods run with the name and count check off was made on 2026-11-21 and gives the time a multi-food message takes; see the execution record for D29 and D30. Still to do: the run of #104's four categories with the name and count check off, and the write-up of the 2026-11-21 run under `docs/evals/`. |
+| 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Done for steps 8 to 12 | Opened on 2026-11-21, before step 13 is finished. See the execution record for the second code review. |
 
 ## Decisions
 
@@ -265,6 +279,14 @@ The error needs a failure code of its own, and the contract allows a new code on
 | 2026-11-18 | D17: the name and count check is switched off in every run, with its code kept, until [#118](https://github.com/phanmi/tyler_agent/issues/118) shows with new classes of eval cases whether it does important work. | Maintainer |
 | 2026-11-18 | The requirements that rest on the name and count check are partially met: it is implemented, and it is switched on only after it is proved to work. Proving that needs complex eval cases designed for it, which is out of scope for #113 and goes to [#118](https://github.com/phanmi/tyler_agent/issues/118). | Maintainer |
 | 2026-11-18 | Review findings F1 to F10 on PR #117. F1 and F2: the stricter option, so Python also rejects a negative number in a correction and a corrected date that is not a real calendar date (D18, D19). F4, F6 and F7: as proposed (D20 to D22). F3: one check for each `recordFood` call stays, and the eval run is read for foods saved twice. F5, F8, F9 and F10: the proposed code changes. | Maintainer, in the PR's review threads |
+| 2026-11-20 | D23 to D25, when step 8 started: `food.insert_all` replaces `food.insert`, the failure code is `provider/MODEL_ANSWER_UNUSABLE`, and the operation moves whole into step 9. | Maintainer |
+| 2026-11-21 | D26 to D28, when step 9 started: `MODEL_ANSWER_UNUSABLE` is answered with HTTP 502 and its own text, the switch is saved through `/api/agent/settings` and an unreadable file is an error, and `insertFoods` replaces `insertFood`. | Maintainer |
+| 2026-11-21 | The seven findings of the code review in step 12: R1 A, R2 B, R3 A, R4 A, R5 A, R6 A and R7 A. The workout plan's part of R1 goes to [#119](https://github.com/phanmi/tyler_agent/issues/119), and R2 to [#120](https://github.com/phanmi/tyler_agent/issues/120). | Maintainer |
+| 2026-11-21 | D29, from the many-foods run of 2026-11-21: the content check is forced off and not deleted. Even on the low-cost models, the nutrition values the chat model estimates from the first prompt are good enough. Recorded in [#113](https://github.com/phanmi/tyler_agent/issues/113)'s description. | Maintainer |
+| 2026-11-21 | D30: option A. The Settings card, the agent settings endpoint and its file are removed, Java sends `checkNutrition: false` in every `run`, and the protocol field and the Python check stay. | Maintainer |
+| 2026-11-21 | After D30, what R5 extracted has one user. Option A: `SandboxJsonFile`, `useLoadedSettings` and `SettingsLoadError` are deleted, and the provider settings code is what `main` has. | Maintainer |
+| 2026-11-21 | #113's wording after D30 is approved and posted: how the check is forced off, the scope of #98, and two criteria in place of the five about the switch. | Maintainer |
+| 2026-11-21 | The four findings of the second code review: R8 B, fixed in [PR #121](https://github.com/phanmi/tyler_agent/pull/121) because it blocks the release, and R9 A, R10 A and R11 A. | Maintainer, in the PR's threads; R10 in chat |
 
 Decisions made before this plan are in #113's description.
 
@@ -686,3 +708,331 @@ F8 and F10 change no behaviour, and the existing tests cover them. One eval-runn
 
 - No eval has run with these changes. Two of them change what a correction request sends: `correctFood`'s description is shorter (F5), and its prompt says that the last message is the user's latest (F9).
 - The newest automated review of PR #117 has one finding without a decision: the content check is on in every run, and the full run shows it making some correct records wrong.
+
+### 2026-11-20 Step 8: protocol version 3, the switch in `run` and the failure code
+
+**What this is.** Step 8 as D25 leaves it: the new protocol version, the switch, and the failure code. The operation that saves a list of foods is step 9's.
+
+**What changed**
+
+- **The contract is version 3 (D8).** `contracts/agent/v2/` moved to `v3/` with `git mv` and was edited in place. The schema, both validators and every fixture say 3.
+- **A version 2 peer fails with `UNSUPPORTED_VERSION`.** The message case `invalid_version`, the framing case `unsupported_version` and the fake workers of both test suites now send version 2 as the retired version.
+- **`run` has a required boolean, `checkNutrition` (P10).** Five new message cases: the switch off is accepted, and a missing value, text, null and a number are each rejected. Every other `run` case names the field, so it is still valid or invalid for its own reason.
+- **Python reads it.** `agent.run_settings` builds `RunSettings` from the payload, and the runtime uses that in place of the defaults. The eval runner puts the switch in its payload and reads it back the same way, so a chat in the eval gets its settings as a chat in the app does.
+- **Java sends `true` in every run.** `PythonAgentService` has no saved setting to read until step 9.
+- **A check that cannot be answered fails the run with a code of its own (D10, D24).** The schema's `provider` category has a second code, `MODEL_ANSWER_UNUSABLE`, with one new message case. `must_ask` raises it where it raised `PROVIDER_FAILURE`. A request that itself fails is still `PROVIDER_FAILURE`.
+- **Java does not treat the new code differently yet.** It has no mapping of its own, so the user still sees "Internal server error" until step 9.
+- **Docs.** `AGENT_PROTOCOL.md` describes version 3, D8's rule for moving the contract, and the new code. `AGENT_OPERATIONS.md` names the code a failed check ends with. `AGENT_SESSION.md`, `BACKEND_STANDARDS.md`, `DEVELOPMENT.md`, the Python README and the review rules name the new version or path. `AGENT_SESSION.md` still said version 1.
+
+**Tests shown to catch their bug.** Each change was removed in turn. The tests named failed, and passed again with it restored.
+
+- The schema not requiring `checkNutrition`: the missing-value case failed in Python and in both Java fixture tests.
+- The schema accepting any type for it: the text, null and number cases failed in Python and in both Java fixture tests.
+- The runtime ignoring the payload: `test_the_run_payload_switches_the_nutrition_check` failed, once with the switch forced on and once with it forced off.
+- Java not sending the field: `PythonAgentServiceTest` failed.
+- The eval runner not sending the field: 12 eval-runner tests failed.
+- The schema without `MODEL_ANSWER_UNUSABLE`: the new message case failed in Python and in both Java fixture tests.
+- `must_ask` raising `PROVIDER_FAILURE` again: 28 tests of the name and count check, the date check and `recordFood` failed. They are the five existing tests of a required answer that stays unusable, which now assert the new code.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1003 passed and 1 skipped.
+- Java: `mvn test` with 899 tests, 0 failures, 0 errors and 5 skipped. Before the failure code was added, `mvn clean test` ran on the moved contract with 897 tests and the same result.
+- Not run: `npm run check`, because the frontend did not change. The Windows bundle was not rebuilt, although `worker.spec` now takes the schema from `v3/`.
+
+**Left open**
+
+- **Version 3 changes once more in step 9,** when `food.insert_all` replaces `food.insert` (D23, D25). So no release should carry step 8 without step 9.
+- **The new code has no message for the user yet.** Step 9 adds Java's mapping for it.
+- No eval has run with these changes. None of them changes what a model is sent.
+
+### 2026-11-21 Step 9: the saved switch, the one-transaction save and the failure's message
+
+**What this is.** Step 9 as D23 to D28 leave it. It has three parts: Java saves the switch and sends it, a message's foods are saved in one transaction, and the user is told when a required check could not be answered.
+
+**The switch (D7, D27)**
+
+- **Its own model, service, controller and file.** `AgentSettings` holds `checkNutrition`. `AgentSettingsService` keeps it in `agent-settings.json`, and `AgentSettingsController` serves `GET` and `PUT /api/agent/settings`. The property `agent.settings-file-path` names the file.
+- **On when nothing was saved.** A missing file means on. So does a file that does not mention the switch.
+- **A missing or non-boolean value gets HTTP 400 naming the field.** The text `"true"` and the number `1` are rejected too, and nothing is saved.
+- **An unreadable or invalid file is an error.** The settings request and the chat fail with HTTP 500 until the switch is saved again, which rewrites the file.
+- **The model's file tools refuse the file.** The service implements `IApplicationOwnedFiles`.
+- **A chat reads the saved value when it leaves the queue.** `PythonAgentService` puts it in the `run` payload, so a change applies to the next chat.
+
+**The one-transaction save (D9, D23, D28)**
+
+- **The contract.** `food.insert_all` takes `{foods: [food, ...]}` with at least one food and returns `{foods: [{id, food}, ...]}` in the same order. `food.insert` is no longer an operation. Twenty-nine message cases changed shape, and four new cases reject an empty list, the old one-food input, the old operation name, and an empty result.
+- **Java.** `FoodInsertAllHandler` replaces `FoodInsertHandler`. `IFoodService.insertFoods` replaces `insertFood`: it validates every food, then inserts them in one transaction.
+- **The transaction is real.** `FoodDatabaseConfig` gives the food DAO and a transaction manager the same data source, as `WorkoutDatabaseConfig` does for workouts. The DAO now takes that `JdbcTemplate`.
+- **Python.** `recordFood` sends the foods its checks leave in one request. When the checks leave no food it sends none. The eval's `FakeJava` and the test fakes answer the new operation.
+
+**The failure's message (D10, D24, D26)**
+
+- **HTTP 502 with its own text.** `ProtocolFailures` maps `MODEL_ANSWER_UNUSABLE` to `ModelAnswerUnusableException`, and the new `ProviderExceptionHandler` answers "The model could not complete a required check. Please try again".
+- **The sessions agree.** The Java and the Python session report 502 for this code, and 500 for the rest of its category.
+
+**Choices of mine, not decided by the maintainer**
+
+- A settings file that does not mention the switch means on. It is how `llm-settings.json` treats a provider it does not mention, and it lets #82 add a setting without making older files invalid.
+- In the request body, JSON `null` counts as a missing value.
+- The list has no upper limit in the schema. The frame limit of the protocol still bounds it.
+- Inside Python a food keeps its `{"food": ...}` wrapper, so the checks did not change. The adapter unwraps it for the request.
+- The food database got a configuration class of its own rather than a transaction inside the DAO, because `BACKEND_STANDARDS.md` asks for a transaction manager on the DAO's data source.
+
+**Docs.** `AGENT_PROTOCOL.md`, `AGENT_OPERATIONS.md`, `AGENT_SESSION.md`, `BACKEND_STANDARDS.md`, `FILE_SANDBOX.md` and `DEVELOPMENT.md` describe the operation, the settings endpoint, the file, the property and the two new messages a user can see.
+
+**Tests shown to catch their bug.** Each change was removed in turn. The tests named failed, and passed again with it restored.
+
+- The schema allowing an empty list, the old one-food input, the old operation name or an empty result: the matching new message case failed, in Python and in both Java fixture tests.
+- `recordFood` sending an empty list: `test_a_call_whose_only_record_is_removed_asks_java_to_save_nothing` failed.
+- `recordFood` sending one request for each food: the test of the checks' order and three tool tests failed.
+- Java inserting outside a transaction: the rollback test at the bridge and the one through the real worker failed.
+- Java validating each food just before its insert: `FoodServiceTest.invalidInputsNeverAccessStorage` failed.
+- Both together, which is the old one-at-a-time save: the two rollback tests failed, and so did the `second_food_negative` case through the real worker.
+- The handler calling the service once for each food: `FoodInsertAllHandlerTest` failed.
+- `MODEL_ANSWER_UNUSABLE` without its mapping: `ProtocolFailuresTest` and the `unanswered_check` case through the real worker failed.
+- The advice answering 500: `ProviderExceptionHandlerTest` and `ProtocolFailuresTest` failed.
+- A session reporting 500 for the code: `ProtocolSessionTest` failed for Java, and `test_session.py` for Python.
+- The run always carrying `true`: `PythonAgentServiceTest` and the switch test through the real worker failed.
+- A missing value read as on, and text or a number read as a boolean: `AgentSettingsControllerTest` failed for each.
+- An invalid file read as the default: `AgentSettingsServiceTest` and `AgentSettingsControllerTest` failed.
+- The settings service declaring no file: `ProtectedWorkspaceFilesTest` failed, and through the real worker the model could read the file.
+- The list save left out of the write operations: 10 sequence cases failed in each language.
+- The eval's `FakeJava` not answering the operation: 5 eval-runner tests failed.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test` with 952 tests, 0 failures, 0 errors and 5 skipped.
+- Not run: `npm run check`, because the frontend did not change. The Windows bundle was not rebuilt. No eval ran; these changes do not alter what a model is sent.
+
+**Left open**
+
+- **The switch has no control in Settings yet.** Until step 10 it can be changed only through the endpoint. Step 10 added it.
+- **The README's Settings section** waits for step 11, with the frontend. Step 11 wrote it.
+- **The names of the write operations are listed in four places:** `ProtocolSession`, `PythonWorker` and `WorkerMessages` in Java, and `session.py` in Python. Replacing `food.insert` meant editing all four. They were listed that way before this step. [#120](https://github.com/phanmi/tyler_agent/issues/120) is to give them one place.
+
+### 2026-11-21 Step 10: the switch in Settings
+
+**What this is.** The frontend for the switch that step 9 stores: Settings shows it, changing it saves it, and a failed save is shown.
+
+**What changed**
+
+- **A card on the Settings page, "Food recording".** It holds one switch, "Check nutrition values" (P10), a native checkbox with the switch role. It is on when nothing was saved, because that is what the backend answers.
+- **Its description says what the check costs:** one more model call for each food, and another when the values need correcting. It also says that the date of each food is checked either way. The description is read out with the switch.
+- **Changing it saves at once.** While the save runs, the switch shows the choice and is locked. Then it shows what the backend saved and a line that says so.
+- **A failed save shows the backend's message,** such as the one that names the field, and the switch returns to the saved value.
+- **A failed load shows the error with a retry,** and no switch that could be taken for the saved value.
+- **An invalid `agent-settings.json` gets a reset,** which saves the default and so rewrites the file (D27). Without it the user could only delete the file by hand.
+- **The API client** has `loadAgentSettings`, `saveAgentSettings` and `isInvalidAgentSettingsFile`, and checks that the response holds a boolean.
+- **Docs.** `DEVELOPMENT.md` says where the switch is and how to repair the file from Settings.
+
+**Choices of mine, not decided by the maintainer**
+
+- The card's title, "Food recording", and the wording of the description and of the two confirmation lines.
+- The switch is drawn as a checkbox, like the other controls on the page, and announced as a switch.
+- The reset for an invalid file, and its wording.
+- The card shares its look with the provider card. The shared CSS rules name both prefixes, `llm-` and `agent-`, so neither card uses the other's class names.
+
+**Tests shown to catch their bug.** Each of 17 behaviours was broken in turn. The tests named for it failed, and passed again with it restored.
+
+- The API client: reading any response as settings, saving with POST, not passing the abort signal, and taking any error with the text for the invalid file.
+- The Settings page without the card.
+- The switch: no description tied to it, a second change sent while one is pending, success shown before the backend answers, a failed save with no message, and always showing on.
+- The settings hook: showing what was asked for in place of what the backend saved, showing the default after a failed load or before the load finishes, and not aborting the load when the page is left.
+- The card: a reset that loads again in place of saving, only a retry for an invalid file, and saving the opposite value.
+
+**Checked by eye.** The real Settings page was rendered against a stand-in backend and captured: the switch on, off with its confirmation, a failed save, the invalid-file reset, and keyboard focus. Sizes: 1200 by 800 at 100% and at 200% zoom, and 820 by 600. The card reflows and nothing is cut off. It was not run against the real backend or in the packaged app.
+
+**Checks**
+
+- Frontend: `npm run check` passes: Prettier, ESLint with no warnings, the type check, 118 UI tests in 7 files, 23 startup tests, 3 version tests, and the production build.
+- Not run again: the Python and Java checks, because this step changed only the frontend and two documents.
+
+**Left open**
+
+- **Two shared colours are below the 4.5 to 1 contrast that `FRONTEND_STANDARDS.md` asks for small text:** `--success` is 3.41 to 1 on a white card and `--danger` is 4.38 to 1. The new card uses them as the provider card and the profile form already do. Changing the tokens would change every page.
+- **The README's Settings section** waits for step 11. Step 11 wrote it.
+
+### 2026-11-21 Step 11: docs
+
+**What this is.** The docs step 11 names, read against what steps 8 to 10 built. Most were updated in the step that changed the behaviour. This entry lists what was still out of date or missing.
+
+**What changed**
+
+- **`README.md`.** The paragraph on what Tyler checks before saving still described the old single check: the food, its amount, a food refused after failing twice, and up to three extra requests for each food. It now describes the date check, the nutrition check, the save of a message's foods together, and what the checks cost. The Settings section describes **Food recording → Check nutrition values**.
+- **`AGENT_OPERATIONS.md`.** The handler list named `FoodInsertHandler`. The persistence section said food is saved through the path HTTP uses, and HTTP has no insert. The test inventory lists the new tests, and the switches paragraph names the control in Settings.
+- **What each check sees** was compared with the prompts in the code: the table in `AGENT_OPERATIONS.md` matched and did not change.
+- **`DEVELOPMENT.md`.** The switch is part of what Java reads when a chat leaves the queue. The `recordFood` row, the paragraph on the databases, the repository layout and the styles paragraph name what steps 9 and 10 added.
+- **The eval README.** It says that its two modes are the two positions of the switch in Settings. It lists the failure names a run shows, with the new `provider/MODEL_ANSWER_UNUSABLE`. It says that the stand-in for Java keeps the other foods of a call when one would be rejected.
+- **`AGENT_PROTOCOL.md` and `BACKEND_STANDARDS.md`** were updated in steps 8 and 9 and needed nothing more.
+
+**Checks**
+
+- The targets of the new links exist. CI has no link check.
+- `pytest tests` with 1009 passed and 1 skipped: one test reads the eval README.
+- Not run: the Java and frontend checks, because this step changed only documents.
+
+**Left open**
+
+- **The README says a message's foods are recorded in one step.** A chat model that spreads them over several `recordFood` calls has each call saved on its own, as `AGENT_OPERATIONS.md` says under the limits of the checks.
+- **`PYTHON_AGENT_STANDARDS.md`** has no sentence for the exception to PY-04 that D18 and D19 made. Whether it gets one was asked in the review of PR #117 and is not decided.
+
+### 2026-11-21 Step 12: checks and code review
+
+**Checks on the whole change**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test` with 952 tests, 0 failures, 0 errors and 5 skipped.
+- Frontend: `npm run check` passes: Prettier, ESLint with no warnings, the type check, 118 UI tests, 23 startup tests, 3 version tests and the production build.
+- Each new test was shown to catch its bug in the step that added it; the entries for steps 8, 9 and 10 list them. After those runs, only documents changed.
+
+**`/code-review`** ran on the whole change, at the effort level `high`. It reported seven findings. Each was checked against the code.
+
+| | Finding | How it can happen | Decision |
+|---|---|---|---|
+| R1 | A database failure while the food transaction opens or commits is reported as a worker failure. `FoodService.insertFoods` lets Spring's `TransactionException` out, and `WorkerMessages` maps anything it does not know to `WORKER_UNAVAILABLE`. | The workspace folder is removed while the app runs, or SQLite is busy at commit. Chat then shows "Internal server error". Before step 9 the same failure was a `SQL_WRITE`, shown as "Database operation failed". `WorkoutPlanService` has had the same gap since before #113. | A. `insertFoods` turns a `TransactionException` into `SQLPersistentException` and keeps the cause. [#119](https://github.com/phanmi/tyler_agent/issues/119) holds the workout plan. |
+| R2 | The names of the write operations are listed in four places: `ProtocolSession`, `PythonWorker`, `WorkerMessages` and `session.py`. | A later rename or a new write operation misses one copy. If it is `WorkerMessages`, a failed write is reported as having written nothing. The lists were there before #113; step 9 edited all four. | B. No code change. [#120](https://github.com/phanmi/tyler_agent/issues/120) is to make the schema the one place both languages read the list from. |
+| R3 | The line that confirms a change of the switch states the value that was asked for, not the value the backend saved. | The backend answers with another value than it was asked to save. Today it always answers with what it saved, so this cannot happen yet. | A. The line states what the backend saved, and the test of that case asserts it. |
+| R4 | The README says a message's foods are saved all or none and that the message can be sent again. The guarantee is for one `recordFood` call. | A model spreads a message's foods over two calls. The first is saved, the second fails, the user sends the message again, and the first call's foods are saved twice. | A. The README says "normally in one step" and tells the user to look at the Calendar before sending the message again. The troubleshooting row in `DEVELOPMENT.md` says the same. |
+| R5 | The agent settings code repeats the provider settings code: the file handling of `LlmSettingsService`, the load-error and reset block of `ProviderSettingsPanel`, and the load effect of `useLlmSettings`. | A later fix to one copy leaves the other with the old behaviour. | A. `SandboxJsonFile` holds the file handling of both settings services. `useLoadedSettings` holds the load of both hooks, and `SettingsLoadError` the block both cards show after a failed load. |
+| R6 | `MODEL_ANSWER_UNUSABLE` and its status 502 are written inline in `ProtocolSession`, and the code again in `ProtocolFailures`. | A typo or a rename in one of the two makes the session report 500 while the response is 502. | A. `ProtocolFailures.MODEL_ANSWER_UNUSABLE` names the code once. `ProtocolSession` has the two status tables the Python session has. |
+| R7 | The class comment of `ProtectedWorkspaceFiles` lists the protected files without the agent settings file. | A reader takes `agent-settings.json` for a file the model's file tools can reach. The code refuses it. | A. The comment points to `IApplicationOwnedFiles` and lists no file. |
+
+**The decisions.** The maintainer answered all seven on 2026-11-21: R1 A, R2 B, R3 A, R4 A, R5 A, R6 A and R7 A. The table says what each one changed.
+
+**R5 changed code #113 had not touched:** `LlmSettingsService`, `ProviderSettingsPanel` and `useLlmSettings`. Their behaviour is the same, and their existing tests pass unchanged. `useLlmSettings` no longer keeps a flag for whether the page is still open, because React ignores a state change after that.
+
+**Tests shown to catch their bug.** Each was removed or broken in turn; the tests named failed, and passed again once restored.
+
+- `insertFoods` not translating a transaction failure: the two new `FoodServiceTest` cases failed, one for a transaction that cannot open and one for a commit that fails.
+- `SandboxJsonFile` reading a missing file, passing content that is not an object to the parser, not translating a parser's rejection or a rejected path, and writing on one line: its own tests failed, and with them the tests of both settings services.
+- The session without a status of its own for the code: `ProtocolSessionTest` failed.
+- The confirmation line stating what was asked for: the test of a backend that answers another value failed.
+- The shared hook showing a failed load as loaded, or not aborting a load; the shared block without the reset, or hiding a failed reset: the tests of both cards failed.
+
+**Checks after these changes**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test` with 964 tests, 0 failures, 0 errors and 5 skipped.
+- Frontend: `npm run check` passes, with 118 UI tests, 23 startup tests, 3 version tests and the build.
+- Not done: the review was not run again on the changes it led to.
+
+**Left open**
+
+- Nothing from this step. [#119](https://github.com/phanmi/tyler_agent/issues/119) and [#120](https://github.com/phanmi/tyler_agent/issues/120) hold what was moved out of #113.
+
+### 2026-11-21 The content check is forced off (D29, D30)
+
+**The run.** The maintainer ran `--cheap-models --category many-items` on the code of steps 8 to 12: 20 cases, 3 repeats, the content check off and on, 360 chats. All ran and none failed. The date check ran in both modes and the name and count check in neither. The generated report is `agent-python/evals/results/20261121-182459.md`, which git ignores.
+
+| Model | Fully correct chats, check off → on (%) | Wrong saves, off → on | Model requests per chat, off → on | Cost per chat, on ÷ off | Median reply (s), off → on |
+|---|--:|--:|--:|--:|--:|
+| `gpt-6-luna` | 88.3 → 88.3 | 7 → 7 | 4.00 → 9.27 | 1.6 | 8.3 → 11.0 |
+| `claude-haiku-5-5` | 78.3 → 85.0 | 19 → 11 | 4.00 → 8.92 | 2.0 | 8.5 → 12.2 |
+| `deepseek-flash` | 86.7 → 81.7 | 8 → 12 | 4.00 → 8.93 | 1.7 | 5.7 → 6.9 |
+
+- **No food was missed, and no saved date was wrong,** in either mode on any model. Every wrong save is a nutrition value outside the eval's tolerance.
+- **With the check off,** 281, 269 and 280 of each model's 288 foods had every nutrition value within tolerance, and the median calorie error was 0.2%, 0.4% and 0.3%.
+- **With the check on,** it had 43 foods written again. 6 of those fixed a value outside tolerance, all on `claude-haiku-5-5`. 10 made a correct food wrong: 5, 1 and 4. 20 foods with a value outside tolerance were saved as the chat model wrote them.
+- **Against the many-foods baseline of 2026-11-16** with no verification, which had 80.0%, 80.0% and 64.4% fully correct: this run with the check off has 88.3%, 78.3% and 86.7%. `claude-haiku-5-5` is one chat below its baseline.
+- **The time a multi-food message takes.** In the baseline the median chat took 7.7, 7.9 and 5.5 s with no verification and 16.4, 29.3 and 15.7 s with the old verifier on. In this run it took 8.3, 8.5 and 5.7 s with the content check off.
+
+The counts of fixed, broken and unchanged foods were read from the report's two tables: a wrong save in a chat with the check on counts as made by the check when the check corrected that food in that chat, and the value its reason quotes was within tolerance before.
+
+**D29.** The maintainer decided from this run that the content check is forced off and not deleted, and that [#113](https://github.com/phanmi/tyler_agent/issues/113) records it with the run as the reason. The section "Content check: forced off, and kept in the code" was added to #113's description on 2026-11-21.
+
+**D30, option A. What was removed**
+
+- **Frontend:** the Food recording card of Settings: `AgentSettingsPanel`, `NutritionCheckSwitch`, `useAgentSettings`, their tests, the agent settings calls in `api.ts` and their tests, and the card's style rules.
+- **Java:** `AgentSettings`, `AgentSettingsService`, `AgentSettingsController`, their interfaces and tests, the property `agent.settings-file-path`, and the tests of `agent-settings.json` being refused to the model's file tools.
+- **`PythonAgentService`** no longer reads a saved switch. It sends `checkNutrition: false` in every `run`, from the named constant `CHECK_NUTRITION`.
+
+**What stays**
+
+- **The check.** `content_check.py`, the food correction and their tests are unchanged. `RunSettings.check_nutrition` still switches the check, and the eval harness still runs every case with it off and on.
+- **Protocol version 3** is unchanged: `run.checkNutrition` is still required and must be a JSON boolean.
+- **The rest of steps 8 and 9:** `food.insert_all` and the one-transaction save, and the failure code `MODEL_ANSWER_UNUSABLE` with its HTTP 502. The date check still raises that failure.
+
+**Tests**
+
+- `PythonAgentServiceTest.everyChatIsSentWithTheNutritionCheckOff` replaces the two tests of the saved switch. It asserts the `run` payload carries the JSON boolean `false`.
+- `AgentPersistenceIntegrationTest.aChatOfTheAppMakesNoNutritionCheckAndStillSavesItsFood` replaces the test of the switch saved over HTTP. Through the real Python worker, a chat that records a food asks for no nutrition check and saves the food.
+- **Shown to catch their bug.** With `CHECK_NUTRITION` set to `true`, both tests failed; with the `checkNutrition` line removed from the payload, the first failed. Both passed again once restored.
+
+**Docs.** `README.md`, `AGENT_OPERATIONS.md`, `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, `FILE_SANDBOX.md` and the eval README no longer describe a switch. They say the content check is off in every chat of the app, and `AGENT_OPERATIONS.md` gives the reason.
+
+**Checks**
+
+- Python: `ruff format --check` and `ruff check` clean, `mypy` clean for `linux` and `win32`, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test` with 929 tests, 0 failures, 0 errors and 5 skipped.
+- Frontend: `npm run check` passes, with 96 UI tests, 23 startup tests, 3 version tests and the build.
+
+**What R5 extracted, removed.** R5 gave the two settings cards shared code. With one card left, the maintainer decided on 2026-11-21 to remove it.
+
+- **Deleted:** `SandboxJsonFile` and its test class, `useLoadedSettings` and `SettingsLoadError`.
+- **As on `main` again:** `LlmSettingsService`, `ProviderSettingsPanel`, `useLlmSettings` and `settings.css`. Their tests were not changed by R5 and pass.
+- **No frontend file differs from `main`** after this.
+- **Checks after the removal:** `mvn clean test` with 919 tests, 0 failures, 0 errors and 5 skipped, and `npm run check` with 96 UI tests, 23 startup tests, 3 version tests and the build. No Python file changed, so the Python checks were not run again.
+
+**#113 reworded.** The maintainer approved the wording on 2026-11-21 and it was posted the same day:
+
+- The open point of the content check's section now says how the check is forced off.
+- The scope section for #98 is titled "built, then removed".
+- Two criteria replace the five about the switch, which #113 lists in one line as superseded.
+- The docs criterion asks for protocol version 3 and for the docs to say the nutrition values are not checked a second time.
+- The line on the `FRONTEND_STANDARDS.md` sections that apply says none do, because no frontend file changes.
+
+**Left open**
+
+- The run is not written up under `docs/evals/`, and #104's four categories were not run with the name and count check off.
+
+### 2026-11-21 Second code review, and the PR (step 14)
+
+`/code-review` ran at level `high` on the branch after D29, D30 and the removal of what R5 extracted. It found no blocking bug, and four findings. Each was checked against the code and is real.
+
+The maintainer asked for the PR to be opened with the findings as comments, and decided them there on 2026-11-21.
+
+| | Finding | Where | Proposed | Decision |
+|---|---|---|---|---|
+| R8 | The HTTP 502 text ends with "Please try again", whatever the run saved before it failed. When a chat's first `recordFood` call saved and its second call failed, sending the message again saves the first call's foods twice. Every other failure has the same gap, and it was there before this branch. | `ProtocolFailures.java` | A follow-up issue that covers every failure after a save | B. Fixed in this PR for this code, because it blocks the release. |
+| R9 | The contract still describes a saved setting: the `$comment` of `run.checkNutrition`, and the description of the fixture `invalid_null_check_nutrition`. | `contracts/agent/v3/` | Reword both | A |
+| R10 | The "Food validation" row of the current-state table in `AGENT_MIGRATION.md` names `food.insert`. | `docs/AGENT_MIGRATION.md` | Name `food.insert_all` and `IFoodService.insertFoods` | A |
+| R11 | Python writes the code `MODEL_ANSWER_UNUSABLE` as text in two modules, and the status 500 that the same lookup falls back to has no name. Java has a constant for each. | `failures.py`, `session.py` | One constant for the code, and a named fallback status | A, to avoid duplicate code |
+
+A second review posted on the PR reported R8, R9 and R10 again, and no other finding.
+
+### 2026-11-21 The second review's decisions applied
+
+**What changed**
+
+- **R8.** For `MODEL_ANSWER_UNUSABLE`, the text goes by what the run saved before it failed.
+  - Nothing (`none`): "The model could not complete a required check. Please try again", as before.
+  - Something, or a write still open (`committed`, `unknown`): "The model could not complete a required check. Some foods from this message may already be saved. Check the Calendar before sending it again".
+  - `ProtocolFailures.translate` takes the outcome as a parameter. `PythonWorker` passes the one in the session's decision on the `failed` message, which is Java's own ledger. The `writeOutcome` in the worker's failure is not read, because `AGENT_SESSION.md` calls it a claim and the ledger authoritative. For this failure the two hold the same value.
+  - The other failures keep the gap, as option B says.
+- **R9.** Both texts are reworded as proposed. What the schema accepts did not change.
+- **R10.** The row names `food.insert_all` with every food of the call, and `IFoodService.insertFoods`.
+- **R11.** `failures.py` has the constant `MODEL_ANSWER_UNUSABLE`, which `model_answer_unusable()` and the session's `STATUS_BY_CODE` use. `session.py` names the fallback `OTHER_FAILURE_STATUS`.
+
+**Tests for R8**
+
+- Through the real worker, the new scenario `saved_then_unanswered_check` makes two `recordFood` calls and answers only the first call's date check. The chat answers 502 with the new text, one food stays saved, and history is empty.
+- `ProtocolFailuresTest` covers `unknown`, with a failure that itself claims `none`.
+- With the text chosen without the outcome, both tests failed. With the fix back, both passed.
+- R11 has no new test, because the fixture test `failed_model_answer_unusable` covers the lookup.
+
+**Docs**
+
+`AGENT_OPERATIONS.md`, `AGENT_PROTOCOL.md`, `AGENT_SESSION.md`, `DEVELOPMENT.md`, the README and the eval README give both texts, or say which one the user sees.
+
+**Checks**
+
+- Python: `ruff format --check`, `ruff check`, `mypy` for Linux and Windows, and `pytest tests` with 1009 passed and 1 skipped.
+- Java: `mvn clean test`, with 921 tests, 0 failures, 0 errors and 5 skipped. That is the 919 from before and the two new tests.
+- Frontend: not run, because no frontend file changed.
+
+**Left open**
+
+- The other failures still answer "Please try again later" after a save. No issue is opened for them.
+- A user who sends the message again in spite of the warning still saves the first call's foods twice. #113's criterion about resending is met only as far as the app no longer asks for it.

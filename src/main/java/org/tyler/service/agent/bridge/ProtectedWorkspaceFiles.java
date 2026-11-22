@@ -19,8 +19,9 @@ import java.util.stream.Collectors;
 
 /**
  * Application files the model's file tools must never read or write: every path declared by an
- * {@link IApplicationOwnedFiles} service (provider keys, provider settings, chat history). The
- * owning services use the sandbox directly.
+ * {@link IApplicationOwnedFiles} service. The implementations of that interface are the list; it
+ * is not repeated here, so a new owner needs no change in this class. The owning services use
+ * the sandbox directly.
  *
  * <p>Paths are compared after sandbox resolution in Windows' most permissive form (case and
  * trailing dots or spaces ignored) on every OS, and by file identity when both files exist, so

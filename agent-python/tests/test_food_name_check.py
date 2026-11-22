@@ -254,7 +254,7 @@ def test_the_check_is_asked_three_more_times_before_the_run_fails() -> None:
 
     with pytest.raises(AgentFailure) as caught:
         asyncio.run(scenario())
-    assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
+    assert (caught.value.category, caught.value.code) == ("provider", "MODEL_ANSWER_UNUSABLE")
     assert len(model.prompts) == REQUIRED_ATTEMPTS
 
 
@@ -279,7 +279,7 @@ def test_an_unusable_correction_is_asked_again_then_fails_the_run(unusable: Assi
 
     with pytest.raises(AgentFailure) as caught:
         check([listed(missing=["1 cup of rice"])] + [unusable] * REQUIRED_ATTEMPTS, CHICKEN)
-    assert (caught.value.category, caught.value.code) == ("provider", "PROVIDER_FAILURE")
+    assert (caught.value.category, caught.value.code) == ("provider", "MODEL_ANSWER_UNUSABLE")
 
 
 class HeldCorrections:

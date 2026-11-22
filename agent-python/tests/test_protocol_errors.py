@@ -53,9 +53,8 @@ def test_semantic_failure_identifies_field(field: str, value: Any, detail: str) 
 
 
 def test_numeric_failure_identifies_field_and_limit() -> None:
-    message = sequence_message(
-        {"ref": "food_request", "set": {"/payload/input/food/genericInfo/amount": "2000000001"}}
-    )
+    message = sequence_message({"ref": "food_request"})
+    message["payload"]["input"]["foods"][0]["genericInfo"]["amount"] = "2000000001"
     with pytest.raises(
         ProtocolError, match="amount must have an absolute value at most 2000000000"
     ):

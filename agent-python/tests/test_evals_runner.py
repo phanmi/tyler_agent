@@ -26,7 +26,7 @@ from evals.java import FakeJava
 from evals.runner import ChatResult, ModelCall, run_chat, run_payload
 from tyler_agent.agent import tool_context
 from tyler_agent.failures import AgentFailure
-from tyler_agent.protocol.validation import MessageValidator
+from tyler_agent.protocol.validation import PROTOCOL_VERSION, MessageValidator
 from tyler_agent.tools import ToolAdapters
 from tyler_agent.tools.builtin.food_record.content_check import VERIFY_FOOD_NUTRITION
 from tyler_agent.tools.builtin.food_record.foods import Change, Finding
@@ -136,7 +136,7 @@ def test_the_run_payload_is_one_java_could_send() -> None:
     validator = MessageValidator()
     message = validator.validate_shape(
         {
-            "protocolVersion": 2,
+            "protocolVersion": PROTOCOL_VERSION,
             "type": "run",
             "sessionId": "0123456789abcdef0123456789abcdef",
             "requestId": "req-1",
@@ -177,7 +177,7 @@ def test_the_stand_in_profile_is_one_java_could_send() -> None:
 
     MessageValidator().validate_shape(
         {
-            "protocolVersion": 2,
+            "protocolVersion": PROTOCOL_VERSION,
             "type": "operation_result",
             "sessionId": "0123456789abcdef0123456789abcdef",
             "requestId": "req-1",

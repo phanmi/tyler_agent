@@ -95,11 +95,42 @@ class AgentPersistenceIntegrationTest {
         }
     }
 
+    @Test
+    void foodListInsertFailureRollsBackEarlierInsertsAndPreservesPreexistingFood() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            app.chat("food", 200);
+            JsonNode before = app.get(FOOD_DATE);
+            JdbcTemplate jdbc = app.context.getBean("foodJdbcTemplate", JdbcTemplate.class);
+            try (var sql = getClass().getResourceAsStream("/agent-integration/fail-food-list.sql")) {
+                assertNotNull(sql);
+                jdbc.execute(new String(sql.readAllBytes(), StandardCharsets.UTF_8));
+            }
+            // The trigger fails only after the pre-existing row plus the list's first food are
+            // visible inside the transaction. A new connection after HTTP failure must not see it.
+            JsonNode error = app.chat("food_list", 500);
+            assertEquals("Database operation failed. Please try again later", error.path("error").asText());
+            assertEquals(before, app.get(FOOD_DATE));
+            assertEquals(2, app.get(HISTORY).size());
+            jdbc.execute("DROP TRIGGER fail_integration_food_list");
+            JsonNode recorded = JSON.readTree(reply(app.chat("food_list", 200)).path("outputs").get(0).asText())
+                    .path("recorded");
+            JsonNode records = app.get(FOOD_DATE);
+            assertEquals(3, records.size());
+            assertEquals(before.get(0), records.get(0));
+            // One recordFood call saved both foods, in the model's order.
+            assertEquals(List.of(records.get(1).path("food"), records.get(2).path("food")),
+                    List.of(recorded.get(0), recorded.get(1)));
+            assertEquals("Banana", recorded.get(1).path("genericInfo").path("foodName").asText());
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"negative_food,400,Invalid agent request", "invalid_date,400,Invalid agent request",
-            "missing_food,400,Invalid agent request", "missing_plan,400,Invalid agent request",
+            "missing_food,400,Invalid agent request", "second_food_negative,400,Invalid agent request",
+            "missing_plan,400,Invalid agent request",
             "auth_failure,401,This API key is invalid or unavailable",
             "provider_failure,500,Internal server error. Please try again later",
+            "unanswered_check,502,The model could not complete a required check. Please try again",
             "file_failure,500,Failed to read file: Agent file read failed"})
     void failuresKeepHttpClassificationAndDoNotSaveHistory(String scenario, int status, String message) throws Exception {
         try (var app = new PersistenceTestApplication(workspace)) {
@@ -113,6 +144,20 @@ class AgentPersistenceIntegrationTest {
             // The same worker can serve a clean request after an ordinary terminal failure.
             assertEquals(0, reply(app.chat("reply", 200)).path("historySize").asInt());
             assertEquals(2, app.get(HISTORY).size());
+        }
+    }
+
+    @Test
+    void aCheckThatFailsAfterAnEarlierCallSavedWarnsBeforeTheMessageIsSentAgain() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            JsonNode error = app.chat("saved_then_unanswered_check", 502);
+            assertEquals("The model could not complete a required check. Some foods from this message may "
+                    + "already be saved. Check the Calendar before sending it again", error.path("error").asText());
+            // The first recordFood call saved its food before the second call's date check failed.
+            // History has no record of the message, so sending it again would save that food twice.
+            assertEquals(1, app.get(FOOD_DATE).size());
+            assertEquals(1, app.gate.foodCalls.get());
+            assertTrue(app.get(HISTORY).isEmpty());
         }
     }
 
@@ -176,7 +221,7 @@ class AgentPersistenceIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"before_write,time.current,0", "two_food,food.insert,1"})
+    @CsvSource({"before_write,time.current,0", "two_food,food.insert_all,1"})
     void workerDeathBeforeWriteOrAfterCommitDoesNotReplay(String scenario, String barrier, int records) throws Exception {
         try (var app = new PersistenceTestApplication(workspace)) {
             app.gate.pauseAfter(barrier);
@@ -200,7 +245,7 @@ class AgentPersistenceIntegrationTest {
     @Test
     void concurrentHttpRequestsUseOrderedHistoryWithoutCrossRequestResults() throws Exception {
         try (var app = new PersistenceTestApplication(workspace)) {
-            app.gate.pauseAfter("food.insert");
+            app.gate.pauseAfter("food.insert_all");
             var first = app.chatAsync("food");
             assertTrue(app.gate.entered.await(10, TimeUnit.SECONDS));
             var second = app.chatAsync("reply");
@@ -221,7 +266,7 @@ class AgentPersistenceIntegrationTest {
     @Test
     void deadlineCancelsRemainingToolsAndLateCommitResultCannotContaminateNextRun() throws Exception {
         try (var app = new PersistenceTestApplication(workspace, "5s")) {
-            app.gate.pauseAfter("food.insert");
+            app.gate.pauseAfter("food.insert_all");
             var response = app.chatAsync("two_food");
             assertTrue(app.gate.entered.await(10, TimeUnit.SECONDS));
             long pid = app.worker.pid();
@@ -244,7 +289,7 @@ class AgentPersistenceIntegrationTest {
     @Test
     void shutdownDuringCommittedOperationStopsWorkerAndRemainingTools() throws Exception {
         try (var app = new PersistenceTestApplication(workspace)) {
-            app.gate.pauseAfter("food.insert");
+            app.gate.pauseAfter("food.insert_all");
             var response = app.chatAsync("two_food");
             assertTrue(app.gate.entered.await(10, TimeUnit.SECONDS));
             long pid = app.worker.pid();
@@ -280,6 +325,17 @@ class AgentPersistenceIntegrationTest {
             assertEquals("claude-haiku-5-5", claude.path("model").asText());
             assertEquals(2, claude.path("historySize").asInt());
             assertEquals(4, app.get(HISTORY).size());
+        }
+    }
+
+    @Test
+    void aChatOfTheAppMakesNoNutritionCheckAndStillSavesItsFood() throws Exception {
+        try (var app = new PersistenceTestApplication(workspace)) {
+            JsonNode reply = reply(app.chat("food", 200));
+            // The real worker reports how many nutrition checks its run asked the model for.
+            assertTrue(reply.path("nutritionChecks").isInt());
+            assertEquals(0, reply.path("nutritionChecks").asInt());
+            assertEquals(1, app.get(FOOD_DATE).size());
         }
     }
 

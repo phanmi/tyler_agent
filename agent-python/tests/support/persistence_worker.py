@@ -35,7 +35,7 @@ ALL_CLEAR = {
 
 
 # The date check never accepts a food with no date, so the scenario that leaves the date out
-# is asked for one. Every scenario's call holds one food, so the answer is for food 1.
+# is asked for one. That scenario's call holds one food, so the answer is for food 1.
 FIRST_FOOD_DATED = ToolCall(
     CORRECT_FOOD_DATES.name,
     CORRECT_FOOD_DATES.name,
@@ -52,11 +52,20 @@ def all_clear(tools: Sequence[ToolDefinition]) -> AssistantTurn | None:
     return AssistantTurn((ToolCall(name, name, ALL_CLEAR[name]),), "")
 
 
-def food_call(**changes: object) -> ToolCall:
+def food(**changes: object) -> Message:
     info = dict(foodName="Oats", amount=100, unit="g", calories=389, date="2026-10-19")
     info.update(changes)
     macros = dict(protein=17, carbs=66, fat=7, fiber=10)
-    return tool("recordFood", dict(foods=[dict(genericInfo=info, macroNutrients=macros)]))
+    return dict(genericInfo=info, macroNutrients=macros)
+
+
+def food_call(**changes: object) -> ToolCall:
+    return tool("recordFood", dict(foods=[food(**changes)]))
+
+
+def food_list_call(*foods: Message) -> ToolCall:
+    """One recordFood call with several foods, which Java saves in one transaction."""
+    return tool("recordFood", dict(foods=list(foods)))
 
 
 def tool(name: str, arguments: Message) -> ToolCall:
@@ -68,6 +77,8 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
     cases = {
         "food": (food_call(),),
         "two_food": (food_call(), food_call()),
+        "food_list": (food_list_call(food(), food(foodName="Banana")),),
+        "second_food_negative": (food_list_call(food(), food(amount=-1)),),
         "before_write": (tool("getCurrentTime", {}), food_call()),
         "negative_food": (food_call(amount=-1),),
         "invalid_date": (food_call(date="2026-02-30"),),
@@ -99,6 +110,8 @@ def calls_for(scenario: str) -> tuple[ToolCall, ...]:
         "file_numeric_path": (tool("readFile", dict(path=123)),),
         "file_failure": (tool("readFile", dict(path="missing.txt")),),
         "food_then_failure": (food_call(),),
+        "unanswered_check": (food_call(),),
+        "saved_then_unanswered_check": (food_call(), food_call()),
         "reply": (),
     }
     # Distinct call IDs exercise the production loop's correlation across equal tool calls.
@@ -117,11 +130,31 @@ class PersistenceProvider:
         self.history_size = len(value["history"])
         # Reported back so Java can check which provider the run selected.
         self.provider: str = value["provider"]
+        # Reported back so Java can check whether the run's nutrition check was switched on.
+        self.nutrition_checks = 0
+        # Counted for the scenario that answers only its first recordFood call's date check.
+        self.date_checks = 0
+
+    def _leaves_unanswered(self, check: str) -> bool:
+        """Whether this scenario answers the check with text, which no check can use."""
+        if self.scenario == "unanswered_check":
+            return True
+        if self.scenario != "saved_then_unanswered_check" or check != VERIFY_FOOD_DATES.name:
+            return False
+        # The first call's date check is answered, so that call saves its food. Every date
+        # check after it belongs to the second call, which asks until it gives up.
+        self.date_checks += 1
+        return self.date_checks > 1
 
     async def respond(
         self, model: str, transcript: Sequence[TranscriptEntry], tools: Sequence[ToolDefinition]
     ) -> AssistantTurn:
+        if [tool.name for tool in tools] == [VERIFY_FOOD_NUTRITION.name]:
+            self.nutrition_checks += 1
         cleared = all_clear(tools)
+        if cleared is not None and self._leaves_unanswered(tools[0].name):
+            # Text where a check's tool call is required: an answer that cannot be used.
+            return AssistantTurn((), "Everything looks right.")
         if cleared is not None:
             # recordFood checks its foods first; pass them so Java services decide validity.
             return cleared
@@ -144,7 +177,11 @@ class PersistenceProvider:
                 return AssistantTurn(calls, "")
         outputs = [entry.output for entry in transcript if isinstance(entry, ToolResult)]
         reply = dict(
-            historySize=self.history_size, outputs=outputs, provider=self.provider, model=model
+            historySize=self.history_size,
+            outputs=outputs,
+            provider=self.provider,
+            model=model,
+            nutritionChecks=self.nutrition_checks,
         )
         return AssistantTurn((), json.dumps(reply))
 

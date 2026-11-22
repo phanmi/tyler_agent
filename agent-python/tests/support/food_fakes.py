@@ -81,11 +81,18 @@ class Java:
             return {"text": self.clocks.pop(0) if self.clocks else TODAY}
         if name == "file.read":
             return {"content": self.files[value["path"]]}
-        assert name == "food.insert"
-        return {"food": value["food"]}
+        assert name == "food.insert_all"
+        entries = enumerate(value["foods"], start=1)
+        return {"foods": [{"id": str(number), "food": food} for number, food in entries]}
 
     def saved(self) -> list[Message]:
-        return [value for name, value in self.requests if name == "food.insert"]
+        """Every food Java was asked to save, in order, each as `food_arguments` writes one."""
+        return [
+            {"food": food}
+            for name, value in self.requests
+            if name == "food.insert_all"
+            for food in value["foods"]
+        ]
 
 
 class Model:

@@ -11,6 +11,7 @@ import org.tyler.filesandbox.IFileSandboxWrite;
 import org.tyler.model.food.Food;
 import org.tyler.model.workout.WorkoutPlan;
 import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 import org.tyler.service.food.FoodService;
 import org.tyler.service.userInfo.IUserInfoService;
 import org.tyler.service.workout.IWorkoutService;
@@ -32,7 +33,7 @@ import static org.tyler.service.agent.bridge.ServiceOperationDispatcherTest.inpu
 class BridgeValidationTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final IFoodRecordDAO dao = mock(IFoodRecordDAO.class);
-    private final FoodService food = new FoodService(dao, new FoodValidator());
+    private final FoodService food = new FoodService(dao, new FoodValidator(), TransactionOperations.withoutTransaction());
     private final IWorkoutService workouts = mock(IWorkoutService.class);
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
     private final WorkoutPlanService plans = new WorkoutPlanService(workouts, transactions);
@@ -43,14 +44,14 @@ class BridgeValidationTest {
         List<ObjectNode> cases = new ArrayList<>();
         for (String parent : List.of("genericInfo", "macroNutrients")) {
             var missing = input("food");
-            ((ObjectNode) missing.path("food")).putNull(parent);
+            ((ObjectNode) missing.path("foods").get(0)).putNull(parent);
             cases.add(missing);
             List<String> numbers = parent.equals("genericInfo") ? List.of("amount", "calories")
                     : List.of("protein", "carbs", "fat", "fiber");
             for (String field : numbers) {
                 for (String value : new String[]{null, "-0.01"}) {
                     var invalid = input("food");
-                    ((ObjectNode) invalid.path("food").path(parent)).put(field, value);
+                    ((ObjectNode) invalid.path("foods").get(0).path(parent)).put(field, value);
                     cases.add(invalid);
                 }
             }
@@ -58,13 +59,13 @@ class BridgeValidationTest {
         for (String field : List.of("foodName", "unit", "date")) {
             for (String value : new String[]{null, "", " "}) {
                 var invalid = input("food");
-                ((ObjectNode) invalid.path("food").path("genericInfo")).put(field, value);
+                ((ObjectNode) invalid.path("foods").get(0).path("genericInfo")).put(field, value);
                 cases.add(invalid);
             }
         }
         for (String date : List.of("2026-02-30", "2026-1-01", "2026-10-16T00:00:00", " 2026-10-16")) {
             var invalid = input("food");
-            ((ObjectNode) invalid.path("food").path("genericInfo")).put("date", date);
+            ((ObjectNode) invalid.path("foods").get(0).path("genericInfo")).put("date", date);
             cases.add(invalid);
         }
         return cases.stream();
@@ -73,10 +74,10 @@ class BridgeValidationTest {
     @ParameterizedTest
     @MethodSource("invalidFood")
     void foodDomainErrorsMatchSharedServicePath(ObjectNode invalid) throws Exception {
-        Food value = MAPPER.treeToValue(invalid.path("food"), Food.class);
+        Food value = MAPPER.treeToValue(invalid.path("foods").get(0), Food.class);
         var expected = assertThrowsExactly(IllegalArgumentException.class,
-                () -> food.insertFood(value));
-        var actual = assertThrowsExactly(IllegalArgumentException.class, () -> dispatcher.dispatch("food.insert", invalid));
+                () -> food.insertFoods(List.of(value)));
+        var actual = assertThrowsExactly(IllegalArgumentException.class, () -> dispatcher.dispatch("food.insert_all", invalid));
         assertEquals(expected.getMessage(), actual.getMessage());
         verifyNoInteractions(dao);
     }

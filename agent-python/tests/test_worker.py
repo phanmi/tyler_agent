@@ -128,6 +128,7 @@ def test_invalid_run_rejected_before_provider_creation(
                 "maxToolRounds": 5,
                 "timeoutMs": 300000,
                 "operationTimeoutMs": 60000,
+                "checkNutrition": True,
             },
             "req-1",
         )

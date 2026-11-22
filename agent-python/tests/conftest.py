@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = ROOT / "contracts/agent/v2/fixtures"
+FIXTURES = ROOT / "contracts/agent/v3/fixtures"
 
 
 def cases(name: str) -> list[dict[str, Any]]:
@@ -28,7 +28,8 @@ def sequence_message(step: dict[str, Any]) -> dict[str, Any]:
         keys = [key.replace("~1", "/").replace("~0", "~") for key in pointer[1:].split("/")]
         target = message
         for key in keys[:-1]:
-            target = target[key]
+            # A pointer names a list entry by its index, as in /payload/input/foods/0.
+            target = target[int(key)] if isinstance(target, list) else target[key]
         assert keys[-1] in target
         target[keys[-1]] = value
     return message

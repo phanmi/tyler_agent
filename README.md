@@ -37,7 +37,13 @@ Tyler saves the amount in the unit you used, in your own word: 1 cup of milk is 
 
 When you don't give a nutrition value, Tyler estimates it: from the brand's published nutrition for packaged and restaurant food, and from USDA FoodData Central for other food. Tyler doesn't look these values up; the estimate comes from what your provider's model knows of them.
 
-Before saving each food, Tyler checks it against what you said: the food, the amount and its unit, the date, and whether the nutrition values Tyler estimated are plausible. Nutrition values you state yourself are saved exactly as you gave them. If a food fails the check twice, Tyler doesn't save it and tells you why, so you can describe it again with more detail. The check makes up to three extra requests to your provider for each food, which your provider bills like any other use.
+Before saving, Tyler checks the date of each food with your provider's model. Each food is recorded on the day you ate it, and a wrong or missing date is corrected. The nutrition values are Tyler's estimate and are not checked a second time. Nutrition values you state yourself are saved exactly as you gave them.
+
+Tyler normally records the foods of a message in one step, and the foods of a step are saved together: all of them, or none. If the date check cannot be completed, or one of the foods cannot be saved, chat shows an error and nothing from that step is saved.
+
+After such an error, look at the **Calendar** before you send the message again. Now and then Tyler records a message in more than one step, and an earlier step may already be saved. When the date check could not be completed, the error says which it is: "Some foods from this message may already be saved", or "Please try again" when nothing was saved.
+
+The date check makes extra requests to your provider, which it bills like any other use: one for the dates of a message's foods, and one more when a date has to be corrected.
 
 Open **Calendar** on the Chat page and choose a date to see your food records and daily nutrition totals. You can delete one record or all records for that day after confirming the deletion.
 

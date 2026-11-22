@@ -25,6 +25,7 @@ import org.tyler.service.workout.IWorkoutPlanService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,7 +47,7 @@ class ServiceOperationDispatcherTest {
     void allSixOperationsMatchSharedResultFixtures(String prefix) throws Exception {
         var request = fixture(prefix + "_request").path("payload");
         var expected = fixture(prefix + "_result");
-        when(food.insertFood(any())).thenAnswer(call -> new FoodEntry(42, call.getArgument(0)));
+        when(food.insertFoods(any())).thenAnswer(call -> saved(42, call.getArgument(0)));
         when(plans.generateAndSave(any(), any(), any())).thenReturn(
                 MAPPER.treeToValue(fixture("plan_result").path("payload").path("result").path("plan"), WorkoutPlan.class));
         when(profile.get()).thenReturn(MAPPER.treeToValue(fixture("profile_result").path("payload")
@@ -58,7 +59,8 @@ class ServiceOperationDispatcherTest {
         ((ObjectNode) expected.path("payload")).set("result", result);
         new MessageValidator().validateMessage(expected);
         switch (prefix) {
-            case "food" -> verify(food).insertFood(MAPPER.treeToValue(request.path("input").path("food"), Food.class));
+            case "food" -> verify(food).insertFoods(
+                    List.of(MAPPER.treeToValue(request.path("input").path("foods").get(0), Food.class)));
             case "plan" -> verify(plans).generateAndSave("2026-10-16", "strength", "gym");
             case "profile" -> verify(profile).get();
             case "file_read" -> verify(reader).read("notes/session.txt");
@@ -72,9 +74,9 @@ class ServiceOperationDispatcherTest {
     @CsvSource({"amount, 0.00000000000000000100", "amount, -0.00", "calories, 2000000000.000"})
     void decimalsAndLongIdsNeverPassThroughFloatingPoint(String field, String number) {
         var input = input("food");
-        ((ObjectNode) input.path("food").path("genericInfo")).put(field, number);
-        when(food.insertFood(any())).thenAnswer(call -> new FoodEntry(Long.MAX_VALUE, call.getArgument(0)));
-        var result = dispatcher.dispatch("food.insert", input);
+        ((ObjectNode) input.path("foods").get(0).path("genericInfo")).put(field, number);
+        when(food.insertFoods(any())).thenAnswer(call -> saved(Long.MAX_VALUE, call.getArgument(0)));
+        var result = dispatcher.dispatch("food.insert_all", input).path("foods").get(0);
         assertEquals(Long.toString(Long.MAX_VALUE), result.path("id").textValue());
         assertEquals(number.equals("-0.00") ? "0.00" : number,
                 result.path("food").path("genericInfo").path(field).textValue());
@@ -107,12 +109,12 @@ class ServiceOperationDispatcherTest {
                     () -> dispatcher.dispatch("file.write", MAPPER.readTree(json))).code());
         }
         var foodInput = input("food");
-        ((ObjectNode) foodInput.path("food").path("genericInfo")).put("amount", "2000000000.01");
+        ((ObjectNode) foodInput.path("foods").get(0).path("genericInfo")).put("amount", "2000000000.01");
         assertEquals("INVALID_VALUE", assertThrowsExactly(ProtocolException.class,
-                () -> dispatcher.dispatch("food.insert", foodInput)).code());
-        ((ObjectNode) foodInput.path("food").path("genericInfo")).put("amount", "1e2");
+                () -> dispatcher.dispatch("food.insert_all", foodInput)).code());
+        ((ObjectNode) foodInput.path("foods").get(0).path("genericInfo")).put("amount", "1e2");
         assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
-                () -> dispatcher.dispatch("food.insert", foodInput)).code());
+                () -> dispatcher.dispatch("food.insert_all", foodInput)).code());
         assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
                 () -> dispatcher.dispatch(null, input("food"))).code());
         verifyNoInteractions(food, plans, profile, reader, writer);
@@ -121,14 +123,23 @@ class ServiceOperationDispatcherTest {
     @Test
     void storageFailuresRetainTheirIdentityAndNeverBecomeSuccess() {
         var sql = new SQLPersistentException("synthetic SQL failure", new java.io.IOException("cause"));
-        when(food.insertFood(any())).thenThrow(sql);
-        assertSame(sql, assertThrowsExactly(SQLPersistentException.class, () -> dispatcher.dispatch("food.insert", input("food"))));
+        when(food.insertFoods(any())).thenThrow(sql);
+        assertSame(sql, assertThrowsExactly(SQLPersistentException.class, () -> dispatcher.dispatch("food.insert_all", input("food"))));
         var read = new FileReadException("synthetic read failure");
         when(reader.read(anyString())).thenThrow(read);
         assertSame(read, assertThrowsExactly(FileReadException.class, () -> dispatcher.dispatch("file.read", input("file_read"))));
         var write = new FileWriteException("synthetic write failure");
         doThrow(write).when(writer).write(anyString(), anyString());
         assertSame(write, assertThrowsExactly(FileWriteException.class, () -> dispatcher.dispatch("file.write", input("file_write"))));
+    }
+
+    /** What the service returns for a list: each food with the next ID, from {@code firstId}. */
+    private static List<FoodEntry> saved(long firstId, List<Food> foods) {
+        List<FoodEntry> entries = new ArrayList<>();
+        for (Food item : foods) {
+            entries.add(new FoodEntry(firstId + entries.size(), item));
+        }
+        return entries;
     }
 
     static ObjectNode input(String fixturePrefix) {

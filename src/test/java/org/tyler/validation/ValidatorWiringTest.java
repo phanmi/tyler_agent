@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionOperations;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.dao.workout.IWorkoutDAO;
 import org.tyler.model.food.Food;
@@ -38,6 +39,7 @@ class ValidatorWiringTest {
     void springCollectsValidatorsByInputTypeAndBeanName() {
         new ApplicationContextRunner().withUserConfiguration(Validators.class, FoodService.class, WorkoutService.class)
                 .withBean(IFoodRecordDAO.class, () -> mock(IFoodRecordDAO.class))
+                .withBean("foodTransactions", TransactionOperations.class, TransactionOperations::withoutTransaction)
                 .withBean(IWorkoutDAO.class, () -> mock(IWorkoutDAO.class))
                 .run(context -> {
                     assertNull(context.getStartupFailure());

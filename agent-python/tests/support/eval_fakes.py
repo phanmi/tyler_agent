@@ -79,7 +79,7 @@ SAVED_FIELDS: dict[str, object] = dict(
 
 
 def record(**changes: object) -> Message:
-    """A saved record as food.insert receives it: numbers are decimal text."""
+    """A saved record as food.insert_all receives it: numbers are decimal text."""
     fields = SAVED_FIELDS | changes
     return {
         "genericInfo": {name: fields[name] for name in GENERIC_INFO_FIELDS},

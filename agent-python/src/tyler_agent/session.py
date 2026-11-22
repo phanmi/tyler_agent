@@ -6,9 +6,14 @@ outcomes so fixture conformance can be checked without a subprocess or database.
 
 from typing import Any
 
+from tyler_agent.failures import MODEL_ANSWER_UNUSABLE
 from tyler_agent.protocol.protocol import Message, MessageCodec, ProtocolError
 
-WRITES = {"food.insert", "workout_plan.generate_save", "file.write"}
+WRITES = {"food.insert_all", "workout_plan.generate_save", "file.write"}
+# A failure's HTTP status goes by its category, unless its code is listed with its own.
+STATUS_BY_CATEGORY = {"validation": 400, "authentication": 401}
+STATUS_BY_CODE = {MODEL_ANSWER_UNUSABLE: 502}
+OTHER_FAILURE_STATUS = 500
 
 
 class ProtocolSession:
@@ -187,7 +192,8 @@ class ProtocolSession:
         if self.pending:
             self.state = "CANCELLING"
         self._settle_run()
-        status = {"validation": 400, "authentication": 401}.get(error["category"], 500)
+        by_category = STATUS_BY_CATEGORY.get(error["category"], OTHER_FAILURE_STATUS)
+        status = STATUS_BY_CODE.get(error["code"], by_category)
         return self._decision(httpStatus=status)
 
     def observe(self, event: str, *, outcome: str = "", operation_id: str = "") -> Message:

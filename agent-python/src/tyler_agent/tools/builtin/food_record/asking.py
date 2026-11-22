@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from tyler_agent.failures import AgentFailure
+from tyler_agent.failures import model_answer_unusable
 from tyler_agent.tools.builtin.time_current.adapter import current_time
 from tyler_agent.tools.contracts import ToolContext
 from tyler_agent.tools.parsing import ArgumentsRejected, object_value, text_value
@@ -137,13 +137,11 @@ async def ask[T](context: ToolContext, question: Question[T], attempts: int) -> 
 
 async def must_ask[T](context: ToolContext, question: Question[T]) -> T:
     """Ask a question the foods cannot be saved without. When no answer can be used after
-    REQUIRED_ATTEMPTS, the run fails, so nothing is saved.
-
-    The protocol has no failure code of its own for this, so it is a provider failure.
+    REQUIRED_ATTEMPTS, the run fails with the failure code for that, so nothing is saved.
     """
     answer = await ask(context, question, REQUIRED_ATTEMPTS)
     if answer is None:
-        raise AgentFailure("provider", "PROVIDER_FAILURE")
+        raise model_answer_unusable()
     return answer
 
 

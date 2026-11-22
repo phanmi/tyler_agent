@@ -34,6 +34,12 @@ def initial_transcript(payload: Message) -> list[TranscriptEntry]:
     return list(conversation(payload))
 
 
+def run_settings(payload: Message) -> RunSettings:
+    """The run's switches as Java sent them. A switch the payload does not carry keeps its
+    default."""
+    return RunSettings(check_nutrition=payload["checkNutrition"])
+
+
 def tool_context(
     payload: Message, provider: Provider, operation: Operation, settings: RunSettings
 ) -> ToolContext:

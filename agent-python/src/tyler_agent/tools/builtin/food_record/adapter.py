@@ -1,5 +1,6 @@
 """Adapt recordFood arguments and results through the Java operation boundary."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from tyler_agent.protocol.protocol import Message
@@ -36,14 +37,25 @@ async def execute(raw: str, context: ToolContext) -> str:
 async def record_foods(raw: str, context: ToolContext) -> Recorded:
     """Check the foods of one call and save the ones the checks leave.
 
-    One call carries every food of the message. The checks run on all of them before the
-    first one is saved, so a check that fails the run saves none of them. What is saved is
-    the list the checks leave: a food they added or corrected is saved in that form, and a
-    record they removed is never sent to Java.
+    One call carries every food of the message. The checks run on all of them before any
+    is saved, so a check that fails the run saves none of them. What is saved is the list
+    the checks leave: a food they added or corrected is saved in that form, and a record
+    they removed is never sent to Java.
     """
     checked = await checked_foods(foods_arguments(raw), context)
-    saved = [(await context.operation("food.insert", food))["food"] for food in checked.foods]
-    return Recorded(tuple(saved), checked.findings)
+    return Recorded(tuple(await saved_foods(checked.foods, context)), checked.findings)
+
+
+async def saved_foods(foods: Sequence[Message], context: ToolContext) -> list[Message]:
+    """Save the foods in one Java operation and return them as Java saved them, in order.
+
+    Java saves the list in one transaction: when it rejects one food, none is saved. The
+    operation takes at least one food, so when the checks left none there is no request.
+    """
+    if not foods:
+        return []
+    result = await context.operation("food.insert_all", {"foods": [food["food"] for food in foods]})
+    return [entry["food"] for entry in result["foods"]]
 
 
 def rendered(recorded: Recorded) -> str:

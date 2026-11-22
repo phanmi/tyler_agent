@@ -55,7 +55,7 @@ LEAN = dict(protein=60, carbs=0, fat=6, fiber=0)
 VERIFY, CORRECT = [VERIFY_FOOD_NUTRITION.name], [CORRECT_FOOD]
 UNUSABLE_TEXT = AssistantTurn((), "The values look fine.")
 REJECTED = "3300 kcal is ten times too high."
-# The nutrition check is on unless the user switches it off.
+# The nutrition check switched on, which is what `RunSettings` has until a run payload sets it.
 SWITCH_ON = RunSettings()
 
 

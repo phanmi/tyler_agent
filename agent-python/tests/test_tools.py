@@ -30,6 +30,8 @@ def model_json(value: object, field: str = "") -> str:
         return (
             "{" + ",".join(json.dumps(k) + ":" + model_json(v, k) for k, v in value.items()) + "}"
         )
+    if isinstance(value, list):
+        return "[" + ",".join(model_json(item) for item in value) + "]"
     if field in DECIMALS and isinstance(value, str):
         return value
     return json.dumps(value)
@@ -57,8 +59,8 @@ def test_all_six_adapters_use_private_operations(prefix: str, name: str, field: 
 
     raw, context = model_json(request["input"]), fake_context(operation)
     if prefix == "food":
-        raw = '{"foods":[' + model_json(request["input"]["food"]) + "]}"
-        # recordFood checks its foods first; here every check passes.
+        # recordFood's arguments have the shape of the save's input: a list of foods.
+        # It checks its foods first; here every check passes.
         context = food_context(operation)
     output = asyncio.run(ToolAdapters(context).execute(name, raw))
     assert seen == [(request["operation"], request["input"])]
@@ -149,7 +151,7 @@ def recorded(result: Message | None = None) -> tuple[ToolAdapters, list[tuple[st
 
     async def operation(name: str, value: Message) -> Message:
         seen.append((name, value))
-        return result or {"content": "", "path": "", "food": {}, "plan": {}}
+        return result or {"content": "", "path": "", "foods": [], "plan": {}}
 
     return ToolAdapters(food_context(operation), CATALOG), seen
 
@@ -314,16 +316,17 @@ def test_every_food_of_a_call_is_saved_in_the_models_order() -> None:
     names = ["Oats", "Milk", "Banana"]
     (food,) = VALID["recordFood"]["foods"]
     foods = [replaced(food, ("genericInfo", "foodName"), name) for name in names]
-    seen: list[str] = []
+    seen: list[list[str]] = []
 
     async def operation(operation_name: str, value: Message) -> Message:
-        assert operation_name == "food.insert"
-        seen.append(value["food"]["genericInfo"]["foodName"])
-        return value
+        assert operation_name == "food.insert_all"
+        seen.append([food["genericInfo"]["foodName"] for food in value["foods"]])
+        return {"foods": [{"id": "1", "food": food} for food in value["foods"]]}
 
     tools = ToolAdapters(food_context(operation), CATALOG)
     output = asyncio.run(tools.execute("recordFood", json.dumps({"foods": foods})))
-    assert seen == names
+    # One request carries the whole list.
+    assert seen == [names]
     assert [food["genericInfo"]["foodName"] for food in json.loads(output)["recorded"]] == names
 
 
@@ -358,18 +361,20 @@ def test_missing_and_null_domain_values_still_reach_java_validation() -> None:
             {"startDate": "+999999999-12-31", "goal": "", "equipment": None},
         ),
         (
-            "food.insert",
+            "food.insert_all",
             {
-                "food": {
-                    "genericInfo": {
-                        "foodName": "",
-                        "amount": None,
-                        "unit": None,
-                        "calories": None,
-                        "date": "not-a-date",
-                    },
-                    "macroNutrients": None,
-                }
+                "foods": [
+                    {
+                        "genericInfo": {
+                            "foodName": "",
+                            "amount": None,
+                            "unit": None,
+                            "calories": None,
+                            "date": "not-a-date",
+                        },
+                        "macroNutrients": None,
+                    }
+                ]
             },
         ),
     ]

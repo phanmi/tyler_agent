@@ -8,11 +8,12 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.tyler.config.FoodDatabaseConfig;
 import org.tyler.dao.foodrecord.FoodRecordDAOSqlite;
 import org.tyler.dao.foodrecord.IFoodRecordDAO;
 import org.tyler.filesandbox.FileSandbox;
 import org.tyler.controller.food.FoodController;
-import org.tyler.service.agent.bridge.handler.FoodInsertHandler;
+import org.tyler.service.agent.bridge.handler.FoodInsertAllHandler;
 import org.tyler.service.agent.bridge.OperationPayloadMapper;
 import org.tyler.model.food.Food;
 import org.tyler.model.food.FoodEntry;
@@ -41,8 +42,8 @@ class FoodRecordSpringWiringTest {
 
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner()
-                .withUserConfiguration(FileSandbox.class, FoodDaoScan.class,
-                        FoodValidator.class, FoodService.class, FoodController.class, FoodInsertHandler.class, OperationPayloadMapper.class)
+                .withUserConfiguration(FileSandbox.class, FoodDatabaseConfig.class, FoodDaoScan.class,
+                        FoodValidator.class, FoodService.class, FoodController.class, FoodInsertAllHandler.class, OperationPayloadMapper.class)
                 .withPropertyValues("agent.workspace-dir=" + tempDir,
                         "food.database-path=food-record.sqlite");
     }
@@ -58,7 +59,7 @@ class FoodRecordSpringWiringTest {
                     assertSame(context.getBean(FoodService.class), service);
                     assertSame(dao, ReflectionTestUtils.getField(service, "dao"));
                     FoodController controller = context.getBean(FoodController.class);
-                    FoodInsertHandler handler = context.getBean(FoodInsertHandler.class);
+                    FoodInsertAllHandler handler = context.getBean(FoodInsertAllHandler.class);
                     assertTrue(service.getFoodRecordsByDate("2026-09-27").isEmpty());
                     String date = "2026-09-27";
                     Food food = new Food(
@@ -68,8 +69,9 @@ class FoodRecordSpringWiringTest {
                                     new BigDecimal("0.2"), new BigDecimal("2.4")));
 
                     ObjectMapper mapper = new ObjectMapper();
-                    assertEquals(food, mapper.treeToValue(handler.execute(mapper.createObjectNode()
-                            .set("food", mapper.valueToTree(food))).get("food"), Food.class));
+                    var saved = handler.execute(mapper.createObjectNode()
+                            .set("foods", mapper.createArrayNode().add(mapper.valueToTree(food))));
+                    assertEquals(food, mapper.treeToValue(saved.get("foods").get(0).get("food"), Food.class));
                     assertEquals(List.of(food), service.getFoodRecordsByDate(date).stream().map(FoodEntry::food).toList());
                     List<FoodEntry> records = controller.foodByDate(date);
                     assertEquals(1, records.size());
@@ -99,7 +101,7 @@ class FoodRecordSpringWiringTest {
             dao.insert(second);
             assertReadPaths(dao, service, controller, date, List.of(first, second));
             assertEquals(firstId, dao.loadRecordsByDate(date).getFirst().id());
-            service.insertFood(other);
+            service.insertFoods(List.of(other));
             assertReadPaths(dao, service, controller, date, List.of(first, second));
             assertReadPaths(dao, service, controller, otherDate, List.of(other));
 

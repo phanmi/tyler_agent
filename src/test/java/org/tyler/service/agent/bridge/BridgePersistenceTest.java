@@ -1,9 +1,13 @@
 package org.tyler.service.agent.bridge;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.tyler.config.FoodDatabaseConfig;
 import org.tyler.config.WorkoutDatabaseConfig;
 import org.tyler.config.OperationBridgeConfiguration;
 import org.tyler.service.agent.python.IOperationDispatcher;
@@ -29,6 +33,7 @@ import org.tyler.service.agent.python.WorkerTestSupport;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tyler.service.agent.bridge.ServiceOperationDispatcherTest.input;
@@ -39,6 +44,7 @@ class BridgePersistenceTest {
 
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner().withUserConfiguration(OperationBridgeConfiguration.class, FileSandbox.class, WorkoutDatabaseConfig.class,
+                FoodDatabaseConfig.class,
                 FoodRecordDAOSqlite.class, FoodValidator.class, FoodService.class, UserInfoService.class,
                 WorkoutDAOSqlite.class, WorkoutValidator.class, WorkoutService.class, WorkoutPlanService.class)
                 .withPropertyValues("agent.workspace-dir=" + workspace);
@@ -53,7 +59,7 @@ class BridgePersistenceTest {
         context().run(ctx -> {
             var dispatcher = bridge(ctx);
             var food = ctx.getBean(IFoodService.class);
-            var first = dispatcher.dispatch("food.insert", input("food"));
+            var first = dispatcher.dispatch("food.insert_all", input("food")).path("foods").get(0);
             try (var worker = new PythonWorker(WorkerTestSupport.settings("write"), dispatcher)) {
                 assertNotNull(worker.execute(WorkerTestSupport.payload()));
                 worker.historySettled(true);
@@ -67,6 +73,53 @@ class BridgePersistenceTest {
             assertEquals(0, new BigDecimal("100.00").compareTo(records.getLast().food().genericInfo().amount()));
             assertTrue(food.deleteFoodById(records.getFirst().id()));
             assertEquals(records.getLast(), food.getFoodRecordsByDate("2026-10-16").getFirst());
+        });
+    }
+
+    @Test
+    void aFoodListIsSavedWholeOrNotAtAllAndKeepsExistingRecords() {
+        context().run(ctx -> {
+            var dispatcher = bridge(ctx);
+            var food = ctx.getBean(IFoodService.class);
+            var jdbc = ctx.getBean("foodJdbcTemplate", JdbcTemplate.class);
+            assertSame(jdbc.getDataSource(),
+                    ctx.getBean("foodTransactionManager", DataSourceTransactionManager.class).getDataSource());
+            dispatcher.dispatch("food.insert_all", input("food"));
+            var before = food.getFoodRecordsByDate("2026-10-16");
+            ObjectNode request = input("food");
+            ObjectNode banana = request.path("foods").get(0).deepCopy();
+            ((ObjectNode) banana.path("genericInfo")).put("foodName", "Banana");
+            ((ArrayNode) request.path("foods")).add(banana);
+
+            // Java rejects the second food, so the first is not saved either.
+            ObjectNode rejected = request.deepCopy();
+            ((ObjectNode) rejected.path("foods").get(1).path("genericInfo")).put("calories", "-1");
+            assertThrowsExactly(IllegalArgumentException.class, () -> dispatcher.dispatch("food.insert_all", rejected));
+            assertEquals(before, food.getFoodRecordsByDate("2026-10-16"));
+
+            // The database fails on the second insert, after the first is visible in the transaction.
+            jdbc.execute("""
+                    CREATE TRIGGER fail_second_food BEFORE INSERT ON food_record
+                    WHEN (SELECT COUNT(*) FROM food_record) >= 2
+                    BEGIN SELECT RAISE(ABORT, 'forced bridge insert failure'); END
+                    """);
+            // Prevent delete-based compensation from satisfying this rollback test.
+            jdbc.execute("""
+                    CREATE TRIGGER forbid_cleanup BEFORE DELETE ON food_record
+                    BEGIN SELECT RAISE(ABORT, 'manual cleanup forbidden'); END
+                    """);
+            assertNotNull(assertThrowsExactly(SQLPersistentException.class,
+                    () -> dispatcher.dispatch("food.insert_all", request)).getCause());
+            assertEquals(before, food.getFoodRecordsByDate("2026-10-16"));
+
+            jdbc.execute("DROP TRIGGER fail_second_food");
+            var saved = dispatcher.dispatch("food.insert_all", request).path("foods");
+            var records = food.getFoodRecordsByDate("2026-10-16");
+            assertEquals(before.getFirst(), records.getFirst());
+            assertEquals(List.of("Oats", "Oats", "Banana"),
+                    records.stream().map(record -> record.food().genericInfo().foodName()).toList());
+            assertEquals(List.of(Long.toString(records.get(1).id()), Long.toString(records.get(2).id())),
+                    List.of(saved.get(0).path("id").textValue(), saved.get(1).path("id").textValue()));
         });
     }
 

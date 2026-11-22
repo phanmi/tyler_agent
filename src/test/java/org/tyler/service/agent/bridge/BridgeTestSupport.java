@@ -3,7 +3,7 @@ package org.tyler.service.agent.bridge;
 import org.tyler.service.agent.bridge.handler.CurrentTimeHandler;
 import org.tyler.service.agent.bridge.handler.FileReadHandler;
 import org.tyler.service.agent.bridge.handler.FileWriteHandler;
-import org.tyler.service.agent.bridge.handler.FoodInsertHandler;
+import org.tyler.service.agent.bridge.handler.FoodInsertAllHandler;
 import org.tyler.service.agent.bridge.handler.UserInfoReadHandler;
 import org.tyler.service.agent.bridge.handler.WorkoutPlanSaveHandler;
 import org.tyler.service.agent.protocol.MessageValidator;
@@ -26,7 +26,7 @@ final class BridgeTestSupport {
             IUserInfoService profile, IFileSandboxRead reader, IFileSandboxWrite writer, Clock clock) {
         var mapper = new OperationPayloadMapper();
         var protectedFiles = mock(ProtectedWorkspaceFiles.class);
-        return new ServiceOperationDispatcher(List.of(new FoodInsertHandler(food, mapper),
+        return new ServiceOperationDispatcher(List.of(new FoodInsertAllHandler(food, mapper),
                 new WorkoutPlanSaveHandler(plans, mapper), new UserInfoReadHandler(profile, mapper),
                 new FileReadHandler(reader, protectedFiles), new FileWriteHandler(writer, protectedFiles),
                 new CurrentTimeHandler(clock)),

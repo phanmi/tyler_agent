@@ -130,16 +130,16 @@ class MessageValidatorTest {
     @Test
     void standaloneBridgeValidationReusesWireRulesWithoutApplyingDomainRules() {
         var input = (ObjectNode) ProtocolTestFixtures.message("food_request").path("payload").path("input");
-        var info = (ObjectNode) input.path("food").path("genericInfo");
+        var info = (ObjectNode) input.path("foods").get(0).path("genericInfo");
         info.put("amount", "-0.01").put("date", "not-a-date");
-        assertDoesNotThrow(() -> VALIDATOR.validateOperationInput("food.insert", input));
+        assertDoesNotThrow(() -> VALIDATOR.validateOperationInput("food.insert_all", input));
         info.put("amount", "2000000001");
         assertEquals("INVALID_VALUE", assertThrowsExactly(ProtocolException.class,
-                () -> VALIDATOR.validateOperationInput("food.insert", input)).code());
+                () -> VALIDATOR.validateOperationInput("food.insert_all", input)).code());
         info.put("amount", "1").put("foodName", "\uD800");
         assertEquals("INVALID_FRAME", assertThrowsExactly(ProtocolException.class,
-                () -> VALIDATOR.validateOperationInput("food.insert", input)).code());
+                () -> VALIDATOR.validateOperationInput("food.insert_all", input)).code());
         assertEquals("INVALID_MESSAGE", assertThrowsExactly(ProtocolException.class,
-                () -> VALIDATOR.validateOperationInput("food.insert", null)).code());
+                () -> VALIDATOR.validateOperationInput("food.insert_all", null)).code());
     }
 }
