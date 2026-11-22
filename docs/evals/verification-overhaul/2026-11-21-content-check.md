@@ -18,7 +18,7 @@ The maintainer decided from this run that the content check is forced off in eve
 - **No food was missed and no saved date was wrong,** in either mode on any model. The date check corrected 551 dates.
 - **With the content check off, a message with many foods takes about as long as it did with no verification at all:** 8.3, 8.5 and 5.7 seconds at the median, against 7.7, 7.9 and 5.5.
 - **Two of the three models beat their baseline with the check off.** `claude-haiku-5-5` is one chat below it.
-- **Every model is lower than in the run of 2026-11-18 on these cases,** by 2 to 6 chats of 60. The cause is not known; see [Other findings](#other-findings).
+- **Every model is lower than in the run of 2026-11-18 on these cases,** by 3.4 to 11.5 points. The cause is not known; see [Other findings](#other-findings).
 - **The run cost about $0.55** by the report's estimates.
 
 ## What was run
@@ -69,7 +69,7 @@ Fully correct chats (%). "Off" and "on" mean something different in each run:
 - **`claude-haiku-5-5` with the check off is below both of its results with no verification:** 78.3 against 80.0 and 85.0.
 - **Against the baseline's old verifier,** every model is higher in both modes.
 - **Against the units run with the old verifier on,** `gpt-6-luna` and `claude-haiku-5-5` are lower in both modes, and `deepseek-flash` is higher.
-- **Against the run of 2026-11-18,** every model is lower in both modes, by 2 to 6 chats. See [Other findings](#other-findings).
+- **Against the run of 2026-11-18,** every model is lower in both modes, by 3.4 to 11.5 points. See [Other findings](#other-findings).
 
 ### What went wrong with the check off
 
@@ -171,7 +171,7 @@ Each cell is content check off → on.
 | `deepseek-flash` | 4.00 → 8.93 | 0.00076 → 0.00127 | 1.7 | 5.7 → 6.9 | 7.6 → 9.8 |
 
 - **The content check adds about five requests to a chat,** one for each food and one more for each food it has written again.
-- **Every chat made four model requests with the check off.** The report does not list a chat's requests, so it does not show how the four divide between the chat model, the date check and the date correction.
+- **With the check off, each model averaged 4.00 model requests a chat.** The report gives only the average and does not list a chat's requests, so it does not show how they divide between the chat model, the date check and the date correction.
 
 ### The time a message with many foods takes
 
@@ -246,7 +246,7 @@ The maintainer made one decision from this run, on 2026-11-21. The plan records 
 - **Every model is lower than in the run of 2026-11-18,** in both modes. On these 20 cases that run had 55 and 57 of 60 chats fully correct on `gpt-6-luna`, 49 and 54 of 60 on `claude-haiku-5-5`, and 56 and 55 of 59 on `deepseek-flash`. This run has 53 and 53, 47 and 51, and 52 and 49 of 60.
   - **The cause is not known.** Between the two runs the name and count check was switched off, the review changes of [PR #117](https://github.com/phanmi/tyler_agent/pull/117) were made, and `recordFood` started saving its list in one operation. Two of the review changes alter what a correction request sends.
   - **The report gives no sign that the name and count check is the cause.** Every wrong save in this run is a nutrition value, which that check does not change. In the earlier run it changed a record in 4 of 1,206 chats.
-  - **It may be noise.** Each figure is one run of 60 chats.
+  - **It may be chance.** Each figure is one run of about 60 chats. All six figures moved the same way.
 - **The taco beef is wrong on every model.** 120 g of cooked 90% lean ground beef was saved with a value outside tolerance in 7 of 9 chats with the check off, and in 5 of 9 with it on.
 - **No food was saved with 0 for every nutrition value.** The run of 2026-11-18 had 10 such foods on `claude-haiku-5-5`.
 - **No chat called a file tool.** The earlier run had two failed chats where `deepseek-flash` did.
