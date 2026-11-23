@@ -41,7 +41,7 @@ Before saving, Tyler checks the date of each food with your provider's model. Ea
 
 Tyler normally records the foods of a message in one step, and the foods of a step are saved together: all of them, or none. If the date check cannot be completed, or one of the foods cannot be saved, chat shows an error and nothing from that step is saved.
 
-After such an error, look at the **Calendar** before you send the message again. Now and then Tyler records a message in more than one step, and an earlier step may already be saved. When the date check could not be completed, the error says which it is: "Some foods from this message may already be saved", or "Please try again" when nothing was saved.
+After such an error, look at the **Calendar** before you send the message again. Now and then Tyler records a message in more than one step, and an earlier step may already be saved. An error that begins "The model could not complete a required check" says which it is: "Some foods from this message may already be saved", or "Please try again" when nothing was saved. Other errors do not say which it is.
 
 The date check makes extra requests to your provider, which it bills like any other use: one for the dates of a message's foods, and one more when a date has to be corrected.
 

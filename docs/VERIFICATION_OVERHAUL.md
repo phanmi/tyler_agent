@@ -238,7 +238,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | Python tests drive the file-based flow through the real agent loop, tool registry and `recordFood`. | The file-based test in step 6. | 6 | Met |
 | Adding another tool needs no change to the registry or the agent loop. | Tools read this run's tool results through a general part of `ToolContext`, `earlier_calls` (D6). The registry fills it in for every call, so no tool needs wiring of its own and the agent loop did not change. | 2 | Met |
 | A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Met for one `recordFood` call. An earlier call of the same message stays saved; the next row covers it. |
-| Resending after such a failure creates no duplicates when nothing of the message was saved. When a check could not be completed after an earlier `recordFood` call of the chat saved, the app does not ask for a resend: the error says that some foods may already be saved, and to check the Calendar first. | Nothing of the failed call was saved, so nothing of it is saved twice. When a check gets no usable answer (`MODEL_ANSWER_UNUSABLE`) after an earlier call of the same message was saved, the error says so and does not ask the user to send the message again (R8 of the second code review). Not covered: a check that fails another way after a save, such as on a provider error, still answers "Please try again later", and a user who sends the message again in spite of the warning still saves the earlier call's foods twice. [#57](https://github.com/phanmi/tyler_agent/issues/57) is about a later call that fails after an earlier one saved. | 6, 9 | Met as reworded on 2026-11-22, for a check that could not be completed |
+| Resending after such a failure creates no duplicates when nothing of the message was saved. When a check gets no usable answer from the model (`MODEL_ANSWER_UNUSABLE`) after an earlier `recordFood` call of the chat saved, the app does not ask for a resend: the error says that some foods may already be saved, and to check the Calendar first. The criterion covers no other failure. | Nothing of the failed call was saved, so nothing of it is saved twice. When a check gets no usable answer (`MODEL_ANSWER_UNUSABLE`) after an earlier call of the same message was saved, the error says so and does not ask the user to send the message again (R8 of the second code review). Not covered: every other failure after a save, such as a provider error during a check, still answers "Please try again later", and a user who follows that can save the earlier call's foods twice. So can a user who sends the message again in spite of the warning. [#57](https://github.com/phanmi/tyler_agent/issues/57) is about a later call that fails after an earlier one saved. | 6, 9 | Met as reworded on 2026-11-22, for `MODEL_ANSWER_UNUSABLE` only |
 | Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | The operation `food.insert_all`, with a bridge handler and service method of its own (D9, D23). | 9 | Met |
 | The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Met. The [content check eval](evals/verification-overhaul/2026-11-21-content-check.md#the-time-a-message-with-many-foods-takes) has the times beside the baseline's. |
 | Python tests cover a failure and a cancellation between checks through the real agent loop and runtime. | The failure and cancellation tests in step 6. | 6 | Met |
@@ -290,6 +290,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | 2026-11-22 | The criterion about resending is reworded, option A: the app does not ask for a resend after an earlier `recordFood` call of the chat saved, and R8's warning meets the criterion. Making a resend unable to duplicate is not part of #113. | Maintainer |
 | 2026-11-22 | #104's four categories are not run again with the name and count check off. The run of 2026-11-18, reported in PR #117, stands for that criterion. | Maintainer |
 | 2026-11-22 | #113 is closed by the PR that adds the write-up of the 2026-11-21 run. | Maintainer |
+| 2026-11-22 | The reworded resending criterion names the one failure it holds for, `MODEL_ANSWER_UNUSABLE`, and stays met. Marking a broader criterion partially met was the other option. Decided on the review of PR #122. | Maintainer |
 
 Decisions made before this plan are in #113's description.
 
@@ -1046,7 +1047,7 @@ PR #121 was merged on 2026-11-22. The maintainer then asked for the rest to be c
 
 **The decisions of 2026-11-22**
 
-- **The resending criterion: option A.** #113's criterion is reworded to say what R8 built: after an earlier `recordFood` call of the chat saved, the app does not ask for a resend. Option B, making a resend unable to duplicate, needs a design and is not part of #113.
+- **The resending criterion: option A.** #113's criterion is reworded to say what R8 built: when a check gets no usable answer from the model (`MODEL_ANSWER_UNUSABLE`) after an earlier `recordFood` call of the chat saved, the app does not ask for a resend. Option B, making a resend unable to duplicate, needs a design and is not part of #113.
 - **No new run of #104's four categories.** Asked whether to make the paid run of 414 chats with the name and count check off, the maintainer chose to accept the run of 2026-11-18 that PR #117 reported.
 - **#113 closes with this PR.**
 
@@ -1072,7 +1073,7 @@ PR #121 was merged on 2026-11-22. The maintainer then asked for the rest to be c
 
 **#113 reworded and ticked**
 
-- The resending criterion has the wording of option A, limited to a check that could not be completed. It names what is not covered and points to [#57](https://github.com/phanmi/tyler_agent/issues/57).
+- The resending criterion has the wording of option A, limited to the one failure R8 handles, `MODEL_ANSWER_UNUSABLE`. It names what is not covered and points to [#57](https://github.com/phanmi/tyler_agent/issues/57).
 - The criterion about a failure saving none of a message's foods notes that it holds for one `recordFood` call.
 - The criterion about the run of #104's categories notes which run meets it, and the decision not to run them again.
 - The line on where the numbers come from names the write-up and the report.
@@ -1083,7 +1084,7 @@ PR #121 was merged on 2026-11-22. The maintainer then asked for the rest to be c
 | Item | Result |
 |---|---|
 | 1. Every check tool is implemented, and the content check can be turned off from Settings | The three checks are implemented. The Settings switch was built and then removed (D30): the content check is off in every chat, so there is nothing to turn off. |
-| 2. Every #113 criterion is met | Met, apart from two that are partially met by the decision of 2026-11-18: a converted unit, and a food that matches neither the conversation nor a tool result. Both rest on the name and count check, which is off until [#118](https://github.com/phanmi/tyler_agent/issues/118). The resending criterion is met as reworded, which leaves a resend after a save to [#57](https://github.com/phanmi/tyler_agent/issues/57). |
+| 2. Every #113 criterion is met | Met, apart from two that are partially met by the decision of 2026-11-18: a converted unit, and a food that matches neither the conversation nor a tool result. Both rest on the name and count check, which is off until [#118](https://github.com/phanmi/tyler_agent/issues/118). The resending criterion is met as reworded, for `MODEL_ANSWER_UNUSABLE` only, which leaves every other failure after a save, and a resend made in spite of the warning, to [#57](https://github.com/phanmi/tyler_agent/issues/57). |
 | 3. An eval run shows that the cheap models improve | Met as the plan reads it, with the content check on, in both runs. With the check off, as the app runs, the many-foods run has two models above their baseline and `claude-haiku-5-5` one chat below. |
 | 4. No wrong or missing date and no missing food | No wrong or missing date in either run. No missing food on the many-foods cases in either run. In the full run, 12 chats elsewhere saved nothing, 10 of them `some-almonds`, which the maintainer set aside. |
 | 5. With the content check on, the results are better than with it off | Not met. D29 was decided from it. |
@@ -1092,12 +1093,18 @@ PR #121 was merged on 2026-11-22. The maintainer then asked for the rest to be c
 
 | | Finding | What was done |
 |---|---|---|
-| C1 | The resending criterion was marked met with the wording "when an earlier `recordFood` call of the chat saved, the app does not ask for a resend". That holds for `MODEL_ANSWER_UNUSABLE` only. A check that fails another way after a save still answers "Please try again later". | The criterion is limited to a check that could not be completed, and names what is not covered. The maintainer has not confirmed the narrower wording. The other way to settle it is to mark the criterion partially met. |
+| C1 | The resending criterion was marked met with the wording "when an earlier `recordFood` call of the chat saved, the app does not ask for a resend". That holds for `MODEL_ANSWER_UNUSABLE` only. A check that fails another way after a save still answers "Please try again later". | The criterion was limited to "a check that could not be completed", and names what is not covered. The review on the PR found that wording still too broad; see below. |
 | C2 | The acceptance row for the many-foods run still said the eval's "off" mode runs the name and date checks. | The row says which checks ran in each run. |
 | C3 | The same row said the runs are reported in PR #117 and PR #121, which reads as if #121 held the write-up. | The row says the PR descriptions report the runs, and that the write-ups are under `docs/evals/`. |
 | C4 | "By 2 to 6 chats of 60" mixed two totals: `deepseek-flash` had 59 chats in the earlier run. | The difference is given in points, 3.4 to 11.5. |
 | C5 | This entry's checks left out `mypy` and gave no results. | Both `mypy` runs were made, and the results are below. |
 | C6 | The write-up said every chat made four model requests with the check off. The report gives only the average. | The write-up says each model averaged 4.00. |
+
+**The review on the PR.** It had one finding, on the resending criterion as C1 left it, and it was real.
+
+- **The finding.** "A check that could not be completed" also describes a provider error during a check. That failure still answers "Please try again later" after an earlier `recordFood` call saved, and a user who follows it can save the earlier call's foods twice. Only `MODEL_ANSWER_UNUSABLE` has the text that does not ask for a resend.
+- **The options.** A: name `MODEL_ANSWER_UNUSABLE` in the criterion and its status, here and in #113. B: mark the broader criterion partially met.
+- **Decided by the maintainer: A.** The criterion and its status name the failure and say that no other failure is covered. #113's description and the README have the same wording.
 
 **Checks**
 
