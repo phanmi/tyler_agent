@@ -1,5 +1,5 @@
 # Backend image: the Spring Boot JAR plus the PyInstaller worker that Java supervises.
-# Build from the repository root. See docs/CLOUD_DEPLOYMENT.md.
+# Build from the repository root. See docs/deployment/CLOUD_DEPLOYMENT.md.
 
 FROM maven:3.10-eclipse-temurin-26-noble AS backend-build
 WORKDIR /src

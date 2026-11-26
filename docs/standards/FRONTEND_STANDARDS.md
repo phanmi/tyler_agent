@@ -1,12 +1,12 @@
 # Frontend coding and design standards
 
-[Developer guide](DEVELOPMENT.md) · [Backend standards](BACKEND_STANDARDS.md)
+[Developer guide](../guides/DEVELOPMENT.md) · [Backend standards](BACKEND_STANDARDS.md)
 
 These standards apply to frontend implementation and review, including React, TypeScript, CSS, HTTP clients, Electron, and frontend build scripts. **AI coding agents must follow the applicable rules for every new or changed behavior.** Human contributors and reviewers use the same baseline.
 
 Rules describe responsibilities and observable behavior without assigning them to particular application classes or components. Existing code is context, not proof of compliance. Preserve public contracts and keep changes within the task's scope. Record unrelated gaps for follow-up; this document does not authorize a broad refactor or new framework.
 
-**MUST** means required. **SHOULD** means the default, with any departure explained and supported by evidence. An exception must identify the rule, reason, affected scope, verification, and follow-up; an agent must not silently waive a requirement. Current tooling limitations are listed in the [developer guide](DEVELOPMENT.md#frontend-verification-baseline).
+**MUST** means required. **SHOULD** means the default, with any departure explained and supported by evidence. An exception must identify the rule, reason, affected scope, verification, and follow-up; an agent must not silently waive a requirement. Current tooling limitations are listed in the [developer guide](../guides/DEVELOPMENT.md#testing).
 
 ## Standards at a glance
 
@@ -167,7 +167,7 @@ Test observable contracts with deterministic inputs and controlled async complet
 3. Implement the smallest cohesive change. Preserve newer user input and existing data. Update comments and useful diagnostics in the final surrounding code.
 4. Inspect each meaningful success and failure path against tests. Include stale responses and mutation/navigation races when applicable. Assert observable handling of expected errors.
 5. Run available applicable checks and inspect UI/desktop behavior where needed. Validate documentation links for documentation changes. Report unavailable gates explicitly; never fabricate a command, passing result, or compliance claim.
-6. Summarize what changed, verification results, and remaining risks or follow-up. Use the [PR review guidance](../.github/agents/pr-review.agent.md) and [pull request template](../.github/pull_request_template.md).
+6. Summarize what changed, verification results, and remaining risks or follow-up. Use the [PR review guidance](../../.github/agents/pr-review.agent.md) and [pull request template](../../.github/pull_request_template.md).
 
 ### Review checklist
 

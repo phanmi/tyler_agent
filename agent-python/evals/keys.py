@@ -1,6 +1,6 @@
 """Provider API keys for harness runs: read from the environment or from a file on this computer.
 
-This module is the PY-09 exception recorded in docs/PYTHON_AGENT_STANDARDS.md: the harness
+This module is the PY-09 exception recorded in docs/standards/PYTHON_AGENT_STANDARDS.md: the harness
 may save provider keys in a plain-text file outside the repository, so a run does not need
 them typed each time.
 """

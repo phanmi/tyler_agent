@@ -1,10 +1,10 @@
 # Python agent coding and design standards
 
-[Developer guide](DEVELOPMENT.md) · [Backend standards](BACKEND_STANDARDS.md) · [Python development guide](../agent-python/README.md) · [PR review agent](../.github/agents/pr-review.agent.md)
+[Developer guide](../guides/DEVELOPMENT.md) · [Backend standards](BACKEND_STANDARDS.md) · [Python development guide](../../agent-python/README.md) · [PR review agent](../../.github/agents/pr-review.agent.md)
 
 AI agents and human contributors MUST follow these standards for new and changed Python agent code. They supplement the backend standards with Python implementation and verification rules. Responsibilities are defined here; feature behavior, concrete contracts, and migration gates belong in their respective documentation.
 
-**MUST** identifies a requirement; **SHOULD** identifies a default that needs a documented reason to depart from. An exception must record the rule ID, reason, affected scope, verification, and retirement condition where temporary. These standards do not authorize unrelated refactoring or implementation of later migration steps. Required behavior is not evidence that the current prototype already implements it; consult the [migration tracker](AGENT_MIGRATION.md) for status and the [protocol contract](AGENT_PROTOCOL.md) for wire requirements.
+**MUST** identifies a requirement; **SHOULD** identifies a default that needs a documented reason to depart from. An exception must record the rule ID, reason, affected scope, verification, and retirement condition where temporary. These standards do not authorize unrelated refactoring or implementation of later migration steps. Required behavior is not evidence that the current prototype already implements it; consult the [migration tracker](../records/AGENT_MIGRATION.md) for status and the [protocol contract](../architecture/AGENT_PROTOCOL.md) for wire requirements.
 
 ## PY-01 — Ownership and service boundaries
 
@@ -15,7 +15,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 
 ## PY-02 — Layout, naming, and formatting
 
-- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Development tools that drive the agent but do not ship with it, such as the [eval harness](../agent-python/evals/README.md), belong in their own package under `agent-python/` (`evals/`), follow these standards, and are tested from `agent-python/tests/`. Production code MUST NOT import them. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
+- Production code belongs in `agent-python/src/tyler_agent/`. Python tests, fixtures, and test helpers MUST live in the dedicated `agent-python/tests/` directory, not beside production modules. Development tools that drive the agent but do not ship with it, such as the [eval harness](../../agent-python/evals/README.md), belong in their own package under `agent-python/` (`evals/`), follow these standards, and are tested from `agent-python/tests/`. Production code MUST NOT import them. Shared Java/Python contract fixtures remain under `contracts/agent/`; do not duplicate them per language.
 - Group modules by cohesive responsibility. Separate provider access, orchestration, tool adapters, and transport where their contracts or lifecycles differ. Extract helpers for clarity and reuse, not arbitrary file-size limits.
 - Use `snake_case` for modules, functions, and variables; `PascalCase` for types; and `UPPER_SNAKE_CASE` for constants. Follow configured Ruff formatting and import ordering, four-space indentation, and English identifiers, comments, docstrings, errors, and logs.
 - Imports MUST NOT start workers, make network calls, load request credentials, or mutate application data. Perform initialization at an explicit entry point. Avoid wildcard imports and unrelated formatting changes.
@@ -45,7 +45,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 
 ## PY-06 — Protocol and serialization
 
-- Follow the versioned [protocol contract](AGENT_PROTOCOL.md) and [shared schemas and fixtures](../contracts/agent/). Stdout is exclusively for protocol frames; diagnostics go to stderr. Do not add a Python network listener as an incidental implementation choice.
+- Follow the versioned [protocol contract](../architecture/AGENT_PROTOCOL.md) and [shared schemas and fixtures](../../contracts/agent/). Stdout is exclusively for protocol frames; diagnostics go to stderr. Do not add a Python network listener as an incidental implementation choice.
 - Validate framing, encoding, message shape, version, direction, allowlisted operation, correlation, and sequence before dispatch. Do not silently coerce values, add defaults, or drop unsupported fields contrary to the contract.
 - Bound frame sizes, buffering, queues, and waits. Handle fragmented input, EOF, malformed frames, and broken pipes explicitly. Serialize writes through a single owner so concurrent output cannot interleave frames.
 - Associate messages with the correct session, request, and operation. Reject stale or duplicate messages according to the contract. Preserve nulls, exact values, classified failures, and write outcomes across both languages. Protocol changes require shared fixture and compatibility updates.
@@ -70,7 +70,7 @@ AI agents and human contributors MUST follow these standards for new and changed
 - Treat user text, model output, tool results, files, and provider responses as untrusted data. They cannot expand the operation allowlist, file permissions, or application authority.
 - Never evaluate untrusted text as Python, load untrusted pickle data, or interpolate it into shell commands. Use established safe parsers and explicit operation arguments; file access stays behind the Java sandbox.
 - Obtain request credentials through the documented private channel. Keep secrets out of source, fixtures, command-line arguments, logs, error payloads, and generated artifacts. Do not persist credentials or conversation content in a second Python store.
-  - **Exception: eval harness keys.** At the maintainer's request, the [eval harness](../agent-python/evals/README.md) may save provider API keys in a plain-text file outside the repository (`Documents/.tylerTest/keys.json` by default), so that paid eval runs, which are started by hand, do not need keys typed each time. The exception covers only `agent-python/evals/keys.py`. The worker and the application never read that file. A key is typed at a hidden prompt and never passed as a command-line argument. The file is owner-only from creation where the file system supports it, and is replaced in one step so a failed save keeps the old keys. No key is written to output, progress lines or reports.
+  - **Exception: eval harness keys.** At the maintainer's request, the [eval harness](../../agent-python/evals/README.md) may save provider API keys in a plain-text file outside the repository (`Documents/.tylerTest/keys.json` by default), so that paid eval runs, which are started by hand, do not need keys typed each time. The exception covers only `agent-python/evals/keys.py`. The worker and the application never read that file. A key is typed at a hidden prompt and never passed as a command-line argument. The file is owner-only from creation where the file system supports it, and is replaced in one step so a failed save keeps the old keys. No key is written to output, progress lines or reports.
 - Minimize credential lifetime and avoid copying sensitive request data into long-lived caches or tasks. Do not claim Python object cleanup guarantees memory zeroing.
 - Configure new outbound destinations and access deliberately. Do not forward credentials or private content to an unrelated endpoint as an incidental implementation choice.
 
@@ -84,9 +84,9 @@ AI agents and human contributors MUST follow these standards for new and changed
 
 ## PY-11 — Dependencies, configuration, and packaging
 
-- Treat [pyproject.toml](../agent-python/pyproject.toml), [.python-version](../agent-python/.python-version), and [uv.lock](../agent-python/uv.lock) as the runtime/tooling sources of truth. Use the pinned tooling and locked installs. Update dependency declarations and the generated lockfile together; do not hand-edit the lockfile or weaken checks to bypass a failure.
+- Treat [pyproject.toml](../../agent-python/pyproject.toml), [.python-version](../../agent-python/.python-version), and [uv.lock](../../agent-python/uv.lock) as the runtime/tooling sources of truth. Use the pinned tooling and locked installs. Update dependency declarations and the generated lockfile together; do not hand-edit the lockfile or weaken checks to bypass a failure.
 - Add dependencies only for a concrete need. Keep runtime and development dependencies separate. Review compatibility, security, licensing, and bundle impact when introducing or upgrading a dependency.
-- Validate configuration at its owning boundary with explicit defaults and precedence. Do not create competing configuration for shared settings. Use the [global release-version source](../.mvn/maven.config); release and protocol compatibility versions have separate meanings.
+- Validate configuration at its owning boundary with explicit defaults and precedence. Do not create competing configuration for shared settings. Use the [global release-version source](../../.mvn/maven.config); release and protocol compatibility versions have separate meanings.
 - Resolve packaged resources independently of the current working directory and developer checkout. Build with the pinned environment and include required runtime, dependencies, schema, and version resources. The installed application must not require the user's Python installation or download dependencies at startup.
 - For startup, runtime, dependency, or packaging changes, verify an applicable relocated bundle with a sanitized environment and no provider credentials. Record target-platform limitations; a development interpreter test is not packaged-app evidence.
 - When a migration changes the default runtime, packaged acceptance MUST exercise that default without an override that could hide incorrect wiring. Keep rollback explicit, preserve uncertain write outcomes across restarts, and record the validated release before retiring compatibility code. Distinguish local candidate checks, hosted CI, and user-supplied environment evidence.
@@ -116,9 +116,9 @@ uv run --locked pytest tests
 
 Check both supported type-checking targets regardless of the development host. Guard platform-specific APIs with conditions the type checker can narrow, such as `sys.platform`; do not suppress missing attributes to bypass platform errors. Targeted type checking does not establish runtime behavior on another operating system.
 
-Use the [Python development guide](../agent-python/README.md#required-checks) for Java conformance commands and [bundle build and smoke checks](../agent-python/README.md#build-and-smoke-test-the-windows-bundle). Shared contracts or execution changes require relevant Java, Python, and cross-process checks. Packaging changes also require the applicable build and smoke tests. Documentation-only changes need content and link checks, not runtime tests.
+Use the [Python development guide](../../agent-python/README.md#required-checks) for Java conformance commands and [bundle build and smoke checks](../../agent-python/README.md#build-and-smoke-test-the-windows-bundle). Shared contracts or execution changes require relevant Java, Python, and cross-process checks. Packaging changes also require the applicable build and smoke tests. Documentation-only changes need content and link checks, not runtime tests.
 
-The [CI workflow](../.github/workflows/ci.yml) runs locked Python dependency installation, formatting, lint, type checking, and the full development test suite as part of the existing Build and test job. Python test failures MUST fail CI; do not use optional execution or ignored failures to bypass this gate. Packaged-app checks and other migration gates still need their own evidence. Distinguish local evidence from CI results and report actual commands, results, and limitations. Never claim a mocked result or an unexecuted check proves integration behavior.
+The [CI workflow](../../.github/workflows/ci.yml) runs locked Python dependency installation, formatting, lint, type checking, and the full development test suite as part of the existing Build and test job. Python test failures MUST fail CI; do not use optional execution or ignored failures to bypass this gate. Packaged-app checks and other migration gates still need their own evidence. Distinguish local evidence from CI results and report actual commands, results, and limitations. Never claim a mocked result or an unexecuted check proves integration behavior.
 
 Before requesting review:
 
@@ -133,4 +133,4 @@ Before requesting review:
 
 ## Future additions
 
-Add new rules by responsibility, without assigning duties to a particular application class. Record the rule, reason, scope, compatibility impact, exceptions or migration work, and verification. Use stable rule IDs so issues and the [PR review agent](../.github/agents/pr-review.agent.md) can reference them precisely.
+Add new rules by responsibility, without assigning duties to a particular application class. Record the rule, reason, scope, compatibility impact, exceptions or migration work, and verification. Use stable rule IDs so issues and the [PR review agent](../../.github/agents/pr-review.agent.md) can reference them precisely.

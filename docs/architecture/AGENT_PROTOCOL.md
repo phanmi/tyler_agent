@@ -1,17 +1,17 @@
 # Java and Python agent protocol version 3
 
-[Migration tracker](AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](BACKEND_STANDARDS.md)
+[Migration tracker](../records/AGENT_MIGRATION.md) | [Session lifecycle guide](AGENT_SESSION.md) | [Backend standards](../standards/BACKEND_STANDARDS.md)
 
-This is the version 3 contract. Version 1 was established in Step 3; version 2 (issue #79) added the required `run.provider` field; version 3 (issue #113) adds the required `run.checkNutrition` field and the failure code `MODEL_ANSWER_UNUSABLE`, replaces the operation `food.insert` with `food.insert_all`, and otherwise keeps version 2's messages, bounds, and failure codes. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../agent-python/README.md). Step 5 adds the Java process supervisor and parent watchdog. Step 10 makes Python the sole agent implementation after the validated release window. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same service boundary.
+This is the version 3 contract. Version 1 was established in Step 3; version 2 (issue #79) added the required `run.provider` field; version 3 (issue #113) adds the required `run.checkNutrition` field and the failure code `MODEL_ANSWER_UNUSABLE`, replaces the operation `food.insert` with `food.insert_all`, and otherwise keeps version 2's messages, bounds, and failure codes. Step 4 provides [Java/Python codecs, conformance tests, and a packaged worker prototype](../../agent-python/README.md). Step 5 adds the Java process supervisor and parent watchdog. Step 10 makes Python the sole agent implementation after the validated release window. Step 6 provides the [allowlisted service bridge](AGENT_OPERATIONS.md); Step 7 implements the Python model loop and tool adapters behind the same service boundary.
 
-Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
+Step 4 was implemented against source revision `2158f10`, including the merged architecture and agent-test correction, on 2026-10-16. Use the [current migration baseline](../records/AGENT_MIGRATION.md#current-implementation-baseline) for service ownership and verification status; earlier checkout observations are retained in dated execution records.
 
 ## Contract artifacts and authority
 
-- [Message schema](../contracts/agent/v3/message.schema.json): closed message and domain-transport shapes, using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core).
-- [Message fixtures](../contracts/agent/v3/fixtures/messages.json): accepted/rejected shapes and expected values.
-- [Framing fixtures](../contracts/agent/v3/fixtures/framing.json): raw bytes, chunk boundaries, malformed JSON, and size boundaries.
-- [Sequence fixtures](../contracts/agent/v3/fixtures/sequences.json): directions, correlation, state transitions, cancellation, and uncertain writes.
+- [Message schema](../../contracts/agent/v3/message.schema.json): closed message and domain-transport shapes, using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core).
+- [Message fixtures](../../contracts/agent/v3/fixtures/messages.json): accepted/rejected shapes and expected values.
+- [Framing fixtures](../../contracts/agent/v3/fixtures/framing.json): raw bytes, chunk boundaries, malformed JSON, and size boundaries.
+- [Sequence fixtures](../../contracts/agent/v3/fixtures/sequences.json): directions, correlation, state transitions, cancellation, and uncertain writes.
 
 The schema controls structural validity; this document additionally controls framing, semantic checks, state, and effects. Passing schema validation alone never authorizes an operation. Resolve disagreements between artifacts before changing a consumer. Schema validation must not coerce values, add defaults, or discard unknown properties. No schema references require network resolution.
 

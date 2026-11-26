@@ -13,15 +13,15 @@ All agent logic (providers, prompts, the tool loop, tool schemas) is Python. Jav
 
 | Working on | Read |
 |---|---|
-| Java | `docs/BACKEND_STANDARDS.md` |
-| Python agent or tools | `docs/PYTHON_AGENT_STANDARDS.md` and `docs/BACKEND_STANDARDS.md` |
-| React, CSS, Electron | `docs/FRONTEND_STANDARDS.md` |
-| Worker protocol | `docs/AGENT_PROTOCOL.md` and `contracts/agent/` |
-| Tools, provider behavior, limits | `docs/AGENT_OPERATIONS.md` |
-| File access | `docs/FILE_SANDBOX.md` |
-| Packaging or desktop startup | `docs/DESKTOP_PACKAGING.md` |
+| Java | `docs/standards/BACKEND_STANDARDS.md` |
+| Python agent or tools | `docs/standards/PYTHON_AGENT_STANDARDS.md` and `docs/standards/BACKEND_STANDARDS.md` |
+| React, CSS, Electron | `docs/standards/FRONTEND_STANDARDS.md` |
+| Worker protocol | `docs/architecture/AGENT_PROTOCOL.md` and `contracts/agent/` |
+| Tools, provider behavior, limits | `docs/architecture/AGENT_OPERATIONS.md` |
+| File access | `docs/architecture/FILE_SANDBOX.md` |
+| Packaging or desktop startup | `docs/deployment/DESKTOP_PACKAGING.md` |
 
-`docs/DEVELOPMENT.md` covers setup, architecture, and configuration. `docs/AGENT_MIGRATION.md` is a 1,000-line record, so search it rather than reading it whole.
+`docs/guides/DEVELOPMENT.md` covers setup, architecture, and configuration. `docs/records/AGENT_MIGRATION.md` is a 1,000-line record, so search it rather than reading it whole. `docs/README.md` lists every document by category, and says where a new one goes.
 
 ## Before writing code
 

@@ -2,7 +2,7 @@
 
 [Eval harness](../../../agent-python/evals/README.md) · [Generated report, before](2026-11-16-nutrition-sources-before-report.md) · [Generated report, after](2026-11-16-nutrition-sources-after-report.md) · [Many-foods baseline](../many-items/2026-11-16-many-items.md)
 
-**This run measures [#105](https://github.com/phanmi/tyler_agent/issues/105).** With that change, the agent bases the nutrition values it estimates on the brand's published nutrition for packaged and restaurant food, and on USDA FoodData Central for other food. Values the user states are saved exactly as stated. Food verification judges estimates against the same sources and no longer rejects a value for differing slightly; see [Estimated nutrition values](../../AGENT_OPERATIONS.md#estimated-nutrition-values).
+**This run measures [#105](https://github.com/phanmi/tyler_agent/issues/105).** With that change, the agent bases the nutrition values it estimates on the brand's published nutrition for packaged and restaurant food, and on USDA FoodData Central for other food. Values the user states are saved exactly as stated. Food verification judges estimates against the same sources and no longer rejects a value for differing slightly; see [Estimated nutrition values](../../architecture/AGENT_OPERATIONS.md#estimated-nutrition-values).
 
 The 62 shipped cases ran on the three low-cost models once before the change and once after it.
 

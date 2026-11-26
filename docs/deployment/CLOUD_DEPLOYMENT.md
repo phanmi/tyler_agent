@@ -1,6 +1,6 @@
 # Running the backend as a Linux container
 
-[Developer guide](DEVELOPMENT.md) | [File sandbox](FILE_SANDBOX.md) | [Session lifecycle](AGENT_SESSION.md)
+[Developer guide](../guides/DEVELOPMENT.md) | [File sandbox](../architecture/FILE_SANDBOX.md) | [Session lifecycle](../architecture/AGENT_SESSION.md)
 
 The root `Dockerfile` builds one image holding the backend JAR and the Linux build of the Python worker that Java supervises. The frontend is not part of it.
 
@@ -42,7 +42,7 @@ docker run --init --detach --name tyler \
 
 ## Deploying to AWS
 
-Create the infrastructure first, following [infra/aws](../infra/aws/README.md). Then start a deployment from the **Deploy backend** workflow on the GitHub Actions page, or with `gh workflow run deploy.yml --ref main`. It only runs from `main`.
+Create the infrastructure first, following [infra/aws](../../infra/aws/README.md). Then start a deployment from the **Deploy backend** workflow on the GitHub Actions page, or with `gh workflow run deploy.yml --ref main`. It only runs from `main`.
 
 The workflow builds the image, runs the container smoke test, pushes the image to ECR, and runs `deploy/deploy-on-host.sh` on the host through SSM. That script stops the old container, starts the new image, and polls `GET /api/llm/settings` with the token. A chat in progress when the old container stops is lost.
 

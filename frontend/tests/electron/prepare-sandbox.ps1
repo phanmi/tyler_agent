@@ -16,7 +16,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'desktop-smoke.cjs') -Destinatio
 Copy-Item -LiteralPath (Join-Path $repoRoot 'frontend/out/make/squirrel.windows/x64') -Destination (Join-Path $inputs 'installer') -Recurse
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'offline-run.cmd') -Destination (Join-Path $inputs 'run.cmd')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'start-sandbox.ps1') -Destination (Join-Path $destination 'Start-Sandbox.ps1')
-Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/DESKTOP_PACKAGING.md') -Destination (Join-Path $destination 'README.md')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/deployment/DESKTOP_PACKAGING.md') -Destination (Join-Path $destination 'README.md')
 $checksums = Get-ChildItem -LiteralPath $inputs -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object {
     $_.Hash.ToLowerInvariant() + '  ' + $_.Path.Substring($destination.Length + 1)
 }

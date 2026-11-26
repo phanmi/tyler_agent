@@ -164,7 +164,7 @@ Tracked in [#105](https://github.com/phanmi/tyler_agent/issues/105).
 
 **Limit.** An instruction steers the model toward the FoodData Central values it remembers; it cannot look them up. Grounding values in the database needs a lookup tool for the FoodData Central API, which #96 left out of scope. That is a separate decision.
 
-**Update:** the Pizza Hut misses were most likely not model errors. Third-party listings of today's Pizza Hut 14" pan pepperoni slice give about 360 to 380 kcal and 17 to 19 g of fat, from a slice of about 143 g; the SR Legacy entry uses 113 g slices. So #105 tells the agent to use the brand's published nutrition for packaged and restaurant food, and FoodData Central for other food. See [Estimated nutrition values](../../AGENT_OPERATIONS.md#estimated-nutrition-values), and the [nutrition sources eval](../nutrition-sources/2026-11-16-nutrition-sources.md) for the run before and after the change. The rest of this section is left as it was written.
+**Update:** the Pizza Hut misses were most likely not model errors. Third-party listings of today's Pizza Hut 14" pan pepperoni slice give about 360 to 380 kcal and 17 to 19 g of fat, from a slice of about 143 g; the SR Legacy entry uses 113 g slices. So #105 tells the agent to use the brand's published nutrition for packaged and restaurant food, and FoodData Central for other food. See [Estimated nutrition values](../../architecture/AGENT_OPERATIONS.md#estimated-nutrition-values), and the [nutrition sources eval](../nutrition-sources/2026-11-16-nutrition-sources.md) for the run before and after the change. The rest of this section is left as it was written.
 
 ## Other findings
 
