@@ -1,18 +1,18 @@
 # Tyler Agent developer guide
 
-[Back to the user guide](../README.md)
+[Back to the user guide](../../README.md)
 
-This page covers building, running, and maintaining Tyler. For the everyday app workflow, start with the [README](../README.md).
+This page covers building, running, and maintaining Tyler. For the everyday app workflow, start with the [README](../../README.md).
 
-For backend implementation and review conventions, see the [backend coding and design standards](BACKEND_STANDARDS.md).
+For backend implementation and review conventions, see the [backend coding and design standards](../standards/BACKEND_STANDARDS.md).
 
-For workspace roots, symlink/reparse-point rejection, SQLite file access, and filesystem race limitations, see the [file sandbox policy](FILE_SANDBOX.md).
+For workspace roots, symlink/reparse-point rejection, SQLite file access, and filesystem race limitations, see the [file sandbox policy](../architecture/FILE_SANDBOX.md).
 
-To run the backend as a Linux container, see the [cloud deployment guide](CLOUD_DEPLOYMENT.md).
+To run the backend as a Linux container, see the [cloud deployment guide](../deployment/CLOUD_DEPLOYMENT.md).
 
-Python agent contributors and reviewers must also follow the [Python agent coding and design standards](PYTHON_AGENT_STANDARDS.md). Setup and verification commands are in the [Python development guide](../agent-python/README.md).
+Python agent contributors and reviewers must also follow the [Python agent coding and design standards](../standards/PYTHON_AGENT_STANDARDS.md). Setup and verification commands are in the [Python development guide](../../agent-python/README.md).
 
-For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](AGENT_MIGRATION.md). The [agent protocol contract](AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](AGENT_SESSION.md) explains every state, message type, each side's reaction, and the worker supervisor configuration. The [service operation guide](AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and preserved tool contracts. Python owns all model/tool execution. The [rollout guide](AGENT_ROLLOUT.md) documents recovery using the validated previous release. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
+For the Java to Python agent roadmap, implementation progress, and verification history, see the [agent migration tracker](../records/AGENT_MIGRATION.md). The [agent protocol contract](../architecture/AGENT_PROTOCOL.md) defines private Java/Python communication and shared fixtures. The [session lifecycle guide](../architecture/AGENT_SESSION.md) explains every state, message type, each side's reaction, and the worker supervisor configuration. The [service operation guide](../architecture/AGENT_OPERATIONS.md) describes Step 6 handlers, shared validation, and preserved tool contracts. Python owns all model/tool execution. The [rollout guide](../deployment/AGENT_ROLLOUT.md) documents recovery using the validated previous release. Run `uv sync --locked` in `agent-python/` before the full Maven suite, which now includes real Python subprocess and loopback readiness tests.
 
 ## Contents
 
@@ -38,9 +38,9 @@ The desktop launcher and installer configuration target Windows. Build requireme
 
 | Requirement | Repository setting |
 |---|---|
-| JDK | Java 26, configured in [pom.xml](../pom.xml). |
+| JDK | Java 26, configured in [pom.xml](../../pom.xml). |
 | Maven | Used to compile, test, and package the backend. |
-| Node.js and npm | Node.js 22.12.0 or newer, required by the Electron dependency in [package-lock.json](../frontend/package-lock.json). |
+| Node.js and npm | Node.js 22.12.0 or newer, required by the Electron dependency in [package-lock.json](../../frontend/package-lock.json). |
 | Model provider API key | Required for chat: an OpenAI, Claude (Anthropic), or DeepSeek key for the provider chosen in Settings. See [Get an API key](SETUP.md#7-get-an-api-key). Tests never need one. |
 
 Before either development launch below, prepare Python from the repository root:
@@ -52,7 +52,7 @@ uv run --locked pyinstaller --noconfirm --distpath dist --workpath build worker.
 cd ..
 ```
 
-Alternatively configure the interpreter command described in the [session guide](AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers start Java with the repository root as its working directory, so the default worker path resolves consistently. Before that change of directory, relative `BACKEND_JAR_PATH` and explicit `AGENT_WORKSPACE_DIR` overrides are resolved against the directory where the launcher was invoked. For example, launching from `frontend/` with `AGENT_WORKSPACE_DIR=./data` continues to use `frontend/data`. Startup does not download dependencies or silently switch to Java if the worker is missing.
+Alternatively configure the interpreter command described in the [session guide](../architecture/AGENT_SESSION.md#configuration-and-lifecycle-ownership). The browser and Electron development launchers start Java with the repository root as its working directory, so the default worker path resolves consistently. Before that change of directory, relative `BACKEND_JAR_PATH` and explicit `AGENT_WORKSPACE_DIR` overrides are resolved against the directory where the launcher was invoked. For example, launching from `frontend/` with `AGENT_WORKSPACE_DIR=./data` continues to use `frontend/data`. Startup does not download dependencies or silently switch to Java if the worker is missing.
 
 ### Browser development
 
@@ -110,7 +110,7 @@ The backend uses an available loopback port by default. A saved API key is neede
 | Desktop | Electron, Electron Forge, Squirrel.Windows. |
 | Build | Maven, npm, uv, and PyInstaller. |
 
-Dependency declarations live in [pom.xml](../pom.xml), [pyproject.toml](../agent-python/pyproject.toml), and [package.json](../frontend/package.json); the frontend lockfile records resolved npm versions.
+Dependency declarations live in [pom.xml](../../pom.xml), [pyproject.toml](../../agent-python/pyproject.toml), and [package.json](../../frontend/package.json); the frontend lockfile records resolved npm versions.
 
 ```mermaid
 flowchart TB
@@ -137,7 +137,7 @@ Controllers and services are grouped by feature. The food controller and Python 
 ```text
 tyler_agent/
 ├─ .mvn/maven.config               # Shared release version
-├─ docs/DEVELOPMENT.md             # This guide
+├─ docs/guides/DEVELOPMENT.md      # This guide
 ├─ src/main/java/org/tyler/
 │  ├─ config/                     # Startup and CORS configuration
 │  ├─ controller/                 # HTTP routes grouped by feature
@@ -181,7 +181,7 @@ CSS lives in `frontend/src/styles/`: `tokens.css` defines shared design values; 
 
 ## Agent tools and workout persistence
 
-Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent/tools/builtin), each with an adapter and its own schema. Tools invoke allowlisted Java service operations; see [tool extension instructions](AGENT_OPERATIONS.md#adding-a-python-tool). Frozen release fixtures protect existing tool schemas and output formats.
+Python discovers trusted [builtin tool packages](../../agent-python/src/tyler_agent/tools/builtin), each with an adapter and its own schema. Tools invoke allowlisted Java service operations; see [tool extension instructions](../architecture/AGENT_OPERATIONS.md#adding-a-python-tool). Frozen release fixtures protect existing tool schemas and output formats.
 
 | Tool | Behavior |
 |---|---|
@@ -189,7 +189,7 @@ Python discovers trusted [builtin tool packages](../agent-python/src/tyler_agent
 | `GetUserInfo` | Reads the saved profile. |
 | `readFile` | Reads a text file within the workspace. |
 | `writeFile` | Writes a text file within the workspace, creating parent directories as needed. |
-| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and correct the wrong ones. The nutrition check is off in every chat. It saves the foods the checks leave in one transaction through the food service, all of them or none; see [food verification](AGENT_OPERATIONS.md#food-verification). |
+| `recordFood` | Takes every food of a message as one list. Validates the arguments, then has the run's model check the foods' dates and correct the wrong ones. The nutrition check is off in every chat. It saves the foods the checks leave in one transaction through the food service, all of them or none; see [food verification](../architecture/AGENT_OPERATIONS.md#food-verification). |
 | `generateWorkoutPlan` | Requests seven dated days and saves planned exercises through the Java plan service. |
 
 The workout tool accepts `startDate` in `YYYY-MM-DD` format, `goal` (`general_fitness`, `strength`, or `muscle_gain`), and `equipment` (`bodyweight` or `gym`). Its templates produce strength, cardio, recovery, and rest days.
@@ -241,7 +241,7 @@ The workout date endpoint parses the requested date in the controller and passes
 
 ## Configuration and data storage
 
-Defaults are in [application.yml](../src/main/resources/application.yml). The workspace defaults to `{user.home}/AppData/Local/tyler_agent`; set `AGENT_WORKSPACE_DIR` to choose another directory. Data paths below are relative to that workspace.
+Defaults are in [application.yml](../../src/main/resources/application.yml). The workspace defaults to `{user.home}/AppData/Local/tyler_agent`; set `AGENT_WORKSPACE_DIR` to choose another directory. Data paths below are relative to that workspace.
 
 | Property | Environment variable | Default |
 |---|---|---|
@@ -263,7 +263,7 @@ The workout database default is declared in its database configuration. `WORKOUT
 
 SQLite tables and indexes are created by the DAOs from scripts under `src/main/resources/db/`. Food reads and writes use the sole `IFoodRecordDAO` implementation directly against SQLite. Each database has a configuration class, `FoodDatabaseConfig` and `WorkoutDatabaseConfig`, that gives its DAO and a transaction manager the same data source. So the foods of one `recordFood` call, like the days of a workout plan, are saved in one transaction. A food transaction that cannot open or commit is reported as a write failure, like a failed insert.
 
-Logging is configured in [logback-spring.xml](../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
+Logging is configured in [logback-spring.xml](../../src/main/resources/logback-spring.xml). Logs default to `logs/tyler-agent.log` relative to the process working directory, outside the workspace. Set `LOG_DIR` to change that location. Logs rotate daily and at 10 MB, with 14 days of retention and a 1 GB total cap. Application logging defaults to INFO; DEBUG includes chat and tool content.
 
 ### Model providers
 
@@ -275,7 +275,7 @@ Logging is configured in [logback-spring.xml](../src/main/resources/logback-spri
 
 DeepSeek V4.1 Flash has the model ID `deepseek-flash`, which is the only name DeepSeek's API accepts for it. Settings shows the model by its name, from its `label` entry in the model file, and chats and the settings file use the ID. DeepSeek can move the ID to a newer version, and its pricing page says which version the ID currently serves, so change the label when that changes. A saved model that is no longer suggested, such as `gpt-5.6` or `deepseek-v4-pro`, stays saved and runs as a custom model ID; nothing is migrated.
 
-Each provider's models are listed in [llm-models.properties](../src/main/resources/llm-models.properties). It is the one place to change them:
+Each provider's models are listed in [llm-models.properties](../../src/main/resources/llm-models.properties). It is the one place to change them:
 
 - **What each entry means:**
   - `llm.models.<provider>.default` is the default model.
@@ -304,7 +304,7 @@ Electron and the combined development launcher start their own backend child pro
 
 CORS allows the Electron file origin (`null`) for `/api/**` without credentials. Loopback binding limits network exposure, but neither loopback binding nor CORS authenticates other callers: other programs, sandboxed web pages (which also send `Origin: null`), and DNS-rebinding pages can reach the port. The launcher (Electron or `npm run dev`) therefore generates a random 64-character token for each backend process and passes it in `TYLER_ACCESS_TOKEN`. Every request must send it in the `X-Tyler-Token` header, or the backend answers 401 before any controller runs; CORS preflights pass without it. The check covers every path, not only `/api`, so routing aliases such as `/api;x/...` or percent-encoded paths cannot skip it, and a 401 sent to the Electron window carries the CORS header so the window sees the 401 rather than a network error. Electron hands the token only to its own window through the preload bridge, and in browser development the Vite proxy adds it, so the page never holds it. Because the proxy adds the token to whatever it forwards, any local program that can reach the Vite dev or preview server gets authenticated access while it runs; only use those modes on a machine you trust. Packaged and `npm run electron` builds are not affected. A backend started by hand without the variable leaves the API open and logs a startup warning, but only on a loopback address: bound to any other address it refuses to start, so a missing token cannot expose the API to the network. A malformed value always stops startup. The token is never logged. It does not protect against software running as the same user, which can already read the workspace files.
 
-Packaged Electron uses only its bundled `resources/runtime/bin/java.exe`, versioned backend JAR, and Python worker. It does not fall back to an installed Java runtime or accept the development `BACKEND_JAR_PATH` override. Development launchers retain the local runtime, `JAVA_HOME`, `.jdks`, and `PATH` search and the JAR override. See [desktop packaging](DESKTOP_PACKAGING.md) for the resource layout and offline acceptance procedure.
+Packaged Electron uses only its bundled `resources/runtime/bin/java.exe`, versioned backend JAR, and Python worker. It does not fall back to an installed Java runtime or accept the development `BACKEND_JAR_PATH` override. Development launchers retain the local runtime, `JAVA_HOME`, `.jdks`, and `PATH` search and the JAR override. See [desktop packaging](../deployment/DESKTOP_PACKAGING.md) for the resource layout and offline acceptance procedure.
 
 ## Testing
 
@@ -326,7 +326,7 @@ npm run test:version
 npm run build
 ```
 
-Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover startup, release-version handling, and UI workflows. TypeScript checking is a separate command because the Vite build does not run it. All frontend tests and helpers belong under `frontend/tests/`. After building the Windows artifact and separate fixture worker, run `npm run test:desktop`; follow the [packaging guide](DESKTOP_PACKAGING.md) for prerequisites, coverage, and clean-machine checks.
+Backend tests cover controllers, services, tools, file access, and database operations, including workout plan persistence against a temporary SQLite database. The npm tests cover startup, release-version handling, and UI workflows. TypeScript checking is a separate command because the Vite build does not run it. All frontend tests and helpers belong under `frontend/tests/`. After building the Windows artifact and separate fixture worker, run `npm run test:desktop`; follow the [packaging guide](../deployment/DESKTOP_PACKAGING.md) for prerequisites, coverage, and clean-machine checks.
 
 **Formatting.** Prettier formats everything under `frontend/` except build output; the settings in `frontend/prettier.config.js` match the existing style. Run `npm run format` before committing. The one-time reformat commit is listed in `.git-blame-ignore-revs`, which GitHub applies automatically; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once to make local `git blame` skip it too.
 
@@ -334,11 +334,11 @@ Backend tests cover controllers, services, tools, file access, and database oper
 
 **Lockfile.** CI installs with npm 10, which ships with Node 22. npm 11 (Node 24) writes a `package-lock.json` without some optional peer entries, and npm 10's `npm ci` then rejects it as out of sync. On Node 24, change dependencies with `npx npm@10 install ...`.
 
-**What the gates do not cover.** UI tests render in jsdom, not in Chromium or Electron, and no browser end-to-end runner is configured. Layout, real focus movement, navigation, and the preload/IPC bridge are therefore unverified by these commands. Desktop startup and packaging are checked only by the separate **Windows packaged smoke** CI job and the manual installer checks in the [packaging guide](DESKTOP_PACKAGING.md).
+**What the gates do not cover.** UI tests render in jsdom, not in Chromium or Electron, and no browser end-to-end runner is configured. Layout, real focus movement, navigation, and the preload/IPC bridge are therefore unverified by these commands. Desktop startup and packaging are checked only by the separate **Windows packaged smoke** CI job and the manual installer checks in the [packaging guide](../deployment/DESKTOP_PACKAGING.md).
 
 ### Agent migration behavior baseline
 
-The [Python worker development guide](../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates, verified by CI run 48 and user-confirmed clean-Windows acceptance. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See the [rollout guide](AGENT_ROLLOUT.md).
+The [Python worker development guide](../../agent-python/README.md) covers the pinned environment, required checks, shared Java/Python protocol fixtures, and worker packaging. Steps 2–8 are complete, including the real HTTP/Python/service persistence path. Step 9 adds desktop packaging and CI gates, verified by CI run 48 and user-confirmed clean-Windows acceptance. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See the [rollout guide](../deployment/AGENT_ROLLOUT.md).
 
 Run the agent behavior and Java integration tests before changing their contracts:
 
@@ -348,15 +348,15 @@ mvn "-Dtest=PythonAgentServiceTest,AgentPersistenceIntegrationTest,AgentRestartI
 uv run --locked pytest tests/test_agent.py tests/test_tools.py tests/test_tool_registry.py
 ```
 
-The suites use deterministic provider mocks and synthetic credentials without network requests. To measure how accurately a real model records food, and what the food checks change and cost, run the [eval harness](../agent-python/evals/README.md) by hand; it makes paid provider calls with your own API keys. See the [agent migration tracker](AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
+The suites use deterministic provider mocks and synthetic credentials without network requests. To measure how accurately a real model records food, and what the food checks change and cost, run the [eval harness](../../agent-python/evals/README.md) by hand; it makes paid provider calls with your own API keys. See the [agent migration tracker](../records/AGENT_MIGRATION.md#execution-record) for completed changes, preserved edge cases, test results, and local runner options. It also records the remaining migration steps and their completion gates.
 
 ## Release version and packaging
 
-Edit only the `-Drevision=` value in [.mvn/maven.config](../.mvn/maven.config) to set the release version. Maven uses it for the project version and `target/tyler-agent-<version>.jar`. Frontend npm lifecycle scripts synchronize `package.json` and `package-lock.json`; Electron and Forge use the resulting version to locate the JAR.
+Edit only the `-Drevision=` value in [.mvn/maven.config](../../.mvn/maven.config) to set the release version. Maven uses it for the project version and `target/tyler-agent-<version>.jar`. Frontend npm lifecycle scripts synchronize `package.json` and `package-lock.json`; Electron and Forge use the resulting version to locate the JAR.
 
-Run `npm run sync-version` from `frontend/` to synchronize npm metadata immediately. From `agent-python/`, run `uv sync --locked --reinstall-package tyler-agent-worker` to refresh editable package metadata from the shared version. Rebuild the backend, production worker, desktop test worker, and installer so all artifacts use the same release. Follow the [packaging checks](DESKTOP_PACKAGING.md); the current candidate is described in the [0.2.1 release notes](releases/0.2.1.md).
+Run `npm run sync-version` from `frontend/` to synchronize npm metadata immediately. From `agent-python/`, run `uv sync --locked --reinstall-package tyler-agent-worker` to refresh editable package metadata from the shared version. Rebuild the backend, production worker, desktop test worker, and installer so all artifacts use the same release. Follow the [packaging checks](../deployment/DESKTOP_PACKAGING.md); the current candidate is described in the [0.2.1 release notes](../releases/0.2.1.md).
 
-Follow [Windows desktop packaging and offline acceptance](DESKTOP_PACKAGING.md) to build the backend JAR, production Python worker, and separate smoke fixture before running `npm run make`. Forge derives a runtime from the Java 26 `JAVA_HOME` JDK using `jlink` and includes the runtime, JAR, worker, and build manifest outside ASAR. No manually supplied `resources/runtime/` is needed for this build path.
+Follow [Windows desktop packaging and offline acceptance](../deployment/DESKTOP_PACKAGING.md) to build the backend JAR, production Python worker, and separate smoke fixture before running `npm run make`. Forge derives a runtime from the Java 26 `JAVA_HOME` JDK using `jlink` and includes the runtime, JAR, worker, and build manifest outside ASAR. No manually supplied `resources/runtime/` is needed for this build path.
 
 Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`. Signing is not configured. CI uploads artifacts only after the Windows smoke succeeds; configure both documented job checks as required in GitHub branch protection. Clean-Windows acceptance remains a separate recorded gate.
 
@@ -377,4 +377,4 @@ Installer artifacts are written under `frontend/out/make/squirrel.windows/x64/`.
 | Existing exercise values survive regeneration | The tool preserves records matching the same date and name. Edit the saved exercise to change those values. |
 | Packaging cannot find the runtime or worker | Set `JAVA_HOME` to Java 26 and follow the packaging guide to build the worker/JAR before running Forge. |
 
-[Back to the user guide](../README.md)
+[Back to the user guide](../../README.md)

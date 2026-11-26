@@ -1,6 +1,6 @@
 # Backend coding and design standards
 
-[Developer guide](DEVELOPMENT.md) · [Python agent standards](PYTHON_AGENT_STANDARDS.md)
+[Developer guide](../guides/DEVELOPMENT.md) · [Python agent standards](PYTHON_AGENT_STANDARDS.md)
 
 This is an editable baseline for backend development and review. It defines rules by architectural responsibility, without assigning behavior to particular application classes. Feature contracts and current implementation details belong in feature documentation and issue acceptance criteria. This document does not authorize a broad refactor.
 
@@ -51,7 +51,7 @@ An optional DAL beneath a service requires a documented responsibility involving
 - Python tools delegate application operations through the allowlisted Java bridge. They must not access application databases directly, reimplement domain rules or transaction logic, bypass the file sandbox, or create a second owner for persisted settings or history.
 - The bridge translates protocol messages and invokes existing service contracts; it must not become another agent implementation. Keep provider types, prompts, model-facing tool schemas, and agent decisions out of new Java code.
 - Java agent orchestration, provider clients, and model-facing tools have been retired. Do not reintroduce a parallel implementation. Preserve compatibility through protocol fixtures, Python tests, and Java service/worker integration tests.
-- Follow the staged [Java-to-Python agent migration roadmap](AGENT_MIGRATION.md). This policy governs new and changed code; it does not authorize deleting the legacy implementation before the documented acceptance and rollback gates are met.
+- Follow the staged [Java-to-Python agent migration roadmap](../records/AGENT_MIGRATION.md). This policy governs new and changed code; it does not authorize deleting the legacy implementation before the documented acceptance and rollback gates are met.
 
 ### Exceptions and refactor scope
 
@@ -160,7 +160,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 ### Worker protocol and lifecycle
 
-- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 3](AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
+- Use the versioned private process protocol defined by the migration roadmap; the current contract is [agent protocol version 3](../architecture/AGENT_PROTOCOL.md), with shared schemas and conformance fixtures. Reserve worker stdout for protocol messages and send diagnostic logs to stderr; do not introduce a Python listener as an incidental implementation choice.
 - Validate message shape, protocol version, operation allowlists, and request/call correlation before executing side effects. Bound message sizes, queues, and waits, and reject messages for inactive requests.
 - Java owns worker startup, readiness, cancellation, and shutdown. Make cleanup idempotent and test failure paths without leaving orphan processes or mixing requests.
 - Preserve decimal precision, date formats, identifiers, null semantics, and error categories across serialization. A transport failure must not erase the distinction between a rejected operation and an operation whose result was lost.
@@ -170,7 +170,7 @@ Choose the exception by the operation's intent, not the JDBC method name:
 
 - Use existing Spring configuration properties and defaults for Java. Define and validate Python worker configuration at startup, with explicit ownership and precedence; do not introduce competing defaults for shared settings. Document newly introduced settings in the developer guide.
 - Preserve the documented network binding and endpoint-discovery behavior. Read configurable addresses and ports from configuration or discovery results.
-- Loopback binding and CORS do not authenticate other programs on the same computer. Every request except a CORS preflight is authenticated by the access token described in the [developer guide](DEVELOPMENT.md); never log the token. Keep new endpoints under `/api`, the only path the CORS mapping allows.
+- Loopback binding and CORS do not authenticate other programs on the same computer. Every request except a CORS preflight is authenticated by the access token described in the [developer guide](../guides/DEVELOPMENT.md); never log the token. Keep new endpoints under `/api`, the only path the CORS mapping allows.
 - The model's file tools must never reach application-owned workspace files: provider keys, provider settings, and chat history are refused by `ProtectedWorkspaceFiles` before the sandbox is touched. A service that keeps its own workspace file implements `IApplicationOwnedFiles`, which protects the file automatically.
 - Use the existing sandbox for file access and keep secrets out of source control and test fixtures.
 - Use the project's shared release-version source; do not introduce competing version definitions.
@@ -234,7 +234,7 @@ Use JUnit Jupiter and the existing Spring Boot test and mocking facilities for J
 - [ ] Removed types have no remaining references, where applicable.
 - [ ] Documentation and verification results are updated.
 
-Use the repository's [pull request template](../.github/pull_request_template.md) when submitting changes.
+Use the repository's [pull request template](../../.github/pull_request_template.md) when submitting changes.
 
 ## 10. Project-specific additions
 

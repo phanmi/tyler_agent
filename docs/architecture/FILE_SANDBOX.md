@@ -1,6 +1,6 @@
 # Workspace file sandbox
 
-[Developer guide](DEVELOPMENT.md) · [Backend standards](BACKEND_STANDARDS.md)
+[Developer guide](../guides/DEVELOPMENT.md) · [Backend standards](../standards/BACKEND_STANDARDS.md)
 
 ## Root and link policy
 

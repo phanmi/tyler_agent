@@ -1,8 +1,8 @@
 # Python agent worker
 
-[Migration tracker](../docs/AGENT_MIGRATION.md) | [Protocol contract](../docs/AGENT_PROTOCOL.md) | [Backend standards](../docs/BACKEND_STANDARDS.md) | [Python agent standards](../docs/PYTHON_AGENT_STANDARDS.md)
+[Migration tracker](../docs/records/AGENT_MIGRATION.md) | [Protocol contract](../docs/architecture/AGENT_PROTOCOL.md) | [Backend standards](../docs/standards/BACKEND_STANDARDS.md) | [Python agent standards](../docs/standards/PYTHON_AGENT_STANDARDS.md)
 
-Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. Python is the only agent implementation; Java retains HTTP, process supervision, and shared services. Issue #79 adds Claude and DeepSeek alongside OpenAI: each run's `provider` field selects one, and the worker keeps the whole transcript itself, so no provider stores conversation state. See [provider behavior](../docs/AGENT_OPERATIONS.md#python-execution-and-operational-limits). See the [lifecycle setup and ownership guide](../docs/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
+Step 4 provides a credential-free worker, strict protocol codecs, conformance tests, and a Windows packaging prototype. Step 5 adds opt-in Java process supervision and a Python parent watchdog. Step 6 implements the [Java service bridge](../docs/architecture/AGENT_OPERATIONS.md). Step 7 implements the Python Responses loop and all six tool adapters. Python is the only agent implementation; Java retains HTTP, process supervision, and shared services. Issue #79 adds Claude and DeepSeek alongside OpenAI: each run's `provider` field selects one, and the worker keeps the whole transcript itself, so no provider stores conversation state. See [provider behavior](../docs/architecture/AGENT_OPERATIONS.md#python-execution-and-operational-limits). See the [lifecycle setup and ownership guide](../docs/architecture/AGENT_SESSION.md#configuration-and-lifecycle-ownership) before starting the application.
 
 ## Source layout
 
@@ -47,7 +47,7 @@ Import shared utilities through `tyler_agent.protocol.protocol` or
 `tyler_agent.protocol.validation`. Keep lifecycle and application orchestration
 outside `protocol/`; keep transport and wire validation together in this package.
 
-To add a tool, follow [Adding a Python tool](../docs/AGENT_OPERATIONS.md#adding-a-python-tool).
+To add a tool, follow [Adding a Python tool](../docs/architecture/AGENT_OPERATIONS.md#adding-a-python-tool).
 Keep its adapter and model schema together in a new builtin package. Discovery,
 registration, and packaging do not require a central list of tools. The catalog is
 validated before worker readiness and reused without retaining request credentials
@@ -127,7 +127,7 @@ tests use temporary data and loopback HTTP for the existing backend readiness
 handshake. They also verify that forcefully terminating Java stops Python during
 simulated pending provider work. No live provider credentials are needed.
 
-The [migration tracker](../docs/AGENT_MIGRATION.md#execution-record) records local Windows Maven/Mockito runner options. No API key, network model call, application database, or user workspace is required by these tests.
+The [migration tracker](../docs/records/AGENT_MIGRATION.md#execution-record) records local Windows Maven/Mockito runner options. No API key, network model call, application database, or user workspace is required by these tests.
 
 To measure recording accuracy and cost against a real provider, use the [eval harness](evals/README.md). It makes paid calls with your own API keys, so it is run by hand and never by these checks or CI.
 
@@ -136,7 +136,7 @@ To measure recording accuracy and cost against a real provider, use the [eval ha
 The parent sets a nonsecret `TYLER_AGENT_SESSION_ID` containing 32 lowercase hexadecimal characters. Start with `uv run --locked python -m tyler_agent`. The worker immediately emits a versioned `ready` frame on stdout, without credentials. It reads newline-delimited JSON from stdin, writes only protocol messages to stdout, and logs safe codes/events to stderr.
 
 - `shutdown` exits successfully; EOF also exits, except an incomplete frame is an error.
-- A valid `run` creates a request-owned SDK client from the Java credential snapshot, runs at most five tool rounds, and returns one `completed` or classified `failed`. Tool operations use Java callbacks; Python owns no application database, file sandbox, settings store, or history store. See [execution and limits](../docs/AGENT_OPERATIONS.md#python-execution-and-operational-limits).
+- A valid `run` creates a request-owned SDK client from the Java credential snapshot, runs at most five tool rounds, and returns one `completed` or classified `failed`. Tool operations use Java callbacks; Python owns no application database, file sandbox, settings store, or history store. See [execution and limits](../docs/architecture/AGENT_OPERATIONS.md#python-execution-and-operational-limits).
 - Invalid framing, versions, shapes, session IDs, directions, and correlation are rejected. Exit code `2` indicates a protocol/resource failure; code `0` indicates normal shutdown/EOF.
 - The pipe reader stays responsive while a provider request or operation is pending. Cancellation, shutdown, and EOF stop new work and close the request-owned client. The runtime awaits its task before stopping/joining its loop thread; Java force-terminates a worker that exceeds shutdown grace. Java retains the authoritative effect and history ledger.
 
@@ -157,7 +157,7 @@ The packaged smoke tests copy the bundle into a different temporary directory, r
 
 This verifies the bundled runtime, SDK imports, contracts, and model-definition resource on the tested Windows host. Development tests additionally exercise real pipes with an injected fake provider and actual SDK requests over an in-memory transport; they never send fixture keys to a provider. Step 5 retains parent-death tests, and Step 8 verifies the complete HTTP/Python/service/database path.
 
-Step 9 adds [desktop packaging and offline acceptance](../docs/DESKTOP_PACKAGING.md), including Java/Python resources outside ASAR and a Windows CI smoke job. `tests/desktop-worker.spec` builds a separate fault-injection worker from `tests/support/desktop_worker.py`; it is used only by desktop tests and is never shipped as the production worker. CI run 48 passed both jobs on `b029ce5`; the user confirmed clean-Windows acceptance and required checks on 2026-10-19, with the report attachment pending. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See [rollout status and recovery](../docs/AGENT_ROLLOUT.md). Code signing is not configured.
+Step 9 adds [desktop packaging and offline acceptance](../docs/deployment/DESKTOP_PACKAGING.md), including Java/Python resources outside ASAR and a Windows CI smoke job. `tests/desktop-worker.spec` builds a separate fault-injection worker from `tests/support/desktop_worker.py`; it is used only by desktop tests and is never shipped as the production worker. CI run 48 passed both jobs on `b029ce5`; the user confirmed clean-Windows acceptance and required checks on 2026-10-19, with the report attachment pending. Step 10 retires the Java agent after the user-confirmed v0.2.1 release window. Recovery uses the validated v0.2.1 installer. See [rollout status and recovery](../docs/deployment/AGENT_ROLLOUT.md). Code signing is not configured.
 
 ## Reproduce an isolated install from the lockfile
 

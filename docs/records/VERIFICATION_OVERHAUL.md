@@ -1,6 +1,6 @@
 # Food verification overhaul
 
-[Issue #113](https://github.com/phanmi/tyler_agent/issues/113) | [Agent operations](AGENT_OPERATIONS.md#food-verification) | [Python agent standards](PYTHON_AGENT_STANDARDS.md) | [Eval harness](../agent-python/evals/README.md)
+[Issue #113](https://github.com/phanmi/tyler_agent/issues/113) | [Agent operations](../architecture/AGENT_OPERATIONS.md#food-verification) | [Python agent standards](../standards/PYTHON_AGENT_STANDARDS.md) | [Eval harness](../../agent-python/evals/README.md)
 
 This tracker covers the food verification overhaul in issue #113. The requirements and acceptance criteria are in #113, including those folded in from #98, #100 and #101. This document records the design, the decisions, the eval runs and the progress, so the work can resume one step at a time.
 
@@ -25,8 +25,8 @@ The overhaul is compared with these runs.
 
 | Date | Run | Write-up |
 |---|---|---|
-| 2026-11-16 | `--cheap-models --category many-items`, verification off and on | [Many-items eval](evals/many-items/2026-11-16-many-items.md) |
-| 2026-11-17 | #104's units categories, default and low-cost models, verification off and on | [Units eval](evals/units/2026-11-17-units.md) |
+| 2026-11-16 | `--cheap-models --category many-items`, verification off and on | [Many-items eval](../evals/many-items/2026-11-16-many-items.md) |
+| 2026-11-17 | #104's units categories, default and low-cost models, verification off and on | [Units eval](../evals/units/2026-11-17-units.md) |
 
 ## Design
 
@@ -72,7 +72,7 @@ Since D17 (2026-11-18) the name and count check is off in every run. Until [#118
 
 The requirements that rest on this check count as partially met: the check is implemented and tested, and it is not switched on. Proving that it works comes before switching it on. That needs complex eval cases designed for it, which the maintainer decided on 2026-11-18 is out of scope for #113. [#118](https://github.com/phanmi/tyler_agent/issues/118) holds that work.
 
-Since D29 (2026-11-21) the content check is forced off in every chat of the app, with its code kept. Item 5 was not met, and D29 was decided from that: in the [many-foods run of 2026-11-21](evals/verification-overhaul/2026-11-21-content-check.md), fully correct chats with the check on were level on `gpt-6-luna`, higher on `claude-haiku-5-5` and lower on `deepseek-flash`. Item 1's Settings switch was removed with the check (D30), so nothing in the app turns the check on or off.
+Since D29 (2026-11-21) the content check is forced off in every chat of the app, with its code kept. Item 5 was not met, and D29 was decided from that: in the [many-foods run of 2026-11-21](../evals/verification-overhaul/2026-11-21-content-check.md), fully correct chats with the check on were level on `gpt-6-luna`, higher on `claude-haiku-5-5` and lower on `deepseek-flash`. Item 1's Settings switch was removed with the check (D30), so nothing in the app turns the check on or off.
 
 ### How the design meets #113
 
@@ -111,7 +111,7 @@ D1 to D9 were answered on 2026-11-17. D10 to D14 came up when step 3 started and
 | D5 | How often does a check run? | Each check runs once per message, and each correction once. Corrected values are saved without another check, and an unusable correction keeps the values it was meant to fix. Only the name check removes a food. | Check corrections again up to a limit, then save or refuse. | 3, 4, 5 | recommended          |
 | D6 | How do checks see tool results? | The name check and every correction that sees the chat also get this run's tool results, so they judge what the chat model actually read. These also show the foods an earlier `recordFood` call in the run saved. | As the design says: the name check calls `readFile` itself. | 2, 3 | recommended          |
 | D7 | Where is the switch saved? | As the first agent setting from #82, with its own model, service, controller and file, so agent behavior stays out of the provider settings. | A field in `LlmSettings`: about half the code, but "Reset provider settings" would also reset it. | 9, 10 | recommended          |
-| D8 | How is the contract version kept? | Move `contracts/agent/v2/` to `v3/` with `git mv` and edit it in place, so the PR shows only the real changes. Version 2 stays in git history, and the rule in `docs/AGENT_PROTOCOL.md` changes. | Keep a full copy: about 5,000 lines of fixtures. | 8 | recommended          |
+| D8 | How is the contract version kept? | Move `contracts/agent/v2/` to `v3/` with `git mv` and edit it in place, so the PR shows only the real changes. Version 2 stays in git history, and the rule in `docs/architecture/AGENT_PROTOCOL.md` changes. | Keep a full copy: about 5,000 lines of fixtures. | 8 | recommended          |
 | D9 | How is the list saved? | A new Java operation saves every food of the message in one transaction, added in protocol version 3. | Save one food at a time, and when Java rejects one, tell the user which were saved. | 9 | recommended          |
 | D10 | What happens when a check's answer cannot be used: a text reply, the wrong tool, several calls, or arguments that do not fit? D5 does not say. | Ask once more. If the second answer is also unusable, the check changes nothing, the foods go on to the next check, and a warning is logged without any food or chat text. The check tools are offered, not forced, so this happens now and then, and the baseline showed that dropping foods does more harm than leaving them unchecked. | Fail the chat. Or treat every food as rejected. | 3, 4, 5 | Content check: recommended. Name check and date check: ask again up to 3 times, then fail the chat with an error that says the model could not complete the check. |
 | D11 | D4 says an amount correction changes only the amount and unit. But a food's nutrition values were estimated for the amount it had. If "2 eggs" was saved as 3, changing only the amount leaves the nutrition of 3 eggs, and with the content check switched off nothing fixes it. | The amount correction rewrites the amount, the unit and the nutrition values, keeping any value the user stated. The name and date stay. | Only the amount and unit, as D4 reads, leaving the nutrition to the content check. | 3 | recommended |
@@ -240,7 +240,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | A failure while checking a multi-food message saves none of its foods. | Nothing is saved until every check has run (D9). | 6 | Met for one `recordFood` call. An earlier call of the same message stays saved; the next row covers it. |
 | Resending after such a failure creates no duplicates when nothing of the message was saved. When a check gets no usable answer from the model (`MODEL_ANSWER_UNUSABLE`) after an earlier `recordFood` call of the chat saved, the app does not ask for a resend: the error says that some foods may already be saved, and to check the Calendar first. The criterion covers no other failure. | Nothing of the failed call was saved, so nothing of it is saved twice. When a check gets no usable answer (`MODEL_ANSWER_UNUSABLE`) after an earlier call of the same message was saved, the error says so and does not ask the user to send the message again (R8 of the second code review). Not covered: every other failure after a save, such as a provider error during a check, still answers "Please try again later", and a user who follows that can save the earlier call's foods twice. So can a user who sends the message again in spite of the warning. [#57](https://github.com/phanmi/tyler_agent/issues/57) is about a later call that fails after an earlier one saved. | 6, 9 | Met as reworded on 2026-11-22, for `MODEL_ANSWER_UNUSABLE` only |
 | Java saves a message's foods in one transaction: when it rejects one, none is saved. The version 3 contract covers the new operation. | The operation `food.insert_all`, with a bridge handler and service method of its own (D9, D23). | 9 | Met |
-| The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Met. The [content check eval](evals/verification-overhaul/2026-11-21-content-check.md#the-time-a-message-with-many-foods-takes) has the times beside the baseline's. |
+| The time a multi-food message takes with the checks on is measured before and after. | The eval reports each chat's reply time. | 13 | Met. The [content check eval](../evals/verification-overhaul/2026-11-21-content-check.md#the-time-a-message-with-many-foods-takes) has the times beside the baseline's. |
 | Python tests cover a failure and a cancellation between checks through the real agent loop and runtime. | The failure and cancellation tests in step 6. | 6 | Met |
 | `AGENT_OPERATIONS.md` describes the new behavior, including what each check sees. | What each check sees. | 11 | Met |
 | `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md` and the README describe protocol version 3, and say that the nutrition values are not checked a second time. | Including version 3 and D8's rule change. #113 worded this criterion for the switch until D30. | 11 | Met |
@@ -262,7 +262,7 @@ The error has a failure code of its own, `provider/MODEL_ANSWER_UNUSABLE` (D24).
 | 10 | Frontend: the switch in Settings, its description of the extra model calls, saving, and showing a failed save. Tests cover the default, a save and a failed save. | Done, then removed by D30 | See the execution record for 2026-11-21, step 10, and for D29 and D30. |
 | 11 | Docs: `AGENT_OPERATIONS.md` (what each check sees), `AGENT_PROTOCOL.md`, `DEVELOPMENT.md`, `BACKEND_STANDARDS.md`, the README's Settings section, and the eval README. | Done | See the execution record for 2026-11-21, step 11. |
 | 12 | Checks: Python, `mvn clean test` and `npm run check`. Show that each new regression test catches its bug. Run `/code-review` on the branch and resolve what it finds. | Done | See the execution record for 2026-11-21, step 12. |
-| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md). The many-foods run with the name and count check off was made on 2026-11-21 and is written up as the [content check eval](evals/verification-overhaul/2026-11-21-content-check.md), which gives the time a multi-food message takes. #104's four categories were not run again with the name and count check off: the maintainer decided on 2026-11-22 that the run of 2026-11-18 stands for them. |
+| 13 | Paid eval runs, after your go-ahead: `--cheap-models --category many-items`, and `--cheap-models` on #104's four categories, each compared with its baseline. Measure how long a multi-food message takes, before and after. Check the results against [What counts as done](#what-counts-as-done), and write them up under `docs/evals/`. | Done | The full run of 2026-11-18 holds both sets and is written up as the [verification overhaul eval](../evals/verification-overhaul/2026-11-18-verification-overhaul.md). The many-foods run with the name and count check off was made on 2026-11-21 and is written up as the [content check eval](../evals/verification-overhaul/2026-11-21-content-check.md), which gives the time a multi-food message takes. #104's four categories were not run again with the name and count check off: the maintainer decided on 2026-11-22 that the run of 2026-11-18 stands for them. |
 | 14 | Open the PR with the template filled in, and tick the #113 criteria that were checked. | Done | PR #121 was opened on 2026-11-21 for steps 8 to 12, before step 13 was finished. A second PR holds the write-up of step 13 and closes #113. See the execution record for the second code review and for 2026-11-22. |
 
 ## Decisions
@@ -436,7 +436,7 @@ _One entry per completed step or eval run, oldest first: the date, what changed,
 - The tool result lists the saved foods under `recorded`. A record the checks removed is listed under `notRecorded` with its reason, beside a `note` that tells the chat model not to record it again. The old result told the chat model to tell the user why a food was refused; a removed record is now often a duplicate or a whole-meal record whose foods were saved, so the note no longer asks for that.
 - The name and count check and the date check now run in every chat. `RunSettings.check_nutrition` switches only the content check (D3).
 - The eval runner sets `check_nutrition` for its two modes and counts the records a call lists as not recorded. Its report still says "verification off and on"; step 7 rewrites the report.
-- `docs/AGENT_OPERATIONS.md` has a rewritten "Food verification" section that describes the checks, and `docs/DEVELOPMENT.md` and `agent-python/README.md` describe `recordFood` as it now works. Step 11 still covers the switch, the protocol and the eval README.
+- `docs/architecture/AGENT_OPERATIONS.md` has a rewritten "Food verification" section that describes the checks, and `docs/guides/DEVELOPMENT.md` and `agent-python/README.md` describe `recordFood` as it now works. Step 11 still covers the switch, the protocol and the eval README.
 - The fakes that pass every check take their answers from `tests/support/persistence_worker.py`. That file is the worker the Java integration tests start as a script, so it can import only `tyler_agent`, and keeping the answers there means one copy.
 
 **Tests.** `tests/test_food_record.py` has 23 tests through the real agent loop, tool registry and `recordFood`, each real provider class against an in-memory server, and the production runtime:
@@ -572,7 +572,7 @@ What it showed:
 | `claude-haiku-5-5` | 80.0 | 73.3 | 81.7 | 90.0 | 89.4 | 93.9 | 93.9 | 92.4 |
 | `deepseek-flash` | 64.4 | 47.5 | 94.9 | 93.2 | 68.2 | 90.9 | 97.0 | 97.0 |
 
-The baselines are the [many-items run](evals/many-items/2026-11-16-many-items.md) and the low-cost models of the [units run](evals/units/2026-11-17-units.md). In the baselines, "off" is no verification at all. In this run the name and date checks run in both columns.
+The baselines are the [many-items run](../evals/many-items/2026-11-16-many-items.md) and the low-cost models of the [units run](../evals/units/2026-11-17-units.md). In the baselines, "off" is no verification at all. In this run the name and date checks run in both columns.
 
 **Against what counts as done**
 
@@ -587,7 +587,7 @@ The baselines are the [many-items run](evals/many-items/2026-11-16-many-items.md
 
 **Read without `some-almonds`.** The maintainer set this case aside on 2026-11-18: "I snacked on some almonds this afternoon" can be read as general chat that calls for no `recordFood`. Without it the run has 66 cases, and two chats with a missed item remain, both on `gpt-6-luna`. The maintainer marked the run a temporary success.
 
-The table gives fully correct chats (%) against each case's newest baseline: the units run for `many-items` and the 22 unit cases, and the [nutrition-sources run](evals/nutrition-sources/2026-11-16-nutrition-sources.md) for the other 23. The new scoop case has no baseline, so the comparison has 65 cases. The nutrition-sources run was scored before #104's unit rules, which accepted more units, so its figures are not lower than they would be now.
+The table gives fully correct chats (%) against each case's newest baseline: the units run for `many-items` and the 22 unit cases, and the [nutrition-sources run](../evals/nutrition-sources/2026-11-16-nutrition-sources.md) for the other 23. The new scoop case has no baseline, so the comparison has 65 cases. The nutrition-sources run was scored before #104's unit rules, which accepted more units, so its figures are not lower than they would be now.
 
 | Model | Baseline, no verification | Baseline, verification on | This run, switch off | This run, switch on | All 66 cases, switch on |
 |---|--:|--:|--:|--:|--:|
@@ -650,7 +650,7 @@ The table gives fully correct chats (%) against each case's newest baseline: the
 
 ### 2026-11-18 The full run is written up
 
-**What was added.** The [verification overhaul eval](evals/verification-overhaul/2026-11-18-verification-overhaul.md), with the run's generated report beside it. It is the write-up of the full run above, which was made before the name and count check was switched off.
+**What was added.** The [verification overhaul eval](../evals/verification-overhaul/2026-11-18-verification-overhaul.md), with the run's generated report beside it. It is the write-up of the full run above, which was made before the name and count check was switched off.
 
 **What it holds**
 
@@ -1001,7 +1001,7 @@ The maintainer asked for the PR to be opened with the findings as comments, and 
 |---|---|---|---|---|
 | R8 | The HTTP 502 text ends with "Please try again", whatever the run saved before it failed. When a chat's first `recordFood` call saved and its second call failed, sending the message again saves the first call's foods twice. Every other failure has the same gap, and it was there before this branch. | `ProtocolFailures.java` | A follow-up issue that covers every failure after a save | B. Fixed in this PR for this code, because it blocks the release. |
 | R9 | The contract still describes a saved setting: the `$comment` of `run.checkNutrition`, and the description of the fixture `invalid_null_check_nutrition`. | `contracts/agent/v3/` | Reword both | A |
-| R10 | The "Food validation" row of the current-state table in `AGENT_MIGRATION.md` names `food.insert`. | `docs/AGENT_MIGRATION.md` | Name `food.insert_all` and `IFoodService.insertFoods` | A |
+| R10 | The "Food validation" row of the current-state table in `AGENT_MIGRATION.md` names `food.insert`. | `docs/records/AGENT_MIGRATION.md` | Name `food.insert_all` and `IFoodService.insertFoods` | A |
 | R11 | Python writes the code `MODEL_ANSWER_UNUSABLE` as text in two modules, and the status 500 that the same lookup falls back to has no name. Java has a constant for each. | `failures.py`, `session.py` | One constant for the code, and a named fallback status | A, to avoid duplicate code |
 
 A second review posted on the PR reported R8, R9 and R10 again, and no other finding.
@@ -1051,7 +1051,7 @@ PR #121 was merged on 2026-11-22. The maintainer then asked for the rest to be c
 - **No new run of #104's four categories.** Asked whether to make the paid run of 414 chats with the name and count check off, the maintainer chose to accept the run of 2026-11-18 that PR #117 reported.
 - **#113 closes with this PR.**
 
-**What was added.** The [content check eval](evals/verification-overhaul/2026-11-21-content-check.md), with the run's generated report beside it. It is the write-up of the many-foods run of 2026-11-21.
+**What was added.** The [content check eval](../evals/verification-overhaul/2026-11-21-content-check.md), with the run's generated report beside it. It is the write-up of the many-foods run of 2026-11-21.
 
 **What it holds**
 

@@ -16,11 +16,11 @@ guidance:
   # AGENTS.md / CLAUDE.md next to changed files are also loaded automatically.
   include_files:
     - .github/agents/pr-review.agent.md
-    - docs/BACKEND_STANDARDS.md
-    - docs/PYTHON_AGENT_STANDARDS.md
-    - docs/FRONTEND_STANDARDS.md
-    - docs/FILE_SANDBOX.md
-    - docs/DEVELOPMENT.md
+    - docs/standards/BACKEND_STANDARDS.md
+    - docs/standards/PYTHON_AGENT_STANDARDS.md
+    - docs/standards/FRONTEND_STANDARDS.md
+    - docs/architecture/FILE_SANDBOX.md
+    - docs/guides/DEVELOPMENT.md
     - .github/pull_request_template.md
     - AGENTS.md
     - CLAUDE.md

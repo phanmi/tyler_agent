@@ -1,6 +1,6 @@
 # Python agent rollout and recovery
 
-[Migration tracker](AGENT_MIGRATION.md) | [Development](DEVELOPMENT.md) | [Desktop packaging](DESKTOP_PACKAGING.md)
+[Migration tracker](../records/AGENT_MIGRATION.md) | [Development](../guides/DEVELOPMENT.md) | [Desktop packaging](DESKTOP_PACKAGING.md)
 
 ## Release status
 
@@ -22,7 +22,7 @@ The GitHub release description copied earlier candidate notes and contains an ou
 
 ## Development and startup
 
-Install the locked Python environment and build the worker as described in [development setup](DEVELOPMENT.md#run-from-source). Java starts the worker and waits for its handshake before announcing backend readiness. Startup needs no provider key; chat uses the key stored through Settings.
+Install the locked Python environment and build the worker as described in [development setup](../guides/DEVELOPMENT.md#run-from-source). Java starts the worker and waits for its handshake before announcing backend readiness. Startup needs no provider key; chat uses the key stored through Settings.
 
 Browser and Electron development launchers use the repository root as Java's working directory. Relative JAR and explicit workspace overrides remain anchored to the original launch directory. Direct backend launches must run there or configure absolute worker command entries. Packaged execution supplies an absolute bundled worker path and needs no installed Python or Java. Missing/incompatible workers fail startup visibly.
 
@@ -40,4 +40,4 @@ This retirement changes no workspace paths, schemas, IDs, API/tool responses, or
 
 The caller inventory covered production, tests, configuration, frontend launch tests, and active documentation. Useful legacy assertions now live in service/bridge tests, Python tests, and frozen release schema/output fixtures. Java architecture tests reject provider SDK dependencies without an allowlist and keep controller/bridge storage access behind services. Python architecture tests reject direct database-driver imports. These bounded checks supplement review; they do not prove the absence of arbitrary dynamic loading.
 
-Historical implementation details and test totals remain in dated [migration records](AGENT_MIGRATION.md#execution-record), with removed source links pinned to the baseline commit.
+Historical implementation details and test totals remain in dated [migration records](../records/AGENT_MIGRATION.md#execution-record), with removed source links pinned to the baseline commit.

@@ -70,7 +70,7 @@ For the recommended setup, Node should report `v24.x.x`; npm should print its ow
 
 ## 5. Prepare the Python worker
 
-Follow [Install the development environment](../agent-python/README.md#install-the-development-environment) to install pinned uv. From the repository root, run:
+Follow [Install the development environment](../../agent-python/README.md#install-the-development-environment) to install pinned uv. From the repository root, run:
 
 ```powershell
 cd agent-python

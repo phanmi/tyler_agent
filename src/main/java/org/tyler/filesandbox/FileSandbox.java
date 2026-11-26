@@ -44,7 +44,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * that root are rejected, even when their destination is inside the workspace.
  *
  * <p>The default is {@code {user.home}/AppData/Local/tyler_agent}; override with
- * {@code agent.workspace-dir} or {@code AGENT_WORKSPACE_DIR}. See docs/FILE_SANDBOX.md
+ * {@code agent.workspace-dir} or {@code AGENT_WORKSPACE_DIR}. See docs/architecture/FILE_SANDBOX.md
  * for the path, missing-file and concurrent filesystem mutation contracts.
  */
 @Component

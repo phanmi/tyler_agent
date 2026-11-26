@@ -1,6 +1,6 @@
 # Food recording eval harness
 
-[Python development guide](../README.md) · [Food verification](../../docs/AGENT_OPERATIONS.md#food-verification)
+[Python development guide](../README.md) · [Food verification](../../docs/architecture/AGENT_OPERATIONS.md#food-verification)
 
 This harness measures how accurately the agent records food and what that costs. It sends labelled messages to a real provider through the real agent, tools and `recordFood`'s checks, then compares the saved records with the expected ones. Each case runs with `recordFood`'s nutrition check off and on, so the report shows what that check changes. The app keeps this check off in every chat, so the mode with it off is what the app does, and the mode with it on shows what the check would add. The date check runs in both modes, as it does in every chat of the app. The name and count check is off in every chat, as it is in the app ([#118](https://github.com/phanmi/tyler_agent/issues/118)).
 
@@ -200,7 +200,7 @@ Cases live in [cases/](cases), one file per category, and are checked against [c
 
 Take reference values from [USDA FoodData Central](https://fdc.nal.usda.gov/) and give the FDC ID. Do not estimate them.
 
-The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac` and `mcdonalds-fries` cases still use FoodData Central SR Legacy entries, because McDonald's refuses automated reads of its pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
+The `branded` category is the exception: take its values from the brand's own published US nutrition, and give the page's address and the date you read it, as in `https://..., checked 2026-11-15`. A test checks that form. The `big-mac` and `mcdonalds-fries` cases still use FoodData Central SR Legacy entries, because McDonald's refuses automated reads of its pages; [#114](https://github.com/phanmi/tyler_agent/issues/114) re-sources them by hand. SR Legacy's restaurant entries can be older than the product. These are the sources Tyler tells the model to use for values the user does not state; see [Estimated nutrition values](../../docs/architecture/AGENT_OPERATIONS.md#estimated-nutrition-values). A brand can change a recipe or a portion, so check the page again before relying on an old value.
 
 The `many-items` category has rules of its own. A case is one message that lists 3 to 8 foods, each with an amount. It measures whether every food is saved with its own amount, unit and values.
 
@@ -214,7 +214,7 @@ Do not add a case for a cooked dish named as a whole, such as egg fried rice. Re
 
 ### Accepted units
 
-Tyler saves the amount and unit the user gave, in the user's own word; see [Amounts and units](../../docs/AGENT_OPERATIONS.md#amounts-and-units). A case accepts the same:
+Tyler saves the amount and unit the user gave, in the user's own word; see [Amounts and units](../../docs/architecture/AGENT_OPERATIONS.md#amounts-and-units). A case accepts the same:
 
 - **When the user names a unit**, such as `slice`, `cup`, `oz`, a Snickers `bar`, `medium` fries or a `grande` latte, accept only that word. The scorer already accepts its common spellings and plurals.
 - **When the user only counts**, such as "a Big Mac" or "3 large eggs", accept the food's own words (`egg`, `large egg`) and the generic count words: `piece`, `item`, `serving`, `each`, `unit`, `count`, `whole` and `portion`. None of these adds a number the user did not say.

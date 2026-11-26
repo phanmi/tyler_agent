@@ -2,7 +2,7 @@
 
 A personal desktop assistant for conversations, food tracking, and weekly workout plans.
 
-[Get started](#get-started) · [Using Tyler](#using-tyler) · [Developer guide](docs/DEVELOPMENT.md)
+[Get started](#get-started) · [Using Tyler](#using-tyler) · [Developer guide](docs/guides/DEVELOPMENT.md)
 
 [0.2.1 release notes](docs/releases/0.2.1.md) — maintenance release introducing the Python agent layer and fixes for potential bugs and issues, with no new user-facing features.
 
@@ -16,10 +16,10 @@ A personal desktop assistant for conversations, food tracking, and weekly workou
 
 ## Get started
 
-If you have a packaged Windows build, run its `Setup.exe` installer and open Tyler. To build and run the app from this repository, follow the [developer setup guide](docs/DEVELOPMENT.md#run-from-source).
+If you have a packaged Windows build, run its `Setup.exe` installer and open Tyler. To build and run the app from this repository, follow the [developer setup guide](docs/guides/DEVELOPMENT.md#run-from-source).
 
 1. Open **Settings** in the side panel.
-2. Under **Model providers**, choose the provider Tyler uses for chat (OpenAI, Claude, or DeepSeek), then enter and save that provider's **API key**. Chat needs an internet connection. See [how to get an API key](docs/SETUP.md#7-get-an-api-key); a ChatGPT, Claude, or DeepSeek chat subscription can't be used instead of a key.
+2. Under **Model providers**, choose the provider Tyler uses for chat (OpenAI, Claude, or DeepSeek), then enter and save that provider's **API key**. Chat needs an internet connection. See [how to get an API key](docs/guides/SETUP.md#7-get-an-api-key); a ChatGPT, Claude, or DeepSeek chat subscription can't be used instead of a key.
 3. Optionally fill in your profile and preferences.
 4. Open **Chat** and tell Tyler what you would like to do.
 
@@ -89,10 +89,10 @@ The defaults are lower-cost models that suit Tyler's everyday tasks. A model you
 
 Your profile, API keys, provider settings, recent chat history, food diary, and saved workouts are stored on your computer. Chat messages and any profile information or tool results used in a conversation are sent to the provider you chose for chat (OpenAI, Anthropic for Claude, or DeepSeek) to produce replies. Each provider bills your API account for that use under its own terms.
 
-Tyler can also read and write text files in its own workspace when requested through chat. See the developer guide for [storage locations and configuration](docs/DEVELOPMENT.md#configuration-and-data-storage).
+Tyler can also read and write text files in its own workspace when requested through chat. See the developer guide for [storage locations and configuration](docs/guides/DEVELOPMENT.md#configuration-and-data-storage).
 
 ---
 
 ## Building or contributing?
 
-The **[Developer guide](docs/DEVELOPMENT.md)** is a separate page covering setup, architecture, APIs, configuration, testing, release versions, and Windows packaging.
+The **[Developer guide](docs/guides/DEVELOPMENT.md)** is a separate page covering setup, architecture, APIs, configuration, testing, release versions, and Windows packaging.

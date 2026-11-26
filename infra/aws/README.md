@@ -1,6 +1,6 @@
 # AWS infrastructure
 
-[Container guide](../../docs/CLOUD_DEPLOYMENT.md)
+[Container guide](../../docs/deployment/CLOUD_DEPLOYMENT.md)
 
 Terraform for one backend host for a single user: an EC2 instance, an encrypted data volume with daily snapshots, an Elastic IP, a DNS record, an ECR repository, a CloudWatch log group, and the role GitHub Actions deploys with. Caddy on the host serves HTTPS and forwards to the backend container. There is no SSH; connect with SSM Session Manager.
 
@@ -34,7 +34,7 @@ Terraform state is kept in this directory and ignored by Git. It holds no secret
    gh variable set TIME_ZONE --body America/New_York
    ```
 
-7. Give the host a few minutes to finish its first boot, then [deploy the backend](../../docs/CLOUD_DEPLOYMENT.md#deploying-to-aws).
+7. Give the host a few minutes to finish its first boot, then [deploy the backend](../../docs/deployment/CLOUD_DEPLOYMENT.md#deploying-to-aws).
 
 The deploy workflow sets its region in `.github/workflows/deploy.yml`. Change it there if you deploy somewhere other than `us-east-2`.
 

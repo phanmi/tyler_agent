@@ -1,8 +1,8 @@
 # Content check eval, November 2026
 
-[Eval harness](../../../agent-python/evals/README.md) · [Full generated report](2026-11-21-content-check-report.md) · [Plan and decisions](../../VERIFICATION_OVERHAUL.md) · Earlier runs: [many-foods baseline](../many-items/2026-11-16-many-items.md), [verification overhaul eval](2026-11-18-verification-overhaul.md)
+[Eval harness](../../../agent-python/evals/README.md) · [Full generated report](2026-11-21-content-check-report.md) · [Plan and decisions](../../records/VERIFICATION_OVERHAUL.md) · Earlier runs: [many-foods baseline](../many-items/2026-11-16-many-items.md), [verification overhaul eval](2026-11-18-verification-overhaul.md)
 
-**This run measures what the content check adds to a message that lists many foods.** The content check is the part of `recordFood` that asks a model whether a food's nutrition values are plausible, and has them written again when it says they are not. [Food verification](../../AGENT_OPERATIONS.md#food-verification) describes the checks of [#113](https://github.com/phanmi/tyler_agent/issues/113).
+**This run measures what the content check adds to a message that lists many foods.** The content check is the part of `recordFood` that asks a model whether a food's nutrition values are plausible, and has them written again when it says they are not. [Food verification](../../architecture/AGENT_OPERATIONS.md#food-verification) describes the checks of [#113](https://github.com/phanmi/tyler_agent/issues/113).
 
 It is the first run with the name and count check off, which is how the app runs the checks. The three low-cost models ran the 20 `many-items` cases with the content check off and on.
 
@@ -65,7 +65,7 @@ Fully correct chats (%). "Off" and "on" mean something different in each run:
 | `claude-haiku-5-5` | 80.0 | 73.3 | 85.0 | 86.7 | 81.7 | 90.0 | 78.3 | 85.0 |
 | `deepseek-flash` | 64.4 | 47.5 | 65.0 | 76.7 | 94.9 | 93.2 | 86.7 | 81.7 |
 
-- **Against the baseline with no verification,** which the [plan](../../VERIFICATION_OVERHAUL.md#what-counts-as-done) names as the result to beat: with the check off, `gpt-6-luna` is 5 chats higher, 53 against 48 of 60, and `deepseek-flash` is at 52 of 60 against 38 of 59. `claude-haiku-5-5` is one chat lower, 47 against 48 of 60.
+- **Against the baseline with no verification,** which the [plan](../../records/VERIFICATION_OVERHAUL.md#what-counts-as-done) names as the result to beat: with the check off, `gpt-6-luna` is 5 chats higher, 53 against 48 of 60, and `deepseek-flash` is at 52 of 60 against 38 of 59. `claude-haiku-5-5` is one chat lower, 47 against 48 of 60.
 - **`claude-haiku-5-5` with the check off is below both of its results with no verification:** 78.3 against 80.0 and 85.0.
 - **Against the baseline's old verifier,** every model is higher in both modes.
 - **Against the units run with the old verifier on,** `gpt-6-luna` and `claude-haiku-5-5` are lower in both modes, and `deepseek-flash` is higher.
@@ -206,7 +206,7 @@ The providers' bills were not checked against these. The run was on a Saturday, 
 
 ## Against what counts as done
 
-The [plan](../../VERIFICATION_OVERHAUL.md#what-counts-as-done) lists what counts as done for #113. This run speaks to three of its items.
+The [plan](../../records/VERIFICATION_OVERHAUL.md#what-counts-as-done) lists what counts as done for #113. This run speaks to three of its items.
 
 | Item | Result | Evidence |
 |---|---|---|

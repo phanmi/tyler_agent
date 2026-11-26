@@ -16,7 +16,7 @@ public final class PythonAgentService implements IAgentService {
      * Whether recordFood asks the model to check each food's nutrition values before saving.
      * The app keeps this check off in every chat, and no setting turns it on. The check stays
      * in the worker, and the run contract still requires the value, so the eval harness can
-     * measure the check. "Food verification" in docs/AGENT_OPERATIONS.md gives the reason.
+     * measure the check. "Food verification" in docs/architecture/AGENT_OPERATIONS.md gives the reason.
      */
     private static final boolean CHECK_NUTRITION = false;
 

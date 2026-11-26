@@ -1,6 +1,6 @@
 # Windows desktop packaging and offline acceptance
 
-[Developer guide](DEVELOPMENT.md) | [Migration tracker](AGENT_MIGRATION.md) | [Python worker](../agent-python/README.md)
+[Developer guide](../guides/DEVELOPMENT.md) | [Migration tracker](../records/AGENT_MIGRATION.md) | [Python worker](../../agent-python/README.md)
 
 ## Run the prepared offline bundle
 
@@ -24,7 +24,7 @@ The installer is currently unsigned. Do not enter real API keys or copy user dat
 
 ## Build from source
 
-Build on Windows x64 using Java **26** (`JAVA_HOME` points to the JDK), Maven, Node **22**/npm **10**, and uv **0.13.1**. The pinned Python version and dependency hashes are in `agent-python/.python-version` and `uv.lock`; npm dependencies come from `frontend/package-lock.json`. See [prerequisite installation](SETUP.md) and the [Python setup guide](../agent-python/README.md). Downloads happen during setup/build, never application startup.
+Build on Windows x64 using Java **26** (`JAVA_HOME` points to the JDK), Maven, Node **22**/npm **10**, and uv **0.13.1**. The pinned Python version and dependency hashes are in `agent-python/.python-version` and `uv.lock`; npm dependencies come from `frontend/package-lock.json`. See [prerequisite installation](../guides/SETUP.md) and the [Python setup guide](../../agent-python/README.md). Downloads happen during setup/build, never application startup.
 
 Run each command successfully before continuing. From the repository root:
 
@@ -105,7 +105,7 @@ Logs must contain neither the synthetic credential nor raw protocol frames. The 
 
 ## CI and release gates
 
-[CI](../.github/workflows/ci.yml) retains **Build and test** for locked Python checks/tests, full Java verification and cross-process integration, and frontend tests/types/build. **Windows packaged smoke** depends on that job, builds both workers and the installer, runs relocated-worker tests and the desktop smoke, and uploads release artifacts only after success. Failure diagnostics are uploaded separately even when the job fails.
+[CI](../../.github/workflows/ci.yml) retains **Build and test** for locked Python checks/tests, full Java verification and cross-process integration, and frontend tests/types/build. **Windows packaged smoke** depends on that job, builds both workers and the installer, runs relocated-worker tests and the desktop smoke, and uploads release artifacts only after success. Failure diagnostics are uploaded separately even when the job fails.
 
 Configure GitHub branch protection/rulesets to require **both job checks** after they have appeared in a workflow run. Editing workflow YAML does not configure merge protection. No remote CI success or repository-rule update is implied by local verification. Require these checks for startup/release changes and retain the clean-machine evidence before Step 9 completion/Step 10 rollout.
 

@@ -1,8 +1,8 @@
 # Verification overhaul eval, November 2026
 
-[Eval harness](../../../agent-python/evals/README.md) · [Full generated report](2026-11-18-verification-overhaul-report.md) · [Plan and decisions](../../VERIFICATION_OVERHAUL.md) · Baselines: [many foods](../many-items/2026-11-16-many-items.md), [units](../units/2026-11-17-units.md), [nutrition sources](../nutrition-sources/2026-11-16-nutrition-sources.md)
+[Eval harness](../../../agent-python/evals/README.md) · [Full generated report](2026-11-18-verification-overhaul-report.md) · [Plan and decisions](../../records/VERIFICATION_OVERHAUL.md) · Baselines: [many foods](../many-items/2026-11-16-many-items.md), [units](../units/2026-11-17-units.md), [nutrition sources](../nutrition-sources/2026-11-16-nutrition-sources.md)
 
-**This run measures the new food checks of [#113](https://github.com/phanmi/tyler_agent/issues/113).** The one verifier of [#96](https://github.com/phanmi/tyler_agent/issues/96) made every low-cost model worse on messages that list many foods. [PR #117](https://github.com/phanmi/tyler_agent/pull/117) replaces it with three separate checks inside `recordFood`: a name and count check, a date check and a content check. `recordFood` now takes every food of a message in one call. [Food verification](../../AGENT_OPERATIONS.md#food-verification) describes the checks.
+**This run measures the new food checks of [#113](https://github.com/phanmi/tyler_agent/issues/113).** The one verifier of [#96](https://github.com/phanmi/tyler_agent/issues/96) made every low-cost model worse on messages that list many foods. [PR #117](https://github.com/phanmi/tyler_agent/pull/117) replaces it with three separate checks inside `recordFood`: a name and count check, a date check and a content check. `recordFood` now takes every food of a message in one call. [Food verification](../../architecture/AGENT_OPERATIONS.md#food-verification) describes the checks.
 
 The three low-cost models ran all 67 cases. Each case is compared with its newest earlier run.
 
@@ -130,7 +130,7 @@ The report cannot say which change removed which problem. Between the baselines 
 
 ### Messages that list many foods
 
-The 20 `many-items` cases, 60 chats for each model and mode. Fully correct chats (%). The first two columns are the [many-foods baseline](../many-items/2026-11-16-many-items.md), which the [plan](../../VERIFICATION_OVERHAUL.md#what-counts-as-done) names as the result to beat.
+The 20 `many-items` cases, 60 chats for each model and mode. Fully correct chats (%). The first two columns are the [many-foods baseline](../many-items/2026-11-16-many-items.md), which the [plan](../../records/VERIFICATION_OVERHAUL.md#what-counts-as-done) names as the result to beat.
 
 | Model | Baseline 2026-11-16, no verification | Old verifier on | Units run 2026-11-17, no verification | Old verifier on | This run, nutrition check off | On |
 |---|--:|--:|--:|--:|--:|--:|
@@ -240,7 +240,7 @@ The providers' bills were not checked against these. The run was outside DeepSee
 
 ## Against what counts as done
 
-The [plan](../../VERIFICATION_OVERHAUL.md#what-counts-as-done) lists what counts as done for #113. This run speaks to three of its items.
+The [plan](../../records/VERIFICATION_OVERHAUL.md#what-counts-as-done) lists what counts as done for #113. This run speaks to three of its items.
 
 | Item | Result | Evidence |
 |---|---|---|
@@ -256,7 +256,7 @@ The plan's other two items are about the app: every check tool implemented, with
 
 ## Decisions
 
-The maintainer made three decisions from this run, on 2026-11-18. The plan records them under [Decisions](../../VERIFICATION_OVERHAUL.md#decisions), the third as D17. Under each decision below, the reason is the maintainer's, and the evidence is what this run shows for it.
+The maintainer made three decisions from this run, on 2026-11-18. The plan records them under [Decisions](../../records/VERIFICATION_OVERHAUL.md#decisions), the third as D17. Under each decision below, the reason is the maintainer's, and the evidence is what this run shows for it.
 
 ### `some-almonds` is set aside
 

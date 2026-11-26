@@ -1,6 +1,6 @@
 # 1.0 production release roadmap
 
-[Developer guide](DEVELOPMENT.md)
+[Developer guide](guides/DEVELOPMENT.md)
 
 Tyler 1.0 is complete when all of these are done:
 

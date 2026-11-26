@@ -34,7 +34,7 @@ body:
     id: backend_standards
     attributes:
       label: Backend standards
-      description: Backend changes must comply with docs/BACKEND_STANDARDS.md, including architecture, comments, diagnostic logging, and exception test coverage.
+      description: Backend changes must comply with docs/standards/BACKEND_STANDARDS.md, including architecture, comments, diagnostic logging, and exception test coverage.
       options:
         - label: I understand that all backend implementation for this task must comply with the backend coding and design standards.
           required: true
@@ -43,7 +43,7 @@ body:
     id: frontend_standards
     attributes:
       label: Frontend standards
-      description: Frontend changes must comply with docs/FRONTEND_STANDARDS.md.
+      description: Frontend changes must comply with docs/standards/FRONTEND_STANDARDS.md.
       options:
         - label: I understand that all frontend implementation for this task must comply with the frontend coding and design standards.
           required: true
